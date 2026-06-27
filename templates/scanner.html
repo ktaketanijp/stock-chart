@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>モメンタムスキャナー | トレードAI</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid #30363d;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: #8b949e;
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
+    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+
+    /* ---- Main ---- */
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    /* ---- Error Banner ---- */
+    #error-banner {
+      display: none;
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 8px;
+      color: #f85149;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    /* ---- Control Bar ---- */
+    .control-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+      padding: 16px 20px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 9px 18px;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: #1f6feb;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #388bfd; }
+    .btn-primary:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+    .btn-ai {
+      background: rgba(204,136,255,0.12);
+      color: #cc88ff;
+      border: 1px solid rgba(204,136,255,0.3);
+    }
+    .btn-ai:hover { background: rgba(204,136,255,0.22); }
+    .btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .spinner-purple {
+      border-color: rgba(204,136,255,0.2);
+      border-top-color: #cc88ff;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #scan-time {
+      font-size: 12px;
+      color: #8b949e;
+      margin-left: auto;
+    }
+
+    /* ---- Cards ---- */
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ---- Sector Rotation ---- */
+    .sector-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .sector-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .sector-card-label {
+      font-size: 11px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+    .sector-tag {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 8px;
+    }
+    .sector-tag-green {
+      background: rgba(63,185,80,0.12);
+      color: #3fb950;
+      border: 1px solid rgba(63,185,80,0.3);
+    }
+    .sector-tag-red {
+      background: rgba(248,81,73,0.12);
+      color: #f85149;
+      border: 1px solid rgba(248,81,73,0.3);
+    }
+    .sector-tag-blue {
+      background: rgba(88,166,255,0.12);
+      color: #58a6ff;
+      border: 1px solid rgba(88,166,255,0.3);
+    }
+    .sector-tag-yellow {
+      background: rgba(240,192,64,0.12);
+      color: #f0c040;
+      border: 1px solid rgba(240,192,64,0.3);
+    }
+    .sector-tag-gray {
+      background: rgba(139,148,158,0.12);
+      color: #8b949e;
+      border: 1px solid rgba(139,148,158,0.3);
+    }
+    .sector-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .sector-list li {
+      font-size: 12px;
+      color: #c9d1d9;
+      padding: 4px 8px;
+      background: #161b22;
+      border-radius: 4px;
+    }
+    .sector-loading {
+      color: #8b949e;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .inline-spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #30363d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    /* ---- Momentum Table ---- */
+    .table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead th {
+      text-align: left;
+      padding: 10px 14px;
+      color: #8b949e;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid #30363d;
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid #21262d;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(88,166,255,0.05); }
+    tbody td {
+      padding: 11px 14px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .td-rank {
+      color: #8b949e;
+      font-size: 12px;
+      width: 36px;
+    }
+    .td-ticker {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+    }
+    .td-name {
+      color: #8b949e;
+      font-size: 11px;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chg-pos { color: #3fb950; font-weight: 600; }
+    .chg-neg { color: #f85149; font-weight: 600; }
+    .vol-highlight {
+      color: #f0c040;
+      font-weight: 700;
+    }
+    .signal-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 20px;
+    }
+    .signal-strong-buy  { background: rgba(63,185,80,0.2);  color: #3fb950; border: 1px solid rgba(63,185,80,0.4); }
+    .signal-buy         { background: rgba(88,166,255,0.12); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); }
+    .signal-neutral     { background: rgba(139,148,158,0.1); color: #8b949e; border: 1px solid rgba(139,148,158,0.3); }
+    .signal-sell        { background: rgba(248,81,73,0.1);   color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: #8b949e;
+      font-size: 14px;
+    }
+    .empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+    /* ---- AI Opportunity Cards ---- */
+    .opp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .opp-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px 18px;
+      transition: border-color 0.2s;
+      cursor: pointer;
+    }
+    .opp-card:hover { border-color: #58a6ff; }
+    .opp-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .opp-ticker { font-size: 20px; font-weight: 800; color: #58a6ff; }
+    .opp-score {
+      font-size: 24px;
+      font-weight: 800;
+    }
+    .opp-signal { font-size: 12px; color: #8b949e; margin-bottom: 10px; }
+    .opp-reasons {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .opp-reasons li {
+      font-size: 12px;
+      color: #c9d1d9;
+      padding: 4px 8px;
+      background: #161b22;
+      border-radius: 4px;
+      border-left: 2px solid #30363d;
+    }
+
+    .ai-note {
+      font-size: 12px;
+      color: #8b949e;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      background: rgba(204,136,255,0.06);
+      border: 1px solid rgba(204,136,255,0.15);
+      border-radius: 8px;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 768px) {
+      .sector-grid { grid-template-columns: 1fr; }
+      main { padding: 16px; }
+      .control-bar { padding: 12px 16px; }
+      header { padding: 12px 16px; }
+      .card { padding: 16px; }
+    }
+    @media (max-width: 480px) {
+      .g-nav-link { font-size: 12px; padding: 4px 8px; }
+      .btn { font-size: 13px; padding: 8px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link">📊 分析</a>
+    <a href="/scanner" class="g-nav-link active">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link">⚙️ 状況</a>
+  </nav>
+
+  <main>
+    <div class="page-title" style="padding: 16px 24px 0; color: #8b949e; font-size: 13px;">
+      <span style="font-size: 18px; font-weight: 700; color: #58a6ff;">モメンタムスキャナー</span>
+      &nbsp;シグナルスコア上位銘柄をリアルタイム検出
+    </div>
+    <!-- Error Banner -->
+    <div id="error-banner"></div>
+
+    <!-- Control Bar -->
+    <div class="control-bar">
+      <button class="btn btn-primary" id="btn-scan" onclick="runMomentumScan()">
+        <div class="spinner" id="scan-spinner"></div>
+        モメンタムスキャン
+      </button>
+      <button class="btn btn-ai" id="btn-opp" onclick="runOpportunityScan()">
+        <div class="spinner spinner-purple" id="opp-spinner"></div>
+        機会スキャン（AI判定）
+      </button>
+      <button class="btn btn-secondary" id="btn-premarket" onclick="runPremarketScan()" style="border-color:#56d364;color:#56d364">
+        <div class="spinner" id="premarket-spinner"></div>
+        プレマーケット
+      </button>
+      <button class="btn btn-secondary" id="btn-topmovers" onclick="runTopMoversScan()" style="border-color:#d2a8ff;color:#d2a8ff">
+        <div class="spinner" id="topmovers-spinner"></div>
+        全銘柄ランキング
+      </button>
+      <span id="scan-time"></span>
+    </div>
+
+    <!-- Sector Rotation -->
+    <div class="card">
+      <div class="card-title">セクターローテーション</div>
+      <div id="sector-content">
+        <div class="sector-loading">
+          <span class="inline-spinner"></span> セクターデータ取得中...
+        </div>
+      </div>
+    </div>
+
+    <!-- Momentum Scan Results -->
+    <div class="card">
+      <div class="card-title">スキャン結果</div>
+      <div id="momentum-content">
+        <div class="empty-state">
+          <div class="empty-icon">&#x1F50D;</div>
+          <p>「今すぐスキャン」ボタンでモメンタム銘柄を検出します</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Opportunities -->
+    <div class="card" id="opp-section" style="display:none">
+      <div class="card-title">AI 機会スキャン（BUY / STRONG BUY）</div>
+      <div class="ai-note">AI判定により BUY / STRONG_BUY シグナルが出た銘柄のみ表示しています。スキャンには 10〜30 秒かかる場合があります。</div>
+      <div id="opp-content"></div>
+    </div>
+
+    <!-- Premarket -->
+    <div class="card" id="premarket-section" style="display:none">
+      <div class="card-title">プレマーケット変動ランキング</div>
+      <div id="premarket-content"></div>
+    </div>
+  </main>
+
+  <script>
+    // ---- Utility ----
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function showError(msg) {
+      const el = document.getElementById("error-banner");
+      el.textContent = msg;
+      el.style.display = "block";
+      setTimeout(() => { el.style.display = "none"; }, 8000);
+    }
+
+    function fmtChg(val) {
+      if (val == null) return "—";
+      const n = parseFloat(val);
+      const sign = n >= 0 ? "+" : "";
+      const cls = n >= 0 ? "chg-pos" : "chg-neg";
+      return `<span class="${cls}">${sign}${n.toFixed(2)}%</span>`;
+    }
+
+    function fmtVolRatio(val) {
+      if (val == null) return "—";
+      const n = parseFloat(val);
+      const txt = `${n.toFixed(1)}x`;
+      return n >= 2 ? `<span class="vol-highlight">${txt}</span>` : txt;
+    }
+
+    function fmtSignal(sig) {
+      if (!sig) return "";
+      const map = {
+        "STRONG_BUY": ["signal-strong-buy", "STRONG BUY"],
+        "BUY":        ["signal-buy",         "BUY"],
+        "NEUTRAL":    ["signal-neutral",      "NEUTRAL"],
+        "SELL":       ["signal-sell",         "SELL"],
+        "STRONG_SELL":["signal-sell",         "STRONG SELL"],
+      };
+      const key = sig.toUpperCase().replace(" ", "_");
+      const [cls, label] = map[key] || ["signal-neutral", escHtml(sig)];
+      return `<span class="signal-badge ${cls}">${label}</span>`;
+    }
+
+    function scoreColor(score) {
+      if (score == null) return "#8b949e";
+      const n = parseInt(score, 10);
+      if (n >= 70) return "#3fb950";
+      if (n >= 50) return "#58a6ff";
+      if (n >= 30) return "#f0c040";
+      return "#f85149";
+    }
+
+    // ---- Sector Rotation ----
+    async function loadSectorRotation() {
+      try {
+        const res = await fetch("/api/sector/rotation");
+        const data = await res.json();
+        renderSector(data);
+      } catch (e) {
+        document.getElementById("sector-content").innerHTML =
+          `<p style="color:#f85149;font-size:13px">セクターデータ取得エラー: ${escHtml(e.message)}</p>`;
+      }
+    }
+
+    function renderSector(data) {
+      const leading = data.leading || data.leading_sectors || [];
+      const lagging = data.lagging || data.lagging_sectors || [];
+      const env     = data.rotation_signal || data.market_env || "neutral";
+
+      let envTag = "";
+      if (env === "risk_on") {
+        envTag = `<span class="sector-tag sector-tag-green">risk_on</span>`;
+      } else if (env === "risk_off") {
+        envTag = `<span class="sector-tag sector-tag-red">risk_off</span>`;
+      } else {
+        envTag = `<span class="sector-tag sector-tag-yellow">neutral</span>`;
+      }
+
+      // 全セクターテーブル
+      const sectors = data.sectors || {};
+      const sectorRows = Object.entries(sectors)
+        .sort((a, b) => (b[1].perf_1m ?? 0) - (a[1].perf_1m ?? 0))
+        .map(([etf, s]) => {
+          const p1 = s.perf_1m ?? null;
+          const p3 = s.perf_3m ?? null;
+          const c1 = p1 == null ? "#8b949e" : p1 >= 0 ? "#3fb950" : "#f85149";
+          const c3 = p3 == null ? "#8b949e" : p3 >= 0 ? "#3fb950" : "#f85149";
+          return `<tr>
+            <td style="font-size:11px;color:#8b949e">${escHtml(etf)}</td>
+            <td>${escHtml(s.name || etf)}</td>
+            <td style="color:${c1};font-weight:700;text-align:right">${p1 != null ? (p1 >= 0 ? '+' : '') + p1.toFixed(2) + '%' : '—'}</td>
+            <td style="color:${c3};font-weight:700;text-align:right">${p3 != null ? (p3 >= 0 ? '+' : '') + p3.toFixed(2) + '%' : '—'}</td>
+          </tr>`;
+        }).join("");
+
+      const sectorTable = sectorRows.length > 0 ? `
+        <div style="margin-top:16px">
+          <div style="font-size:12px;color:#8b949e;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">全セクター パフォーマンス</div>
+          <div class="table-wrap">
+            <table style="font-size:12px">
+              <thead><tr><th>ETF</th><th>セクター</th><th style="text-align:right">1ヶ月</th><th style="text-align:right">3ヶ月</th></tr></thead>
+              <tbody>${sectorRows}</tbody>
+            </table>
+          </div>
+        </div>` : "";
+
+      document.getElementById("sector-content").innerHTML = `
+        <div class="sector-grid">
+          <div class="sector-card">
+            <div class="sector-card-label">リーディングセクター</div>
+            <ul class="sector-list">
+              ${leading.length ? leading.map(s =>
+                `<li><span style="color:#3fb950">&#x25B2;</span> ${escHtml(s)}</li>`
+              ).join("") : "<li style='color:#8b949e'>データなし</li>"}
+            </ul>
+          </div>
+          <div class="sector-card">
+            <div class="sector-card-label">ラギングセクター</div>
+            <ul class="sector-list">
+              ${lagging.length ? lagging.map(s =>
+                `<li><span style="color:#f85149">&#x25BC;</span> ${escHtml(s)}</li>`
+              ).join("") : "<li style='color:#8b949e'>データなし</li>"}
+            </ul>
+          </div>
+          <div class="sector-card">
+            <div class="sector-card-label">マーケット環境</div>
+            ${envTag}
+            ${data.summary ? `<p style="font-size:12px;color:#8b949e;margin-top:10px;line-height:1.5">${escHtml(data.summary)}</p>` : ""}
+            ${data.updated_at ? `<p style="font-size:11px;color:#8b949e;margin-top:6px">更新: ${escHtml(data.updated_at)}</p>` : ""}
+          </div>
+        </div>
+        ${sectorTable}`;
+    }
+
+    // ---- Momentum Scan ----
+    async function runMomentumScan() {
+      const btn     = document.getElementById("btn-scan");
+      const spinner = document.getElementById("scan-spinner");
+      btn.disabled  = true;
+      spinner.style.display = "block";
+      document.getElementById("momentum-content").innerHTML =
+        `<div class="empty-state"><span class="inline-spinner"></span>&nbsp; スキャン中...</div>`;
+
+      try {
+        const res  = await fetch("/api/scan/momentum", { signal: AbortSignal.timeout(90000) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderMomentumTable(Array.isArray(data) ? data : (data.results || []));
+        const now = new Date();
+        document.getElementById("scan-time").textContent =
+          `最終スキャン: ${now.toLocaleTimeString("ja-JP")}`;
+      } catch (e) {
+        showError(`モメンタムスキャンエラー: ${e.message}`);
+        document.getElementById("momentum-content").innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function renderMomentumTable(rows, isAllMovers = false) {
+      if (!rows || rows.length === 0) {
+        document.getElementById("momentum-content").innerHTML =
+          `<div class="empty-state"><div class="empty-icon">&#x1F4CA;</div><p>フィルタ条件（変化率 >1% かつ 出来高比 >1.5x）に合致する銘柄なし<br><span style="font-size:12px;color:#8b949e">市場時間外または低ボラティリティ環境です</span></p></div>`;
+        return;
+      }
+
+      const html = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>銘柄</th>
+                <th>変化率</th>
+                <th>出来高比</th>
+                <th>52週高値比</th>
+                <th>CAN SLIM</th>
+                <th>シグナル</th>
+                <th>分析</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r, i) => {
+                const ticker  = r.ticker || r.symbol || "—";
+                const chgPct  = r.change_pct  ?? r.change ?? null;
+                const volRatio = r.volume_ratio ?? r.vol_ratio ?? null;
+                const wk52pct  = r.pct_from_52w_high ?? r.week52_high_pct ?? r.from_52w_high ?? null;
+                const canslim  = r.canslim_score ?? r.score ?? null;
+                const signal   = r.signal ?? null;
+                const wk52txt  = wk52pct != null ? `${parseFloat(wk52pct).toFixed(1)}%` : "—";
+                const canslimTxt = canslim != null
+                  ? `<span style="color:${scoreColor(canslim)};font-weight:700">${canslim}</span>`
+                  : "—";
+                return `
+                  <tr onclick="goToAnalysis('${escHtml(ticker)}')">
+                    <td class="td-rank">${i + 1}</td>
+                    <td>
+                      <div class="td-ticker">${escHtml(ticker)}</div>
+                      ${r.name ? `<div class="td-name">${escHtml(r.name)}</div>` : ""}
+                    </td>
+                    <td>${fmtChg(chgPct)}</td>
+                    <td>${fmtVolRatio(volRatio)}</td>
+                    <td>${wk52txt}</td>
+                    <td>${canslimTxt}</td>
+                    <td>${fmtSignal(signal)}</td>
+                    <td><a href="/analysis?ticker=${encodeURIComponent(ticker)}" style="color:#58a6ff;text-decoration:none" onclick="event.stopPropagation()">分析 →</a></td>
+                  </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`;
+      document.getElementById("momentum-content").innerHTML = html;
+    }
+
+    function goToAnalysis(ticker) {
+      window.location.href = `/analysis?ticker=${encodeURIComponent(ticker)}`;
+    }
+
+    // ---- Top Movers (フィルタなし全銘柄) ----
+    async function runTopMoversScan() {
+      const btn     = document.getElementById("btn-topmovers");
+      const spinner = document.getElementById("topmovers-spinner");
+      btn.disabled  = true;
+      spinner.style.display = "block";
+      document.getElementById("momentum-content").innerHTML =
+        `<div class="empty-state"><span class="inline-spinner"></span>&nbsp; 全銘柄変化率ランキング取得中...</div>`;
+
+      try {
+        const res  = await fetch("/api/scan/top-movers", { signal: AbortSignal.timeout(90000) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        const rows = Array.isArray(data) ? data : (data.results || []);
+        renderMomentumTable(rows, true);
+        const now = new Date();
+        document.getElementById("scan-time").textContent =
+          `最終スキャン: ${now.toLocaleTimeString("ja-JP")} (全銘柄)`;
+      } catch (e) {
+        showError(`トップムーバーエラー: ${e.message}`);
+        document.getElementById("momentum-content").innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    // ---- Premarket Scan ----
+    async function runPremarketScan() {
+      const btn     = document.getElementById("btn-premarket");
+      const spinner = document.getElementById("premarket-spinner");
+      const section = document.getElementById("premarket-section");
+      btn.disabled  = true;
+      spinner.style.display = "block";
+      section.style.display = "block";
+      document.getElementById("premarket-content").innerHTML =
+        `<div class="empty-state"><span class="inline-spinner"></span>&nbsp; プレマーケットデータ取得中...</div>`;
+
+      try {
+        const res  = await fetch("/api/scan/premarket", { signal: AbortSignal.timeout(60000) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        const list = Array.isArray(data) ? data : (data.results || data.premarket || []);
+        renderPremarketTable(list);
+      } catch (e) {
+        showError(`プレマーケットスキャンエラー: ${e.message}`);
+        document.getElementById("premarket-content").innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function renderPremarketTable(rows) {
+      if (!rows || rows.length === 0) {
+        document.getElementById("premarket-content").innerHTML =
+          `<div class="empty-state"><div class="empty-icon">&#x1F305;</div><p>プレマーケットデータなし</p></div>`;
+        return;
+      }
+
+      const sorted = [...rows].sort((a, b) => {
+        const pa = Math.abs(a.premarket_change_pct ?? 0);
+        const pb = Math.abs(b.premarket_change_pct ?? 0);
+        return pb - pa;
+      });
+
+      const html = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>銘柄</th>
+                <th>プレマーケット価格</th>
+                <th>前日終値</th>
+                <th>変化率</th>
+                <th>出来高</th>
+                <th>分析</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sorted.map((r, i) => {
+                const ticker  = r.ticker || r.symbol || "—";
+                const pmPrice = r.premarket_price ?? null;
+                const prev    = r.prev_close ?? null;
+                const chgPct  = r.premarket_change_pct ?? null;
+                const vol     = r.premarket_volume ?? null;
+                const chgStr  = chgPct != null
+                  ? `<span style="color:${chgPct >= 0 ? '#3fb950' : '#f85149'};font-weight:700">${chgPct >= 0 ? '+' : ''}${parseFloat(chgPct).toFixed(2)}%</span>`
+                  : "—";
+                const volStr  = vol != null ? Number(vol).toLocaleString() : "—";
+                return `
+                  <tr>
+                    <td class="td-rank">${i + 1}</td>
+                    <td>
+                      <div class="td-ticker">${escHtml(ticker)}</div>
+                    </td>
+                    <td>${pmPrice != null ? `$${parseFloat(pmPrice).toFixed(2)}` : "—"}</td>
+                    <td>${prev != null ? `$${parseFloat(prev).toFixed(2)}` : "—"}</td>
+                    <td>${chgStr}</td>
+                    <td>${volStr}</td>
+                    <td><a href="/analysis?ticker=${encodeURIComponent(ticker)}" style="color:#58a6ff;text-decoration:none" onclick="event.stopPropagation()">分析 →</a></td>
+                  </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`;
+      document.getElementById("premarket-content").innerHTML = html;
+    }
+
+    // ---- Opportunity Scan (AI) ----
+    async function runOpportunityScan() {
+      const btn     = document.getElementById("btn-opp");
+      const spinner = document.getElementById("opp-spinner");
+      const section = document.getElementById("opp-section");
+      btn.disabled  = true;
+      spinner.style.display = "block";
+      section.style.display = "block";
+      document.getElementById("opp-content").innerHTML =
+        `<div class="empty-state"><span class="inline-spinner"></span>&nbsp; AI判定スキャン中（10〜30秒かかる場合があります）...</div>`;
+
+      try {
+        const res  = await fetch("/api/scan/opportunities", { signal: AbortSignal.timeout(90000) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        const list = Array.isArray(data) ? data : (data.opportunities || data.results || []);
+        renderOpportunities(list);
+      } catch (e) {
+        showError(`機会スキャンエラー: ${e.message}`);
+        document.getElementById("opp-content").innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function renderOpportunities(list) {
+      if (!list || list.length === 0) {
+        document.getElementById("opp-content").innerHTML =
+          `<div class="empty-state"><div class="empty-icon">&#x1F916;</div><p>BUY / STRONG_BUY シグナルの銘柄は現在なし</p></div>`;
+        return;
+      }
+
+      const cards = list.map(item => {
+        const ticker  = item.ticker || item.symbol || "—";
+        const score   = item.total_score ?? item.score ?? item.canslim_score ?? null;
+        const signal  = item.signal || item.judgment || "";
+        const reasons = item.reasons || item.signals || [];
+        const color   = scoreColor(score);
+        const price   = item.current_price;
+        const sl      = item.stop_loss;
+        const tgt     = item.target;
+        const rr      = item.risk_reward;
+
+        const reasonsHtml = reasons.length
+          ? `<ul class="opp-reasons">${reasons.slice(0,4).map(r => `<li>${escHtml(String(r))}</li>`).join("")}</ul>`
+          : "";
+
+        const tradeInfo = (price && sl) ? `
+          <div style="margin-top:8px;font-size:11px;color:#8b949e;display:grid;grid-template-columns:1fr 1fr;gap:2px;">
+            <span>現値: <b style="color:#e6edf3">$${price.toFixed(2)}</b></span>
+            <span>損切: <b style="color:#f85149">$${sl.toFixed(2)}</b></span>
+            ${tgt ? `<span>目標: <b style="color:#3fb950">$${tgt.toFixed(2)}</b></span>` : ""}
+            ${rr  ? `<span>RR比: <b style="color:#d2a8ff">${rr}x</b></span>` : ""}
+          </div>` : "";
+
+        return `
+          <div class="opp-card" onclick="goToAnalysis('${escHtml(ticker)}')">
+            <div class="opp-card-header">
+              <span class="opp-ticker">${escHtml(ticker)}</span>
+              ${score != null ? `<span class="opp-score" style="color:${color}">${score}</span>` : ""}
+            </div>
+            <div class="opp-signal">${fmtSignal(signal)}</div>
+            ${tradeInfo}
+            ${reasonsHtml}
+          </div>`;
+      }).join("");
+
+      document.getElementById("opp-content").innerHTML = `<div class="opp-grid">${cards}</div>`;
+    }
+
+    // ---- Init ----
+    window.addEventListener("DOMContentLoaded", () => {
+      loadSectorRotation();
+    });
+  </script>
+</body>
+</html>

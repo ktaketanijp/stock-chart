@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ポケモンTCG AIバトルチャレンジ 管理ページ</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans JP', system-ui, -apple-system, sans-serif;
+      background: #0d0d2b;
+      color: #e8e8f0;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    a { color: #ffd700; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ===== HEADER / BANNER ===== */
+    .banner {
+      background: linear-gradient(135deg, #1a1a4e 0%, #0d0d2b 50%, #1a1a4e 100%);
+      border-bottom: 3px solid #ffd700;
+      padding: 2rem 1.5rem 1.5rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .banner::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at center, rgba(255,215,0,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .banner-title {
+      font-size: clamp(1.6rem, 4vw, 2.8rem);
+      font-weight: 900;
+      color: #ffd700;
+      letter-spacing: 0.04em;
+      text-shadow: 0 0 30px rgba(255,215,0,0.4);
+      margin-bottom: 0.5rem;
+    }
+    .banner-subtitle {
+      font-size: 0.9rem;
+      color: #aab0cc;
+      margin-bottom: 1.2rem;
+    }
+    .banner-organizers {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .org-badge {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,215,0,0.3);
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.78rem;
+      color: #d4d8f0;
+    }
+    .countdown-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+    .countdown-block {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,215,0,0.25);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      min-width: 220px;
+    }
+    .countdown-label {
+      font-size: 0.75rem;
+      color: #aab0cc;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.4rem;
+    }
+    .countdown-deadline {
+      font-size: 0.85rem;
+      color: #e63946;
+      font-weight: 700;
+      margin-bottom: 0.6rem;
+    }
+    .countdown-timer {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: #ffd700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+    }
+    .prize-bar {
+      margin-top: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      font-size: 0.85rem;
+    }
+    .prize-item {
+      background: rgba(230,57,70,0.15);
+      border: 1px solid rgba(230,57,70,0.4);
+      border-radius: 8px;
+      padding: 0.4rem 1rem;
+      color: #ffd700;
+      font-weight: 700;
+    }
+
+    /* ===== MAIN LAYOUT ===== */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #ffd700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border-left: 4px solid #e63946;
+      padding-left: 0.75rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    /* ===== COMP FLOW ===== */
+    .flow-section {
+      margin-bottom: 2rem;
+    }
+    .flow-note {
+      font-size: 0.8rem;
+      color: #aab0cc;
+      background: rgba(255,215,0,0.06);
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      margin-top: 1rem;
+    }
+    .flow-note strong {
+      color: #ffd700;
+    }
+    .flow-wrapper {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+    .flow-step {
+      flex: 1;
+      min-width: 180px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 1.1rem 1rem;
+      position: relative;
+    }
+    .flow-step.step-r2 {
+      border-color: rgba(230,57,70,0.5);
+      background: rgba(230,57,70,0.06);
+    }
+    .flow-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 0.4rem;
+      color: #5a5e8a;
+      font-size: 1.3rem;
+      flex-shrink: 0;
+      align-self: center;
+    }
+    .flow-round-label {
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #7a7eaa;
+      margin-bottom: 0.5rem;
+    }
+    .flow-step.step-r2 .flow-round-label {
+      color: #e63946;
+    }
+    .flow-step-num {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #ffd700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.3rem;
+    }
+    .flow-step-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #e8e8f0;
+      margin-bottom: 0.4rem;
+      line-height: 1.3;
+    }
+    .flow-step-desc {
+      font-size: 0.75rem;
+      color: #aab0cc;
+      line-height: 1.5;
+      margin-bottom: 0.4rem;
+    }
+    .flow-step-deadline {
+      font-size: 0.72rem;
+      color: #e63946;
+      font-weight: 700;
+    }
+    .flow-step-result {
+      font-size: 0.72rem;
+      color: #22c55e;
+      margin-top: 0.4rem;
+      font-weight: 600;
+    }
+
+    /* ===== TODO LIST ===== */
+    .todo-group-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #aab0cc;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin: 1.2rem 0 0.6rem;
+    }
+    .todo-group-title:first-of-type { margin-top: 0; }
+
+    .todo-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      padding: 0.6rem 0.4rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+      border-radius: 6px;
+    }
+    .todo-item:hover { background: rgba(255,255,255,0.04); }
+    .todo-item:last-child { border-bottom: none; }
+
+    .todo-check {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #5a5e8a;
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .todo-item.done .todo-check {
+      background: #ffd700;
+      border-color: #ffd700;
+    }
+    .todo-item.done .todo-check::after {
+      content: '';
+      width: 10px;
+      height: 6px;
+      border-left: 2px solid #0d0d2b;
+      border-bottom: 2px solid #0d0d2b;
+      transform: rotate(-45deg) translate(1px, -1px);
+      display: block;
+    }
+    .todo-text {
+      font-size: 0.9rem;
+      color: #d0d4e8;
+      line-height: 1.5;
+      flex: 1;
+    }
+    .todo-main {
+      font-weight: 600;
+      margin-bottom: 0.15rem;
+    }
+    .todo-sub {
+      font-size: 0.78rem;
+      color: #7a7eaa;
+      font-weight: 400;
+      line-height: 1.5;
+    }
+    .todo-item.done .todo-text {
+      color: #5a5e8a;
+      text-decoration: line-through;
+    }
+    .todo-item.done .todo-sub {
+      color: #3e4265;
+    }
+    code {
+      background: rgba(255,215,0,0.1);
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      font-size: 0.85em;
+      color: #ffd700;
+      font-family: 'Courier New', monospace;
+    }
+
+    .progress-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      color: #aab0cc;
+    }
+    .progress-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ffd700, #e63946);
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+
+    /* ===== ROADMAP ===== */
+    .roadmap-scroll {
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+    .roadmap-grid {
+      display: flex;
+      gap: 0.75rem;
+      min-width: 900px;
+    }
+    .week-card {
+      flex: 1;
+      min-width: 120px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 0.9rem 0.75rem;
+      position: relative;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .week-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255,215,0,0.4);
+    }
+    .week-card.current {
+      border-color: #ffd700;
+      background: rgba(255,215,0,0.06);
+    }
+    .week-card.current::before {
+      content: 'NOW';
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #e63946;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      letter-spacing: 0.1em;
+    }
+    .week-card.strategy-phase {
+      border-color: rgba(34,197,94,0.4);
+      background: rgba(34,197,94,0.05);
+    }
+    .week-card.strategy-phase::before {
+      content: '4週間';
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #22c55e;
+      color: #0d0d2b;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .week-card.strategy-phase:hover {
+      border-color: rgba(34,197,94,0.7);
+    }
+    .week-num {
+      font-size: 0.7rem;
+      color: #ffd700;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.3rem;
+    }
+    .week-card.strategy-phase .week-num {
+      color: #22c55e;
+    }
+    .week-period {
+      font-size: 0.72rem;
+      color: #7a7eaa;
+      margin-bottom: 0.5rem;
+    }
+    .week-goal {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #e8e8f0;
+      margin-bottom: 0.4rem;
+      line-height: 1.3;
+    }
+    .week-tech {
+      font-size: 0.72rem;
+      color: #aab0cc;
+      line-height: 1.4;
+      margin-bottom: 0.4rem;
+    }
+    .week-milestone {
+      font-size: 0.7rem;
+      color: #22c55e;
+      font-weight: 600;
+      line-height: 1.4;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 0.4rem;
+      margin-top: 0.3rem;
+    }
+
+    /* ===== RULES ===== */
+    .rules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.2rem;
+    }
+    .rules-block {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(230,57,70,0.25);
+      border-radius: 10px;
+      padding: 1.1rem;
+    }
+    .rules-block-title {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: #e63946;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.8rem;
+    }
+    .rules-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .rules-list li {
+      font-size: 0.84rem;
+      color: #d0d4e8;
+      padding-left: 1rem;
+      position: relative;
+      line-height: 1.5;
+    }
+    .rules-list li::before {
+      content: '-';
+      position: absolute;
+      left: 0;
+      color: #e63946;
+      font-weight: 700;
+    }
+    .rules-list li strong {
+      color: #ffd700;
+    }
+    .code-block {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,215,0,0.15);
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      color: #d0d4e8;
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+      margin-top: 0.4rem;
+    }
+    .code-comment {
+      color: #5a5e8a;
+    }
+    .code-keyword {
+      color: #ffd700;
+    }
+    .code-fn {
+      color: #4a90e2;
+    }
+
+    /* ===== TECH STACK ===== */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .tech-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .tech-item-label {
+      font-size: 0.72rem;
+      color: #7a7eaa;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.35rem;
+    }
+    .tech-item-value {
+      font-size: 0.88rem;
+      color: #e8e8f0;
+      font-weight: 600;
+    }
+
+    /* ===== SCORING ===== */
+    .score-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+    .score-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .score-label {
+      font-size: 0.92rem;
+      color: #d0d4e8;
+      font-weight: 600;
+    }
+    .score-pct {
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #ffd700;
+      white-space: nowrap;
+    }
+    .score-bar-bg {
+      grid-column: 1 / -1;
+      height: 8px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: -0.4rem;
+    }
+    .score-bar-fg {
+      height: 100%;
+      border-radius: 999px;
+    }
+    .color-gold  { background: linear-gradient(90deg, #ffd700, #ffaa00); }
+    .color-blue  { background: linear-gradient(90deg, #4a90e2, #2563eb); }
+    .color-red   { background: linear-gradient(90deg, #e63946, #c1121f); }
+    .score-desc {
+      grid-column: 1 / -1;
+      font-size: 0.78rem;
+      color: #7a7eaa;
+      margin-top: -0.2rem;
+      line-height: 1.6;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .score-desc:last-child {
+      border-bottom: none;
+    }
+
+    /* ===== LINKS ===== */
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 0.75rem;
+    }
+    .link-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      transition: border-color 0.2s, background 0.2s;
+      text-decoration: none;
+    }
+    .link-item:hover {
+      border-color: rgba(255,215,0,0.4);
+      background: rgba(255,215,0,0.05);
+      text-decoration: none;
+    }
+    .link-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-red    { background: #e63946; }
+    .dot-blue   { background: #4a90e2; }
+    .dot-gold   { background: #ffd700; }
+    .dot-green  { background: #22c55e; }
+    .dot-purple { background: #a855f7; }
+    .link-info { flex: 1; min-width: 0; }
+    .link-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #e8e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .link-url {
+      font-size: 0.72rem;
+      color: #5a5e8a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .link-arrow {
+      color: #5a5e8a;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    /* ===== MEMO ===== */
+    .memo-textarea {
+      width: 100%;
+      min-height: 160px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      color: #e8e8f0;
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 1rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+      line-height: 1.7;
+    }
+    .memo-textarea:focus {
+      border-color: rgba(255,215,0,0.5);
+    }
+    .memo-status {
+      font-size: 0.75rem;
+      color: #5a5e8a;
+      text-align: right;
+      margin-top: 0.4rem;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 600px) {
+      .banner { padding: 1.5rem 1rem 1.2rem; }
+      .container { padding: 1.5rem 1rem; }
+      .card { padding: 1.2rem 1rem; }
+      .countdown-block { min-width: 160px; padding: 0.8rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== SECTION 1: バナー ===== -->
+<div class="banner">
+  <div class="banner-title">ポケモンTCG AIバトルチャレンジ</div>
+  <div class="banner-subtitle">Kaggle コンペ管理ダッシュボード</div>
+  <div class="banner-organizers">
+    <span class="org-badge">ポケモン社</span>
+    <span class="org-badge">東大松尾研</span>
+    <span class="org-badge">HEROZ</span>
+    <span class="org-badge">Google</span>
+    <span class="org-badge">NVIDIA</span>
+  </div>
+  <div class="countdown-grid">
+    <div class="countdown-block">
+      <div class="countdown-label">Simulation 締切</div>
+      <div class="countdown-deadline">2026年8月16日</div>
+      <div class="countdown-timer" id="timer-sim">--d --h --m --s</div>
+    </div>
+    <div class="countdown-block">
+      <div class="countdown-label">Strategy 締切</div>
+      <div class="countdown-deadline">2026年9月13日</div>
+      <div class="countdown-timer" id="timer-str">--d --h --m --s</div>
+    </div>
+  </div>
+  <div class="prize-bar">
+    <span class="prize-item">ファイナリスト8チーム x $30,000</span>
+    <span class="prize-item">優勝 $50,000（第2ラウンド）</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ===== SECTION 2: コンペ全体フロー ===== -->
+  <div class="section-title">コンペ全体フロー</div>
+  <div class="flow-section card">
+    <div class="flow-wrapper">
+      <div class="flow-step">
+        <div class="flow-round-label">第1ラウンド</div>
+        <div class="flow-step-num">STEP 1</div>
+        <div class="flow-step-title">Simulation部門</div>
+        <div class="flow-step-desc">AIエージェント対戦<br>ラダーレーティング獲得</div>
+        <div class="flow-step-deadline">締切: 8/16</div>
+        <div class="flow-step-result">ラダー順位が確定</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="flow-round-label">第1ラウンド</div>
+        <div class="flow-step-num">STEP 2</div>
+        <div class="flow-step-title">Strategy部門</div>
+        <div class="flow-step-desc">技術レポート提出（英語2000語）<br>独創性70% + デッキ20% + 文章10%</div>
+        <div class="flow-step-deadline">締切: 9/13</div>
+        <div class="flow-step-result">採点はレポート内容のみ</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="flow-round-label">選出</div>
+        <div class="flow-step-num">STEP 3</div>
+        <div class="flow-step-title">ファイナリスト選出</div>
+        <div class="flow-step-desc">Simulation + Strategy の総合評価で上位8チームを選出</div>
+        <div class="flow-step-result">各チーム $30,000</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step step-r2">
+        <div class="flow-round-label">第2ラウンド</div>
+        <div class="flow-step-num">STEP 4</div>
+        <div class="flow-step-title">対面トーナメント（東京）</div>
+        <div class="flow-step-desc">2026年末・YouTube公式ライブ配信<br>8チームによる決勝戦</div>
+        <div class="flow-step-result">優勝 $50,000 / 2位 $30,000</div>
+      </div>
+    </div>
+    <div class="flow-note">
+      <strong>重要:</strong> SimulationのラダーランキングはStrategyレポートの採点には直接含まれない。Strategyの評価は提出した技術レポートの内容のみで行われる。両部門への参加が第2ラウンド選出の条件。
+    </div>
+  </div>
+
+  <!-- ===== SECTION 3: TODOステータスボード ===== -->
+  <div class="section-title">ステータスボード</div>
+  <div class="card">
+    <div class="progress-info">
+      <span id="todo-done-count">0</span>/<span id="todo-total-count">0</span> 完了
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="todo-progress" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="todo-group-title">準備フェーズ（今すぐ）</div>
+    <div class="todo-item" data-id="t01" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">Kaggleアカウント作成</div>
+        <div class="todo-sub">電話番号・顔認証が必要。自分で作業が必要</div>
+      </div>
+    </div>
+    <div class="todo-item" data-id="t02" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">cabt engineをインストール</div>
+        <div class="todo-sub"><code>pip install cabt kaggle-environments</code> をサーバーで実行</div>
+      </div>
+    </div>
+    <div class="todo-item" data-id="t03" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">スターターコードで初回提出</div>
+        <div class="todo-sub">bellibolt deckをそのままコピーして提出。最初のラダー参加が目標</div>
+      </div>
+    </div>
+    <div class="todo-item" data-id="t04" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">現行スタンダードカードプールを確認</div>
+        <div class="todo-sub">I・J以降のレギュレーション。F〜Hから変わったカードを把握する</div>
+      </div>
+    </div>
+
+    <div class="todo-group-title">開発フェーズ Week 2〜3</div>
+    <div class="todo-item" data-id="t05" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">盤面評価関数を設計・実装</div>
+        <div class="todo-sub">サイドカード枚数・相手HP残・エネルギー状況をスコア化。Greedy選択でELO 900以上が目安</div>
+      </div>
+    </div>
+    <div class="todo-item" data-id="t06" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">対戦ログを分析して弱点を特定</div>
+        <div class="todo-sub">エピソードデータセットで自分のエージェントの負けパターンを分析する</div>
+      </div>
+    </div>
+
+    <div class="todo-group-title">開発フェーズ Week 4〜5</div>
+    <div class="todo-item" data-id="t07" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">MCTS（モンテカルロ木探索）を実装</div>
+        <div class="todo-sub">cabt engineのsearch APIを使って先読み探索を導入。ELO 1000以上が目安</div>
+      </div>
+    </div>
+    <div class="todo-item" data-id="t08" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">PPO self-play学習をセットアップ</div>
+        <div class="todo-sub">Kaggle無料GPU（週30時間）で自己対戦学習。stable-baselines3を使用</div>
+      </div>
+    </div>
+
+    <div class="todo-group-title">仕上げフェーズ Week 6〜8</div>
+    <div class="todo-item" data-id="t09" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">最終エージェント提出（Simulation）</div>
+        <div class="todo-sub">8/16締切。提出は1日5回まで、最新2件がアクティブ</div>
+      </div>
+    </div>
+    <div class="todo-item" data-id="t10" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">Strategyレポート執筆（日本語で下書き）</div>
+        <div class="todo-sub">使った手法・実験結果・デッキ選択理由を具体的な数値付きで記述</div>
+      </div>
+    </div>
+    <div class="todo-item" data-id="t11" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">Claude Codeで英語2000語に翻訳</div>
+        <div class="todo-sub">モデルアプローチの独創性70%が最重要。ルールベース単体は不可</div>
+      </div>
+    </div>
+    <div class="todo-item" data-id="t12" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">Strategy部門提出</div>
+        <div class="todo-sub">9/13締切</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 4: ロードマップ ===== -->
+  <div class="section-title">8週間ロードマップ + Strategyフェーズ</div>
+  <div class="card" style="padding: 1.5rem 1rem;">
+    <div class="roadmap-scroll">
+      <div class="roadmap-grid">
+        <div class="week-card current">
+          <div class="week-num">Week 1</div>
+          <div class="week-period">6/26〜7/2</div>
+          <div class="week-goal">環境構築・初提出</div>
+          <div class="week-tech">cabt engine・スターターコード</div>
+          <div class="week-milestone">ラダーに参加できている</div>
+        </div>
+        <div class="week-card">
+          <div class="week-num">Week 2</div>
+          <div class="week-period">7/3〜7/9</div>
+          <div class="week-goal">ヒューリスティック基礎</div>
+          <div class="week-tech">盤面評価関数・Greedy選択</div>
+          <div class="week-milestone">ELO 850以上</div>
+        </div>
+        <div class="week-card">
+          <div class="week-num">Week 3</div>
+          <div class="week-period">7/10〜7/16</div>
+          <div class="week-goal">評価関数チューニング</div>
+          <div class="week-tech">A/Bテスト・負けパターン分析</div>
+          <div class="week-milestone">ELO 950以上</div>
+        </div>
+        <div class="week-card">
+          <div class="week-num">Week 4</div>
+          <div class="week-period">7/17〜7/23</div>
+          <div class="week-goal">MCTS導入</div>
+          <div class="week-tech">cabt search API・先読み探索</div>
+          <div class="week-milestone">ELO 1000以上</div>
+        </div>
+        <div class="week-card">
+          <div class="week-num">Week 5</div>
+          <div class="week-period">7/24〜7/30</div>
+          <div class="week-goal">PPO学習開始</div>
+          <div class="week-tech">Kaggle GPU・self-play</div>
+          <div class="week-milestone">学習済みモデル1つ完成</div>
+        </div>
+        <div class="week-card">
+          <div class="week-num">Week 6</div>
+          <div class="week-period">7/31〜8/6</div>
+          <div class="week-goal">PPO強化</div>
+          <div class="week-tech">ハイパーパラメータ調整</div>
+          <div class="week-milestone">PPOがヒューリスティックに勝つ</div>
+        </div>
+        <div class="week-card">
+          <div class="week-num">Week 7</div>
+          <div class="week-period">8/7〜8/13</div>
+          <div class="week-goal">最終A/Bテスト</div>
+          <div class="week-tech">最強エージェント選定</div>
+          <div class="week-milestone">最終提出候補確定</div>
+        </div>
+        <div class="week-card">
+          <div class="week-num">Week 8</div>
+          <div class="week-period">8/14〜8/16</div>
+          <div class="week-goal">Simulation最終提出</div>
+          <div class="week-tech">ラダー確認</div>
+          <div class="week-milestone">提出完了（締切8/16）</div>
+        </div>
+        <div class="week-card strategy-phase">
+          <div class="week-num">Strategy</div>
+          <div class="week-period">8/17〜9/13</div>
+          <div class="week-goal">レポート執筆・提出</div>
+          <div class="week-tech">日本語下書き→英語翻訳</div>
+          <div class="week-milestone">Strategy提出完了（締切9/13）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 5: 重要ルール・注意事項 ===== -->
+  <div class="section-title">重要ルール・注意事項</div>
+  <div class="card">
+    <div class="rules-grid">
+      <div class="rules-block">
+        <div class="rules-block-title">提出ルール</div>
+        <ul class="rules-list">
+          <li>1日の最大提出回数: <strong>5回</strong></li>
+          <li>同時アクティブな提出数: <strong>最新2件</strong></li>
+          <li>提出形式: <code>submission.tar.gz</code>（<code>main.py</code> + <code>deck.csv</code>）</li>
+        </ul>
+      </div>
+      <div class="rules-block">
+        <div class="rules-block-title">実装上の制約（必ず守ること）</div>
+        <ul class="rules-list">
+          <li>エージェントはクラッシュしてはならない（常にfallback合法手を返す）</li>
+          <li>1試合あたり持ち時間: プレイヤーごと<strong>10分以内</strong>（超過で自動敗北）</li>
+          <li>合法手リスト外のインデックスを返してはならない</li>
+          <li><strong>外部API・LLM・ネットワークアクセス禁止</strong></li>
+          <li>使用カードは主催者指定のスタンダードリストのみ</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top: 1.2rem;">
+      <div class="rules-block-title" style="color: #ffd700; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; margin-bottom: 0.6rem;">エージェント関数の基本形（実装時の必須パターン）</div>
+      <div class="code-block"><span class="code-keyword">def</span> <span class="code-fn">agent</span>(obs_dict: dict) -> list[int]:
+    <span class="code-keyword">try</span>:
+        <span class="code-comment"># ここにロジック</span>
+        <span class="code-keyword">return</span> [best_action_index]
+    <span class="code-keyword">except</span> Exception:
+        <span class="code-comment"># クラッシュ防止: 必ず合法手を返す</span>
+        <span class="code-keyword">return</span> [0]</div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 6: 採点基準（Strategyレポート） ===== -->
+  <div class="section-title">採点基準（Strategyレポート）</div>
+  <div class="card">
+    <div class="score-list">
+      <div class="score-row">
+        <div class="score-label">モデルアプローチの独創性</div>
+        <div class="score-pct">70%</div>
+      </div>
+      <div class="score-bar-bg">
+        <div class="score-bar-fg color-gold" style="width:70%"></div>
+      </div>
+      <div class="score-desc">ルールベース単体では高得点不可。MCTS・PPO・情報推論など何らかの学習・探索コンポーネントが必須。前向き計画（相手手札推定）があると高評価。</div>
+
+      <div class="score-row">
+        <div class="score-label">デッキ設計コンセプト</div>
+        <div class="score-pct">20%</div>
+      </div>
+      <div class="score-bar-bg">
+        <div class="score-bar-fg color-blue" style="width:20%"></div>
+      </div>
+      <div class="score-desc">なぜそのデッキを選んだか戦略的理由が必要。シンプルなデッキが実際に強い（bellibolt ELO 836実績）。</div>
+
+      <div class="score-row">
+        <div class="score-label">レポートの品質</div>
+        <div class="score-pct">10%</div>
+      </div>
+      <div class="score-bar-bg">
+        <div class="score-bar-fg color-red" style="width:10%"></div>
+      </div>
+      <div class="score-desc">英語2000語以内。文章は翻訳で対応可。実験結果・数値・グラフを含めると高評価。</div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 7: 技術スタック ===== -->
+  <div class="section-title">技術スタック</div>
+  <div class="card">
+    <div class="tech-grid">
+      <div class="tech-item">
+        <div class="tech-item-label">提出形式</div>
+        <div class="tech-item-value"><code>submission.tar.gz</code>（<code>main.py</code> + <code>deck.csv</code>）</div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-item-label">エージェント関数</div>
+        <div class="tech-item-value"><code>def agent(obs_dict: dict) -> list[int]</code></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-item-label">制約</div>
+        <div class="tech-item-value">外部API・LLM・ネットワークアクセス禁止</div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-item-label">学習環境</div>
+        <div class="tech-item-value">Kaggle無料GPU（週30時間）</div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-item-label">ローカル開発</div>
+        <div class="tech-item-value">このサーバー（t3.large 2vCPU/8GB）</div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-item-label">観測できる情報（自分側）</div>
+        <div class="tech-item-value" style="font-size:0.82rem;">手札・山札残枚数・捨て札・サイドカード・場のポケモン全状態</div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-item-label">観測できない情報（相手側）</div>
+        <div class="tech-item-value" style="font-size:0.82rem;">相手の手札（枚数のみ）・山札の中身・捨て札以外</div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-item-label">現在の参考ELO</div>
+        <div class="tech-item-value" style="font-size:0.82rem;">ルールベース上位 ELO 836（bellibolt, wmh氏実装）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 8: 重要リンク集 ===== -->
+  <div class="section-title">重要リンク集</div>
+  <div class="card" style="padding: 1.2rem 1rem;">
+    <div class="link-grid">
+      <a class="link-item" href="https://www.kaggle.com/competitions/pokemon-tcg-ai-battle" target="_blank" rel="noopener">
+        <div class="link-dot dot-red"></div>
+        <div class="link-info">
+          <div class="link-title">Kaggle Simulation部門</div>
+          <div class="link-url">kaggle.com/competitions/pokemon-tcg-ai-battle</div>
+        </div>
+        <div class="link-arrow">&#8599;</div>
+      </a>
+      <a class="link-item" href="https://www.kaggle.com/competitions/pokemon-tcg-ai-battle-challenge-strategy" target="_blank" rel="noopener">
+        <div class="link-dot dot-red"></div>
+        <div class="link-info">
+          <div class="link-title">Kaggle Strategy部門</div>
+          <div class="link-url">kaggle.com/competitions/pokemon-tcg-ai-battle-challenge-strategy</div>
+        </div>
+        <div class="link-arrow">&#8599;</div>
+      </a>
+      <a class="link-item" href="https://ptcg-abc.pokemon.co.jp/" target="_blank" rel="noopener">
+        <div class="link-dot dot-gold"></div>
+        <div class="link-info">
+          <div class="link-title">公式サイト</div>
+          <div class="link-url">ptcg-abc.pokemon.co.jp</div>
+        </div>
+        <div class="link-arrow">&#8599;</div>
+      </a>
+      <a class="link-item" href="https://matsuoinstitute.github.io/cabt/" target="_blank" rel="noopener">
+        <div class="link-dot dot-blue"></div>
+        <div class="link-info">
+          <div class="link-title">cabt Engine docs</div>
+          <div class="link-url">matsuoinstitute.github.io/cabt</div>
+        </div>
+        <div class="link-arrow">&#8599;</div>
+      </a>
+      <a class="link-item" href="https://www.kaggle.com/code/ichigoe/beginner-guide-from-deck-list-to-first-valid-sub" target="_blank" rel="noopener">
+        <div class="link-dot dot-green"></div>
+        <div class="link-info">
+          <div class="link-title">スターターコード</div>
+          <div class="link-url">kaggle.com — beginner-guide-from-deck-list</div>
+        </div>
+        <div class="link-arrow">&#8599;</div>
+      </a>
+      <a class="link-item" href="https://www.kaggle.com/code/avikdas567/ptcg-ai-battle-heuristic-agent-data-pipeline" target="_blank" rel="noopener">
+        <div class="link-dot dot-purple"></div>
+        <div class="link-info">
+          <div class="link-title">参考実装（ヒューリスティック）</div>
+          <div class="link-url">kaggle.com — heuristic-agent-data-pipeline</div>
+        </div>
+        <div class="link-arrow">&#8599;</div>
+      </a>
+      <a class="link-item" href="https://www.kaggle.com/code/hmnshudhmn24/pok-mon-tcg-ai-battle-challenge-ppo-agent" target="_blank" rel="noopener">
+        <div class="link-dot dot-purple"></div>
+        <div class="link-info">
+          <div class="link-title">参考実装（PPO）</div>
+          <div class="link-url">kaggle.com — ppo-agent</div>
+        </div>
+        <div class="link-arrow">&#8599;</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 9: メモ欄 ===== -->
+  <div class="section-title">メモ</div>
+  <div class="card">
+    <textarea
+      class="memo-textarea"
+      id="memo-area"
+      placeholder="アイデア・気づき・調査ログなど自由に入力..."
+      oninput="saveMemo()"
+    ></textarea>
+    <div class="memo-status" id="memo-status">未保存</div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  // ===== カウントダウンタイマー =====
+  const deadlines = {
+    sim: new Date('2026-08-16T23:59:59+09:00'),
+    str: new Date('2026-09-13T23:59:59+09:00'),
+  };
+
+  function formatTimer(ms) {
+    if (ms <= 0) return '締切終了';
+    const totalSec = Math.floor(ms / 1000);
+    const d = Math.floor(totalSec / 86400);
+    const h = Math.floor((totalSec % 86400) / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return d + 'd ' + String(h).padStart(2,'0') + 'h ' + String(m).padStart(2,'0') + 'm ' + String(s).padStart(2,'0') + 's';
+  }
+
+  function updateTimers() {
+    const now = Date.now();
+    document.getElementById('timer-sim').textContent = formatTimer(deadlines.sim - now);
+    document.getElementById('timer-str').textContent = formatTimer(deadlines.str - now);
+  }
+  updateTimers();
+  setInterval(updateTimers, 1000);
+
+  // ===== TODOリスト (localStorage) =====
+  const TODO_KEY = 'ptcg_todo_v2';
+
+  function loadTodoState() {
+    try { return JSON.parse(localStorage.getItem(TODO_KEY) || '{}'); }
+    catch(e) { return {}; }
+  }
+
+  function saveTodoState(state) {
+    localStorage.setItem(TODO_KEY, JSON.stringify(state));
+  }
+
+  function updateProgress() {
+    const items = document.querySelectorAll('.todo-item');
+    const total = items.length;
+    const done = document.querySelectorAll('.todo-item.done').length;
+    document.getElementById('todo-done-count').textContent = done;
+    document.getElementById('todo-total-count').textContent = total;
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+    document.getElementById('todo-progress').style.width = pct + '%';
+  }
+
+  function toggleTodo(el) {
+    const id = el.dataset.id;
+    el.classList.toggle('done');
+    const state = loadTodoState();
+    state[id] = el.classList.contains('done');
+    saveTodoState(state);
+    updateProgress();
+  }
+
+  // 初期ロード
+  (function initTodo() {
+    const state = loadTodoState();
+    document.querySelectorAll('.todo-item').forEach(function(el) {
+      if (state[el.dataset.id]) el.classList.add('done');
+    });
+    updateProgress();
+  })();
+
+  // ===== メモ (localStorage) =====
+  const MEMO_KEY = 'ptcg_memo_v1';
+  let memoTimer = null;
+
+  (function initMemo() {
+    const saved = localStorage.getItem(MEMO_KEY) || '';
+    document.getElementById('memo-area').value = saved;
+    if (saved) document.getElementById('memo-status').textContent = '保存済み';
+  })();
+
+  function saveMemo() {
+    clearTimeout(memoTimer);
+    document.getElementById('memo-status').textContent = '入力中...';
+    memoTimer = setTimeout(function() {
+      localStorage.setItem(MEMO_KEY, document.getElementById('memo-area').value);
+      document.getElementById('memo-status').textContent = '自動保存完了 ' + new Date().toLocaleTimeString('ja-JP');
+    }, 800);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>デモトレード日誌</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid #30363d;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: #8b949e;
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
+    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+
+    /* ---- メインコンテンツ ---- */
+    main { max-width: 1280px; margin: 0 auto; padding: 24px 20px; }
+
+    /* ---- バナー ---- */
+    .banner {
+      background: linear-gradient(135deg, #1c2333 0%, #1a2744 100%);
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+    }
+    .banner h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-bottom: 6px;
+    }
+    .banner p { color: #8b949e; font-size: 15px; }
+    .banner span.highlight { color: #58a6ff; font-weight: 600; }
+
+    /* ---- カードグリッド ---- */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 540px) { .cards { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .card-label { font-size: 12px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+    .card-value { font-size: 26px; font-weight: 700; color: #e6edf3; }
+    .card-sub { font-size: 12px; color: #8b949e; margin-top: 4px; }
+    .pos { color: #3fb950; }
+    .neg { color: #f85149; }
+    .neu { color: #8b949e; }
+
+    /* ---- 進捗バー ---- */
+    .progress-section {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .progress-header span { font-size: 13px; color: #8b949e; }
+    .progress-title { font-weight: 600; color: #e6edf3; margin-bottom: 4px; }
+    .progress-bar-wrap {
+      background: #21262d;
+      border-radius: 8px;
+      height: 14px;
+      position: relative;
+      overflow: visible;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 8px;
+      background: linear-gradient(90deg, #1f6feb, #58a6ff);
+      transition: width .5s ease;
+      min-width: 0;
+    }
+    .progress-target-line {
+      position: absolute;
+      top: -4px;
+      bottom: -4px;
+      width: 2px;
+      background: #f85149;
+      left: 100%;
+    }
+    .progress-target-line::after {
+      content: '目標';
+      position: absolute;
+      top: -18px;
+      left: 4px;
+      font-size: 10px;
+      color: #f85149;
+      white-space: nowrap;
+    }
+
+    /* ---- セクションヘッダー ---- */
+    .section {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #30363d;
+    }
+    .section-title { font-weight: 600; font-size: 15px; color: #e6edf3; }
+
+    /* ---- ボタン ---- */
+    .btn {
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 7px 16px;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-danger  { background: #da3633; color: #fff; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+
+    /* ---- テーブル ---- */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      background: #0d1117;
+      color: #8b949e;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      padding: 10px 14px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    td {
+      padding: 12px 14px;
+      border-top: 1px solid #21262d;
+      white-space: nowrap;
+    }
+    tr:hover td { background: #1c2128; }
+    .ticker-badge {
+      background: #1f2937;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #58a6ff;
+    }
+    .empty-row td { text-align: center; color: #8b949e; padding: 32px; }
+
+    /* ---- チャート ---- */
+    .chart-wrap { padding: 20px; }
+
+    /* ---- モーダル ---- */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.6);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 28px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal h2 { font-size: 17px; font-weight: 700; color: #e6edf3; margin-bottom: 20px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 5px; }
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #c9d1d9;
+      font-size: 14px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus { border-color: #58a6ff; }
+    .form-group textarea { resize: vertical; height: 72px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    /* ---- エラーメッセージ ---- */
+    .error-msg { color: #f85149; font-size: 13px; margin-top: 8px; display: none; }
+    .error-msg.show { display: block; }
+
+    /* ---- ローディング ---- */
+    .loading { text-align: center; color: #8b949e; padding: 40px; }
+  </style>
+</head>
+<body>
+
+<!-- ナビゲーション -->
+<nav class="g-nav">
+  <a href="/" class="g-nav-logo">StockChart</a>
+  <a href="/" class="g-nav-link">📈 チャート</a>
+  <a href="/analysis" class="g-nav-link">📊 分析</a>
+  <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+  <a href="/journal" class="g-nav-link active">📒 日誌</a>
+  <a href="/guide" class="g-nav-link">📖 ガイド</a>
+  <a href="/status" class="g-nav-link">⚙️ 状況</a>
+</nav>
+
+<!-- メイン -->
+<main>
+
+  <!-- 損切りアラート -->
+  <div id="stop-loss-alerts" style="display:none;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.4);border-radius:10px;padding:14px 18px;margin-bottom:16px;">
+    <div style="font-weight:700;color:#f85149;margin-bottom:8px;">⚠️ 損切りライン到達アラート</div>
+    <div id="stop-loss-list"></div>
+  </div>
+
+  <!-- バナー -->
+  <div class="banner">
+    <h1>デモトレード日誌</h1>
+    <p>元手: <span class="highlight">¥100,000</span> &nbsp;→&nbsp; 目標: <span class="highlight">¥110,000（+10%）</span>&nbsp; 目標損益: <span class="highlight">¥10,000</span></p>
+  </div>
+
+  <!-- パフォーマンスカード -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">現在損益（実現+含み）</div>
+      <div class="card-value" id="card-total-pnl">—</div>
+      <div class="card-sub" id="card-achievement">達成率 —</div>
+    </div>
+    <div class="card">
+      <div class="card-label">勝率</div>
+      <div class="card-value" id="card-win-rate">—</div>
+      <div class="card-sub" id="card-trade-count">取引 0 件</div>
+    </div>
+    <div class="card">
+      <div class="card-label">プロフィットファクター</div>
+      <div class="card-value" id="card-pf">—</div>
+      <div class="card-sub">総利益 ÷ 総損失</div>
+    </div>
+    <div class="card">
+      <div class="card-label">最大ドローダウン</div>
+      <div class="card-value neg" id="card-dd">—</div>
+      <div class="card-sub" id="card-cash">現金残高 —</div>
+    </div>
+  </div>
+
+  <!-- 進捗バー -->
+  <div class="progress-section">
+    <div class="progress-title">目標達成進捗</div>
+    <div class="progress-header">
+      <span>¥0</span>
+      <span id="progress-current-label">¥0 / ¥10,000</span>
+      <span>¥10,000</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+      <div class="progress-target-line"></div>
+    </div>
+  </div>
+
+  <!-- オープンポジション -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">オープンポジション</span>
+      <button class="btn btn-primary" onclick="showOpenModal()">＋ 新規トレード</button>
+    </div>
+    <div class="table-wrap">
+      <table id="positions-table">
+        <thead>
+          <tr>
+            <th>銘柄</th>
+            <th>株数</th>
+            <th>エントリー価格</th>
+            <th>現在値</th>
+            <th>含み損益</th>
+            <th>損切ライン</th>
+            <th>利確目標</th>
+            <th>根拠</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="positions-tbody">
+          <tr class="empty-row"><td colspan="9">ポジションなし</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 取引履歴 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">取引履歴</span>
+    </div>
+    <div class="table-wrap">
+      <table id="trades-table">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>銘柄</th>
+            <th>売買</th>
+            <th>エントリー</th>
+            <th>出口</th>
+            <th>株数</th>
+            <th>損益</th>
+            <th>損益率</th>
+            <th>メモ</th>
+          </tr>
+        </thead>
+        <tbody id="trades-tbody">
+          <tr class="empty-row"><td colspan="8">履歴なし</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 累計損益チャート -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">累計損益チャート</span>
+      <button class="btn btn-secondary" onclick="recordDailyPnl()" id="btn-record-pnl" style="font-size:12px;padding:5px 12px">本日損益を記録</button>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="pnl-chart" height="100"></canvas>
+    </div>
+  </div>
+
+</main>
+
+<!-- === 新規トレード モーダル === -->
+<div class="modal-backdrop" id="open-modal">
+  <div class="modal">
+    <h2>新規トレード</h2>
+    <div class="form-group">
+      <label>ティッカー（例: AAPL, 7203.T）</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="new-ticker" placeholder="AAPL" style="flex:1" />
+        <button type="button" class="btn btn-secondary" id="btn-autofill" onclick="autofillFromSignal()" style="white-space:nowrap;padding:6px 12px;font-size:12px">AIシグナル入力</button>
+      </div>
+      <span id="autofill-status" style="font-size:11px;color:#8b949e;margin-top:4px;display:block"></span>
+    </div>
+    <div class="form-group">
+      <label>エントリー価格（USD）</label>
+      <input type="number" id="new-entry-price" placeholder="150.00" step="0.01" oninput="calcSize()" />
+    </div>
+    <div class="form-group">
+      <label>損切ライン</label>
+      <input type="number" id="new-stop-loss" placeholder="140.00" step="0.01" oninput="calcSize()" />
+    </div>
+    <div class="form-group">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+        <label style="margin:0">株数</label>
+        <span id="size-hint" style="font-size:11px;color:#3fb950;"></span>
+      </div>
+      <input type="number" id="new-shares" placeholder="10" min="1" />
+    </div>
+    <div class="form-group">
+      <label>利確目標</label>
+      <input type="number" id="new-target" placeholder="165.00" step="0.01" />
+    </div>
+    <div class="form-group">
+      <label>根拠・エントリー理由</label>
+      <textarea id="new-reason" placeholder="例: RSIが30を下回り反転シグナル。MA50をサポートとして確認。"></textarea>
+    </div>
+    <div class="error-msg" id="open-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('open-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitOpen()">エントリー</button>
+    </div>
+  </div>
+</div>
+
+<!-- === クローズ モーダル === -->
+<div class="modal-backdrop" id="close-modal">
+  <div class="modal">
+    <h2 id="close-modal-title">ポジションをクローズ</h2>
+    <input type="hidden" id="close-position-id" />
+    <div class="form-group">
+      <label>終値・出口価格</label>
+      <input type="number" id="close-exit-price" placeholder="155.00" step="0.01" />
+    </div>
+    <div class="form-group">
+      <label>メモ（任意）</label>
+      <textarea id="close-memo" placeholder="例: 目標値に到達したため利確。"></textarea>
+    </div>
+    <div class="error-msg" id="close-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('close-modal')">キャンセル</button>
+      <button class="btn btn-danger" onclick="submitClose()">クローズ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- ユーティリティ ----
+const fmt = (v, digits=2) => v != null ? v.toLocaleString('ja-JP', {minimumFractionDigits: digits, maximumFractionDigits: digits}) : '—';
+const fmtYen = (v) => v != null ? (v >= 0 ? '+¥' : '-¥') + Math.abs(v).toLocaleString('ja-JP', {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '—';
+const pnlClass = (v) => v == null ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : 'neu';
+
+let pnlChart = null;
+
+// ---- データ取得 ----
+async function loadData() {
+  try {
+    const res = await fetch('/api/journal');
+    const json = await res.json();
+    if (json.error) { console.error(json.error); return; }
+    renderAll(json.portfolio, json.performance);
+  } catch(e) { console.error('データ取得エラー:', e); }
+}
+
+// ---- 描画 ----
+function renderAll(portfolio, perf) {
+  renderCards(portfolio, perf);
+  renderProgress(perf);
+  renderPositions(portfolio.positions || []);
+  renderTrades(portfolio.trades || []);
+  renderChart(portfolio.daily_pnl || []);
+}
+
+function renderCards(portfolio, perf) {
+  const totalPnl = perf.total_pnl;
+  const el = (id) => document.getElementById(id);
+
+  el('card-total-pnl').textContent = fmtYen(totalPnl);
+  el('card-total-pnl').className = 'card-value ' + pnlClass(totalPnl);
+  el('card-achievement').textContent = `達成率 ${fmt(perf.achievement_rate, 1)}%`;
+
+  el('card-win-rate').textContent = `${fmt(perf.win_rate, 1)}%`;
+  el('card-trade-count').textContent = `${perf.win_count || 0}勝 / 取引 ${perf.trade_count || 0}件`;
+
+  const pfVal = perf.profit_factor;
+  el('card-pf').textContent = pfVal != null ? fmt(pfVal, 2) : '∞';
+  el('card-pf').className = 'card-value ' + (pfVal == null || pfVal > 1 ? 'pos' : 'neg');
+
+  el('card-dd').textContent = perf.max_drawdown > 0 ? '-¥' + Math.abs(perf.max_drawdown).toLocaleString() : '¥0';
+  const rate = portfolio.usd_jpy_rate;
+  const rateStr = rate ? ` (1$=¥${rate})` : '';
+  el('card-cash').textContent = `現金残高 ¥${(portfolio.capital_cash || 0).toLocaleString()}${rateStr}`;
+}
+
+function renderProgress(perf) {
+  const pct = Math.max(0, Math.min(100, perf.achievement_rate || 0));
+  document.getElementById('progress-fill').style.width = pct + '%';
+  const cur = perf.total_pnl || 0;
+  const curStr = (cur >= 0 ? '+¥' : '-¥') + Math.abs(cur).toLocaleString();
+  document.getElementById('progress-current-label').textContent = `${curStr} / ¥10,000`;
+}
+
+function renderPositions(positions) {
+  const tbody = document.getElementById('positions-tbody');
+  if (!positions.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">オープンポジションなし</td></tr>';
+    return;
+  }
+  tbody.innerHTML = positions.map(p => {
+    const pnl = p.unrealized_pnl;
+    const pnlPct = p.unrealized_pnl_pct;
+    const pnlStr = pnl != null
+      ? `<span class="${pnlClass(pnl)}">${fmtYen(pnl)}<br><small>${pnlPct >= 0 ? '+' : ''}${fmt(pnlPct, 2)}%</small></span>`
+      : '—';
+    const curStr = p.current_price != null
+      ? `$${fmt(p.current_price)}<br><small style="color:#8b949e">¥${(p.current_price_jpy||0).toLocaleString()}</small>`
+      : '取得中...';
+    const entryStr = `$${fmt(p.entry_price)}<br><small style="color:#8b949e">¥${(p.entry_price_jpy||0).toLocaleString()}</small>`;
+    const costStr = p.cost_jpy ? `<small style="color:#8b949e">計¥${p.cost_jpy.toLocaleString()}</small>` : '';
+    return `<tr>
+      <td><span class="ticker-badge">${esc(p.ticker)}</span></td>
+      <td>${p.shares.toLocaleString()}<br>${costStr}</td>
+      <td>${entryStr}</td>
+      <td>${curStr}</td>
+      <td>${pnlStr}</td>
+      <td class="neg">$${fmt(p.stop_loss)}</td>
+      <td class="pos">$${fmt(p.target)}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:12px">${esc(p.reason || '—')}</td>
+      <td><button class="btn btn-danger" onclick="showCloseModal('${esc(p.id)}', '${esc(p.ticker)}', ${p.current_price || p.entry_price})">クローズ</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTrades(trades) {
+  const tbody = document.getElementById('trades-tbody');
+  if (!trades.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">取引履歴なし</td></tr>';
+    return;
+  }
+  const sorted = [...trades].reverse();
+  tbody.innerHTML = sorted.map(t => {
+    const pnl    = t.realized_pnl;
+    const pnlPct = t.realized_pnl_pct ?? null;
+    const pnlStr = `<span class="${pnlClass(pnl)}">${fmtYen(pnl)}</span>`;
+    const pctStr = pnlPct != null
+      ? `<span class="${pnlClass(pnlPct)}">${pnlPct >= 0 ? '+' : ''}${fmt(pnlPct, 2)}%</span>`
+      : '—';
+    const rowStyle = t.win ? 'background:rgba(63,185,80,.04)' : 'background:rgba(248,81,73,.04)';
+    const entryJpy = t.entry_price_jpy ? `<br><small style="color:#8b949e">¥${t.entry_price_jpy.toLocaleString()}</small>` : '';
+    const exitJpy  = t.exit_price_jpy  ? `<br><small style="color:#8b949e">¥${t.exit_price_jpy.toLocaleString()}</small>` : '';
+    return `<tr style="${rowStyle}">
+      <td>${esc(t.exit_date || '—')}</td>
+      <td><span class="ticker-badge">${esc(t.ticker)}</span></td>
+      <td>${t.win ? '<span class="pos">利確</span>' : '<span class="neg">損切</span>'}</td>
+      <td>$${fmt(t.entry_price)}${entryJpy}</td>
+      <td>$${fmt(t.exit_price)}${exitJpy}</td>
+      <td>${t.shares.toLocaleString()}</td>
+      <td>${pnlStr}</td>
+      <td>${pctStr}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(t.memo || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderChart(dailyPnl) {
+  const ctx = document.getElementById('pnl-chart').getContext('2d');
+  const labels = dailyPnl.map(d => d.date);
+  const values = dailyPnl.map(d => d.pnl);
+
+  if (pnlChart) pnlChart.destroy();
+  pnlChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '累計損益',
+          data: values,
+          borderColor: '#58a6ff',
+          backgroundColor: 'rgba(88,166,255,.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointBackgroundColor: '#58a6ff',
+          pointRadius: 4,
+        },
+        {
+          label: '目標 ¥10,000',
+          data: labels.map(() => 10000),
+          borderColor: '#f85149',
+          borderDash: [6, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#8b949e', font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              return ` ${ctx.dataset.label}: ${v >= 0 ? '+' : ''}¥${v.toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } },
+        y: {
+          ticks: {
+            color: '#8b949e',
+            callback: v => (v >= 0 ? '+' : '') + '¥' + v.toLocaleString()
+          },
+          grid: { color: '#21262d' }
+        }
+      }
+    }
+  });
+}
+
+// ---- モーダル ----
+function showOpenModal() {
+  ['new-ticker','new-shares','new-entry-price','new-stop-loss','new-target','new-reason']
+    .forEach(id => document.getElementById(id).value = '');
+  showError('open-error', '');
+  document.getElementById('open-modal').classList.add('open');
+}
+
+function showCloseModal(posId, ticker, currentPrice) {
+  document.getElementById('close-position-id').value = posId;
+  document.getElementById('close-modal-title').textContent = `ポジションをクローズ: ${ticker}`;
+  document.getElementById('close-exit-price').value = currentPrice || '';
+  document.getElementById('close-memo').value = '';
+  showError('close-error', '');
+  document.getElementById('close-modal').classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.toggle('show', !!msg);
+}
+
+// ---- AIシグナル自動入力 ----
+async function autofillFromSignal() {
+  const ticker = document.getElementById('new-ticker').value.trim().toUpperCase();
+  const btn    = document.getElementById('btn-autofill');
+  const status = document.getElementById('autofill-status');
+  if (!ticker) { status.textContent = 'ティッカーを入力してください'; return; }
+
+  btn.disabled = true;
+  status.textContent = `${ticker} のシグナルを取得中...`;
+  try {
+    const res  = await fetch(`/api/signal/advanced?ticker=${encodeURIComponent(ticker)}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    document.getElementById('new-ticker').value = ticker;
+    if (data.entry_low != null) {
+      document.getElementById('new-entry-price').value = data.entry_low;
+    }
+    if (data.stop_loss != null) {
+      document.getElementById('new-stop-loss').value = data.stop_loss;
+    }
+    if (data.target != null) {
+      document.getElementById('new-target').value = data.target;
+    }
+    if (data.reasons && data.reasons.length > 0) {
+      document.getElementById('new-reason').value = data.reasons.slice(0,3).join(' / ');
+    }
+    await calcSize();
+    const sigColor = data.signal === 'BUY' || data.signal === 'STRONG_BUY' ? '#3fb950' : '#f85149';
+    status.innerHTML = `<span style="color:${sigColor};font-weight:700">${data.signal_ja || data.signal}</span> スコア: ${data.total_score} / RR: ${data.risk_reward ?? '—'}x`;
+  } catch(e) {
+    status.textContent = `エラー: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---- 2%ルール自動計算 ----
+async function calcSize() {
+  const entry = parseFloat(document.getElementById('new-entry-price').value);
+  const stop  = parseFloat(document.getElementById('new-stop-loss').value);
+  const hint  = document.getElementById('size-hint');
+  if (!entry || !stop || stop >= entry) { hint.textContent = ''; return; }
+  try {
+    const res = await fetch('/api/journal/size', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entry_price: entry, stop_loss: stop })
+    });
+    const d = await res.json();
+    if (d.shares > 0) {
+      document.getElementById('new-shares').value = d.shares;
+      const rateNote = d.usd_jpy_rate ? ` / 1$=¥${d.usd_jpy_rate}` : '';
+      hint.textContent = `← 2%ルール: ${d.shares}株 / コスト¥${(d.cost_jpy||d.cost||0).toLocaleString()} / リスク¥${(d.max_risk_jpy||d.max_risk||0).toLocaleString()}(${d.max_risk_pct}%)${rateNote}`;
+    }
+  } catch(e) { hint.textContent = ''; }
+}
+
+// ---- 新規トレード送信 ----
+async function submitOpen() {
+  const ticker      = document.getElementById('new-ticker').value.trim().toUpperCase();
+  const shares      = parseInt(document.getElementById('new-shares').value);
+  const entry_price = parseFloat(document.getElementById('new-entry-price').value);
+  const stop_loss   = parseFloat(document.getElementById('new-stop-loss').value) || 0;
+  const target      = parseFloat(document.getElementById('new-target').value) || 0;
+  const reason      = document.getElementById('new-reason').value.trim();
+
+  if (!ticker)          { showError('open-error', 'ティッカーを入力してください'); return; }
+  if (!shares || shares < 1) { showError('open-error', '株数を正しく入力してください'); return; }
+  if (!entry_price || entry_price <= 0) { showError('open-error', 'エントリー価格を入力してください'); return; }
+
+  try {
+    const res = await fetch('/api/journal/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, shares, entry_price, reason, stop_loss, target })
+    });
+    const json = await res.json();
+    if (json.error) { showError('open-error', json.error); return; }
+    closeModal('open-modal');
+    await loadData();
+  } catch(e) { showError('open-error', '送信エラー: ' + e.message); }
+}
+
+// ---- クローズ送信 ----
+async function submitClose() {
+  const position_id = document.getElementById('close-position-id').value;
+  const exit_price  = parseFloat(document.getElementById('close-exit-price').value);
+  const memo        = document.getElementById('close-memo').value.trim();
+
+  if (!exit_price || exit_price <= 0) { showError('close-error', '出口価格を入力してください'); return; }
+
+  try {
+    const res = await fetch('/api/journal/close', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position_id, exit_price, memo })
+    });
+    const json = await res.json();
+    if (json.error) { showError('close-error', json.error); return; }
+    closeModal('close-modal');
+    await loadData();
+  } catch(e) { showError('close-error', '送信エラー: ' + e.message); }
+}
+
+// ---- XSS対策 ----
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+// ---- バックドロップクリックでモーダル閉じる ----
+document.querySelectorAll('.modal-backdrop').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ---- 初期ロード ----
+loadData();
+checkStopLosses();
+// 30秒ごとに自動更新（現在価格の反映）
+setInterval(loadData, 30000);
+// 2分ごとに損切りチェック
+setInterval(checkStopLosses, 120000);
+
+async function recordDailyPnl() {
+  const btn = document.getElementById('btn-record-pnl');
+  btn.disabled = true;
+  btn.textContent = '記録中...';
+  try {
+    const res = await fetch('/api/journal/daily-pnl', { method: 'POST' });
+    const d = await res.json();
+    if (d.error) { alert('エラー: ' + d.error); return; }
+    btn.textContent = `記録完了: ${d.date} ¥${(d.pnl >= 0 ? '+' : '')}${d.pnl.toLocaleString()}`;
+    await loadData();
+  } catch(e) {
+    alert('通信エラー: ' + e.message);
+  } finally {
+    setTimeout(() => { btn.disabled = false; btn.textContent = '本日損益を記録'; }, 3000);
+  }
+}
+
+async function checkStopLosses() {
+  try {
+    const res = await fetch('/api/journal/check-stops');
+    const alerts = await res.json();
+    const box  = document.getElementById('stop-loss-alerts');
+    const list = document.getElementById('stop-loss-list');
+    if (!Array.isArray(alerts) || alerts.length === 0) {
+      box.style.display = 'none';
+      return;
+    }
+    box.style.display = 'block';
+    list.innerHTML = alerts.map(a => `
+      <div style="margin-bottom:6px;font-size:13px;">
+        <span style="font-weight:700;color:#f85149">${esc(a.ticker)}</span>
+        &nbsp;現値 <b>$${a.current_price}</b> ≤ 損切 <b>$${a.stop_loss}</b>
+        &nbsp;含み損: <b style="color:#f85149">¥${Math.abs(a.unrealized_loss).toLocaleString()}</b>
+        &nbsp;<button class="btn btn-danger" style="padding:3px 10px;font-size:12px;"
+          onclick="showCloseModal('${esc(a.position_id)}','${esc(a.ticker)}',${a.current_price})">損切実行</button>
+      </div>`).join('');
+  } catch(e) { /* silently ignore */ }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>トレード学習ガイド</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --muted: #8b949e;
+      --text: #e6edf3;
+      --hover-bg: #21262d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--accent);
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: var(--text); background: var(--hover-bg); }
+    .g-nav-link.active { color: var(--accent); background: rgba(31,111,235,0.12); font-weight: 600; }
+
+    /* ---- Header ---- */
+    .guide-header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px 16px;
+    }
+    .guide-header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .guide-header .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .phase-banner {
+      display: inline-block;
+      background: rgba(88, 166, 255, 0.12);
+      border: 1px solid var(--accent);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ---- Main layout ---- */
+    .guide-main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
+    }
+
+    /* ---- Section ---- */
+    .section {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.5s;
+      margin-bottom: 48px;
+    }
+    .section.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ---- Roadmap ---- */
+    .roadmap-list { display: flex; flex-direction: column; gap: 12px; }
+    .roadmap-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+    .roadmap-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .roadmap-label { color: var(--text); }
+    .roadmap-pct { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .progress-bar-bg {
+      background: #21262d;
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 1s ease;
+    }
+    .fill-green { background: var(--green); }
+    .fill-blue { background: var(--accent); }
+    .fill-gray { background: #30363d; }
+
+    @keyframes pulse-bar {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .fill-active { animation: pulse-bar 1.8s ease-in-out infinite; }
+
+    /* ---- Todo/Done grid ---- */
+    .todo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 640px) {
+      .todo-grid { grid-template-columns: 1fr; }
+    }
+    .todo-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .todo-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .todo-card ul { list-style: none; padding: 0; }
+    .todo-card li {
+      font-size: 13px;
+      color: var(--muted);
+      padding: 5px 0;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .todo-card li:last-child { border-bottom: none; }
+    .todo-card li::before { content: "○"; color: var(--muted); flex-shrink: 0; }
+    .done-card li { color: var(--text); }
+    .done-card li::before { content: ""; }
+
+    /* ---- Feature cards ---- */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 700px) {
+      .feature-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 440px) {
+      .feature-grid { grid-template-columns: 1fr; }
+    }
+    .feature-card {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 18px;
+      position: relative;
+    }
+    .feature-card.impl { border: 1px solid var(--green); }
+    .feature-card.pending { border: 1px solid var(--border); }
+    .feature-icon { font-size: 22px; margin-bottom: 8px; }
+    .feature-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .feature-desc { font-size: 12px; color: var(--muted); }
+    .badge-impl {
+      position: absolute;
+      top: 12px; right: 12px;
+      background: rgba(63, 185, 80, 0.15);
+      border: 1px solid var(--green);
+      color: var(--green);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .badge-pending {
+      position: absolute;
+      top: 12px; right: 12px;
+      background: rgba(139, 148, 158, 0.1);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+
+    /* ---- Candlestick diagram ---- */
+    .candle-diagram {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      gap: 60px;
+    }
+    @media (max-width: 520px) {
+      .candle-diagram { gap: 20px; padding: 16px; }
+    }
+    .candle-figure { display: flex; align-items: center; gap: 16px; }
+    .candle-labels-left { text-align: right; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--muted); }
+    .candle-labels-right { text-align: left; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--muted); }
+    .candle-svg-wrap { flex-shrink: 0; }
+
+    .candle-pattern-row {
+      display: flex;
+      gap: 12px;
+    }
+    @media (max-width: 520px) {
+      .candle-pattern-row { flex-direction: column; }
+    }
+    .candle-pattern-box {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 13px;
+      text-align: center;
+    }
+    .candle-pattern-box .pat-icon { font-size: 20px; margin-bottom: 6px; }
+    .candle-pattern-box .pat-label { font-weight: 700; margin-bottom: 4px; }
+    .candle-pattern-box .pat-desc { color: var(--muted); font-size: 12px; }
+
+    /* ---- Indicator tabs ---- */
+    .ind-tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 1px solid var(--border); }
+    .ind-tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: -1px;
+    }
+    .ind-tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .ind-tab-btn:hover { color: var(--text); }
+
+    .ind-panel { display: none; padding: 24px 0 0; }
+    .ind-panel.active { display: block; }
+
+    .ind-explanation {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.7;
+    }
+
+    .ind-signal-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    @media (max-width: 560px) {
+      .ind-signal-row { grid-template-columns: 1fr; }
+    }
+    .ind-signal-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 13px;
+    }
+    .ind-signal-box .sig-title { font-weight: 700; margin-bottom: 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .sig-buy { color: var(--green); }
+    .sig-sell { color: var(--red); }
+    .sig-use { color: var(--accent); }
+
+    /* MA visual */
+    .ma-visual {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      margin-bottom: 0;
+    }
+
+    /* RSI gauge */
+    .rsi-gauge-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 0;
+    }
+    .rsi-gauge-bar {
+      position: relative;
+      height: 24px;
+      border-radius: 6px;
+      overflow: visible;
+      display: flex;
+      margin-bottom: 6px;
+    }
+    .rsi-zone {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .rsi-zone-buy { background: rgba(63,185,80,0.6); border-radius: 6px 0 0 6px; flex: 30; }
+    .rsi-zone-neutral { background: rgba(139,148,158,0.25); flex: 40; }
+    .rsi-zone-sell { background: rgba(248,81,73,0.6); border-radius: 0 6px 6px 0; flex: 30; }
+    .rsi-tick-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .rsi-labels-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .rsi-dot-wrap {
+      position: relative;
+      height: 32px;
+      margin: 10px 0 4px;
+    }
+    .rsi-dot {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      animation: rsi-move 4s ease-in-out infinite alternate;
+    }
+    @keyframes rsi-move {
+      0% { left: 15%; border-color: var(--green); }
+      50% { left: 55%; border-color: var(--muted); }
+      100% { left: 80%; border-color: var(--red); }
+    }
+
+    /* MACD visual */
+    .macd-visual {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* ---- Risk cards ---- */
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 560px) {
+      .risk-grid { grid-template-columns: 1fr; }
+    }
+    .risk-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .risk-card .risk-icon { font-size: 22px; margin-bottom: 8px; }
+    .risk-card .risk-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .risk-card .risk-desc { font-size: 13px; color: var(--muted); }
+
+    .risk-example {
+      background: var(--card);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .risk-example-title { font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 12px; }
+    .risk-example table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .risk-example td { padding: 5px 8px; color: var(--muted); }
+    .risk-example td:first-child { color: var(--text); font-weight: 600; }
+
+    /* ---- Agent tree ---- */
+    .agent-tree {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px 28px;
+    }
+    .agent-root {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+    .agent-children { padding-left: 28px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 0; }
+    .agent-child {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid #21262d;
+      font-size: 14px;
+    }
+    .agent-child:last-child { border-bottom: none; }
+    .agent-child-connector {
+      width: 16px;
+      flex-shrink: 0;
+      color: var(--border);
+      font-size: 12px;
+      padding-top: 2px;
+    }
+    .agent-child-name { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .agent-child-role { color: var(--muted); font-size: 13px; }
+    .agent-child-badge {
+      margin-left: auto;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .badge-active {
+      background: rgba(63, 185, 80, 0.15);
+      border: 1px solid var(--green);
+      color: var(--green);
+    }
+    .badge-prep {
+      background: rgba(139, 148, 158, 0.1);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .agent-desc {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ---- Steps ---- */
+    .steps-list { display: flex; flex-direction: column; gap: 16px; }
+    .step-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(88,166,255,0.15);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-body {}
+    .step-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .step-desc { font-size: 13px; color: var(--muted); }
+    .step-desc li { margin-left: 16px; margin-top: 4px; }
+
+    /* ---- Footer ---- */
+    .guide-footer {
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      text-align: center;
+    }
+    .guide-footer .disclaimer {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .guide-footer .footer-link {
+      color: var(--muted);
+      font-size: 14px;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .guide-footer .footer-link:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ========== GLOBAL NAV ========== -->
+<nav class="g-nav">
+  <a href="/" class="g-nav-logo">StockChart</a>
+  <a href="/" class="g-nav-link">📈 チャート</a>
+  <a href="/analysis" class="g-nav-link">📊 分析</a>
+  <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+  <a href="/journal" class="g-nav-link">📒 日誌</a>
+  <a href="/guide" class="g-nav-link active">📖 ガイド</a>
+  <a href="/status" class="g-nav-link">⚙️ 状況</a>
+</nav>
+
+<!-- ========== HEADER ========== -->
+<header class="guide-header">
+  <h1>📖 トレード学習ガイド</h1>
+  <p class="subtitle">初心者から始めるトレード入門 | AI複数エージェントによる支援システム</p>
+  <span class="phase-banner">🚀 現在 Phase 1B: ツール整備中（〜7/5）</span>
+</header>
+
+<!-- ========== MAIN ========== -->
+<main class="guide-main">
+
+  <!-- 1. ROADMAP -->
+  <section class="section" id="roadmap">
+    <h2 class="section-title">📅 プロジェクトロードマップ</h2>
+    <div class="roadmap-list" id="roadmap-list"></div>
+  </section>
+
+  <!-- 2. TODO / DONE -->
+  <section class="section">
+    <h2 class="section-title">✅ Todoリスト &amp; 完了リスト</h2>
+    <div class="todo-grid">
+      <div class="todo-card">
+        <div class="todo-card-title">🔲 TODO（次のフェーズ）</div>
+        <ul>
+          <li>証券口座開設（SBI証券など）</li>
+          <li>デモトレード10日間実践（7/5〜7/15）</li>
+          <li>損益レポート自動生成</li>
+          <li>Phase 3: 少額実口座トレード開始（7/15〜）</li>
+        </ul>
+      </div>
+      <div class="todo-card done-card">
+        <div class="todo-card-title">✅ 完了済み（Phase 1 全完了）</div>
+        <ul>
+          <li>✅ Flask株式チャートアプリ構築</li>
+          <li>✅ ローソク足チャート + 出来高</li>
+          <li>✅ MA20/50/200・RSI・MACD・バックテスト・アラート</li>
+          <li>✅ 追加インジケーター（BB・一目均衡表・ATR・Stochastic・VWAP）</li>
+          <li>✅ ファンダメンタルズ分析（CAN SLIM・SEPA・決算・ニュース要約）</li>
+          <li>✅ X(Twitter)センチメント分析（Grok API）</li>
+          <li>✅ AIシグナルエンジン（3層統合）</li>
+          <li>✅ モメンタムスキャナー</li>
+          <li>✅ デモトレード日誌・管理システム</li>
+          <li>✅ 自動スケジューラー（毎時+定時ジョブ）</li>
+          <li>✅ 固定URL公開（https://libra.lunasoph.com）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. FEATURES -->
+  <section class="section">
+    <h2 class="section-title">⚙️ このシステムの機能</h2>
+    <div class="feature-grid">
+      <div class="feature-card impl">
+        <span class="badge-impl">実装済</span>
+        <div class="feature-icon">📈</div>
+        <div class="feature-name">チャート分析</div>
+        <div class="feature-desc">リアルタイムローソク足・テクニカル指標</div>
+      </div>
+      <div class="feature-card impl">
+        <span class="badge-impl">実装済</span>
+        <div class="feature-icon">🔔</div>
+        <div class="feature-name">価格アラート</div>
+        <div class="feature-desc">指定価格到達で通知</div>
+      </div>
+      <div class="feature-card impl">
+        <span class="badge-impl">実装済</span>
+        <div class="feature-icon">🧪</div>
+        <div class="feature-name">バックテスト</div>
+        <div class="feature-desc">過去データで戦略検証</div>
+      </div>
+      <div class="feature-card">
+        <span class="badge-active">稼働中</span>
+        <div class="feature-icon">🌐</div>
+        <div class="feature-name">ファンダメンタルズ</div>
+        <div class="feature-desc">財務データ・決算・ニュースAI要約</div>
+      </div>
+      <div class="feature-card">
+        <span class="badge-active">稼働中</span>
+        <div class="feature-icon">🐦</div>
+        <div class="feature-name">Xセンチメント</div>
+        <div class="feature-desc">Twitter/Xの市場心理をリアルタイム分析</div>
+      </div>
+      <div class="feature-card">
+        <span class="badge-active">稼働中</span>
+        <div class="feature-icon">🤖</div>
+        <div class="feature-name">AIシグナル</div>
+        <div class="feature-desc">3エージェントが協議して売買判断</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. CANDLESTICK -->
+  <section class="section">
+    <h2 class="section-title">🕯️ チャートの読み方 — ローソク足の構造</h2>
+    <div class="candle-diagram">
+      <!-- 陽線 -->
+      <div class="candle-figure">
+        <div class="candle-labels-left" style="height:200px;">
+          <span style="color:var(--green)">高値（上ヒゲ先端）</span>
+          <span style="color:var(--green)">終値（胴体上）</span>
+          <span style="color:var(--green)">始値（胴体下）</span>
+          <span style="color:var(--green)">安値（下ヒゲ先端）</span>
+        </div>
+        <div class="candle-svg-wrap">
+          <svg width="50" height="200" viewBox="0 0 50 200">
+            <!-- 上ヒゲ -->
+            <line x1="25" y1="10" x2="25" y2="40" stroke="#3fb950" stroke-width="2"/>
+            <!-- 胴体（陽線：緑） -->
+            <rect x="10" y="40" width="30" height="100" fill="#3fb950" rx="2"/>
+            <!-- 下ヒゲ -->
+            <line x1="25" y1="140" x2="25" y2="190" stroke="#3fb950" stroke-width="2"/>
+          </svg>
+        </div>
+        <div style="font-size:12px;color:var(--green);font-weight:700;writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:2px;">陽線</div>
+      </div>
+
+      <!-- 陰線 -->
+      <div class="candle-figure">
+        <div class="candle-svg-wrap">
+          <svg width="50" height="200" viewBox="0 0 50 200">
+            <!-- 上ヒゲ -->
+            <line x1="25" y1="10" x2="25" y2="40" stroke="#f85149" stroke-width="2"/>
+            <!-- 胴体（陰線：赤） -->
+            <rect x="10" y="40" width="30" height="100" fill="#f85149" rx="2"/>
+            <!-- 下ヒゲ -->
+            <line x1="25" y1="140" x2="25" y2="190" stroke="#f85149" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="candle-labels-right" style="height:200px;">
+          <span style="color:var(--red)">始値（胴体上）</span>
+          <span style="color:var(--red)">終値（胴体下）</span>
+        </div>
+        <div style="font-size:12px;color:var(--red);font-weight:700;writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:2px;">陰線</div>
+      </div>
+    </div>
+
+    <div class="candle-pattern-row">
+      <div class="candle-pattern-box">
+        <div class="pat-icon">🟢</div>
+        <div class="pat-label" style="color:var(--green)">陽線</div>
+        <div class="pat-desc">終値 &gt; 始値（上昇）<br>緑色の胴体</div>
+      </div>
+      <div class="candle-pattern-box">
+        <div class="pat-icon">🔴</div>
+        <div class="pat-label" style="color:var(--red)">陰線</div>
+        <div class="pat-desc">終値 &lt; 始値（下落）<br>赤色の胴体</div>
+      </div>
+      <div class="candle-pattern-box">
+        <div class="pat-icon">➕</div>
+        <div class="pat-label" style="color:var(--muted)">十字線</div>
+        <div class="pat-desc">始値 ≈ 終値（迷い）<br>方向感のないシグナル</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. INDICATOR TABS -->
+  <section class="section">
+    <h2 class="section-title">📊 インジケーター解説</h2>
+    <div class="ind-tabs">
+      <button class="ind-tab-btn active" onclick="switchInd(this,'ma')">MA（移動平均）</button>
+      <button class="ind-tab-btn" onclick="switchInd(this,'rsi')">RSI</button>
+      <button class="ind-tab-btn" onclick="switchInd(this,'macd')">MACD</button>
+    </div>
+
+    <!-- MA -->
+    <div class="ind-panel active" id="ind-ma">
+      <div class="ind-explanation">
+        <strong>移動平均線（Moving Average）</strong>とは、複数の終値の平均をつないだ線です。価格が移動平均線より<strong style="color:var(--green)">上にあれば強気</strong>（上昇トレンド）、<strong style="color:var(--red)">下にあれば弱気</strong>（下降トレンド）と判断します。短期線（MA20）と長期線（MA50）のクロスがエントリーシグナルになります。
+      </div>
+      <div class="ma-visual">
+        <svg width="320" height="130" viewBox="0 0 320 130">
+          <!-- Grid lines -->
+          <line x1="0" y1="65" x2="320" y2="65" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+          <!-- MA50 (long) - blue -->
+          <polyline points="0,90 60,85 120,75 180,55 240,45 320,40"
+                    fill="none" stroke="#8b949e" stroke-width="2"/>
+          <!-- MA20 (short) - yellow -->
+          <polyline points="0,100 60,95 120,65 180,40 240,35 320,30"
+                    fill="none" stroke="#d29922" stroke-width="2"/>
+          <!-- Golden cross marker -->
+          <circle cx="148" cy="61" r="6" fill="none" stroke="#3fb950" stroke-width="2"/>
+          <text x="155" y="48" fill="#3fb950" font-size="10" font-family="sans-serif">ゴールデンクロス</text>
+          <!-- Dead cross example (left side) -->
+          <polyline points="0,30 60,40 120,65" fill="none" stroke="#d29922" stroke-width="2" opacity="0.3"/>
+          <polyline points="0,20 60,30 120,55" fill="none" stroke="#8b949e" stroke-width="2" opacity="0.3"/>
+          <!-- Labels -->
+          <text x="265" y="28" fill="#d29922" font-size="11" font-family="sans-serif">MA20</text>
+          <text x="265" y="46" fill="#8b949e" font-size="11" font-family="sans-serif">MA50</text>
+        </svg>
+      </div>
+      <div class="ind-signal-row">
+        <div class="ind-signal-box">
+          <div class="sig-title">買いシグナル</div>
+          <div class="sig-buy">MA20がMA50を上抜けた時<br>（ゴールデンクロス）</div>
+        </div>
+        <div class="ind-signal-box">
+          <div class="sig-title">売りシグナル</div>
+          <div class="sig-sell">MA20がMA50を下抜けた時<br>（デッドクロス）</div>
+        </div>
+        <div class="ind-signal-box">
+          <div class="sig-title">使い方</div>
+          <div class="sig-use">チャート画面でMA20/MA50ボタンをONにして確認</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RSI -->
+    <div class="ind-panel" id="ind-rsi">
+      <div class="ind-explanation">
+        <strong>RSI（Relative Strength Index）</strong>は、買われすぎ・売られすぎを示す0〜100の数値です。<strong style="color:var(--green)">30以下</strong>なら売られすぎ（買いゾーン）、<strong style="color:var(--red)">70以上</strong>なら買われすぎ（売りゾーン）と判断します。トレンドの転換点を掴むのに有効です。
+      </div>
+      <div class="rsi-gauge-wrap">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">RSI ゾーンビジュアル</div>
+        <div class="rsi-gauge-bar">
+          <div class="rsi-zone rsi-zone-buy">買い</div>
+          <div class="rsi-zone rsi-zone-neutral">中立</div>
+          <div class="rsi-zone rsi-zone-sell">売り</div>
+        </div>
+        <div class="rsi-dot-wrap">
+          <div class="rsi-dot"></div>
+        </div>
+        <div class="rsi-tick-row">
+          <span>0</span>
+          <span>30</span>
+          <span>50</span>
+          <span>70</span>
+          <span>100</span>
+        </div>
+        <div class="rsi-labels-row">
+          <span style="color:var(--green);font-size:12px;">売られすぎ（買い）</span>
+          <span style="color:var(--muted);font-size:12px;">中立</span>
+          <span style="color:var(--red);font-size:12px;">買われすぎ（売り）</span>
+        </div>
+      </div>
+      <div class="ind-signal-row">
+        <div class="ind-signal-box">
+          <div class="sig-title">買いシグナル</div>
+          <div class="sig-buy">RSIが30以下から上向きに反転した時</div>
+        </div>
+        <div class="ind-signal-box">
+          <div class="sig-title">売りシグナル</div>
+          <div class="sig-sell">RSIが70以上から下向きに反転した時</div>
+        </div>
+        <div class="ind-signal-box">
+          <div class="sig-title">使い方</div>
+          <div class="sig-use">チャート画面のRSIパネルで確認。単独ではなくMAと組み合わせて使用</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MACD -->
+    <div class="ind-panel" id="ind-macd">
+      <div class="ind-explanation">
+        <strong>MACD（Moving Average Convergence Divergence）</strong>は、短期EMA（12日）と長期EMA（26日）の差をグラフ化したものです。トレンドの勢いと転換点を判断します。MACDラインとシグナルライン（9日EMA）のクロスがシグナルです。
+      </div>
+      <div class="macd-visual">
+        <svg width="320" height="130" viewBox="0 0 320 130">
+          <!-- Zero line -->
+          <line x1="0" y1="65" x2="320" y2="65" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+          <!-- Histogram bars -->
+          <rect x="10"  y="75" width="14" height="20" fill="#f85149" opacity="0.7"/>
+          <rect x="30"  y="70" width="14" height="25" fill="#f85149" opacity="0.7"/>
+          <rect x="50"  y="68" width="14" height="27" fill="#f85149" opacity="0.7"/>
+          <rect x="70"  y="63" width="14" height="2"  fill="#3fb950" opacity="0.7"/>
+          <rect x="90"  y="50" width="14" height="15" fill="#3fb950" opacity="0.7"/>
+          <rect x="110" y="40" width="14" height="25" fill="#3fb950" opacity="0.7"/>
+          <rect x="130" y="38" width="14" height="27" fill="#3fb950" opacity="0.7"/>
+          <rect x="150" y="42" width="14" height="23" fill="#3fb950" opacity="0.7"/>
+          <rect x="170" y="50" width="14" height="15" fill="#3fb950" opacity="0.7"/>
+          <rect x="190" y="62" width="14" height="3"  fill="#3fb950" opacity="0.7"/>
+          <rect x="210" y="65" width="14" height="18" fill="#f85149" opacity="0.7"/>
+          <rect x="230" y="65" width="14" height="25" fill="#f85149" opacity="0.7"/>
+          <rect x="250" y="65" width="14" height="28" fill="#f85149" opacity="0.7"/>
+          <!-- MACD line (blue) -->
+          <polyline points="17,80 37,75 57,73 77,64 97,52 117,45 137,43 157,47 177,54 197,64 217,72 237,78 257,82"
+                    fill="none" stroke="#58a6ff" stroke-width="2"/>
+          <!-- Signal line (orange) -->
+          <polyline points="17,82 37,79 57,75 77,68 97,58 117,49 137,46 157,47 177,52 197,61 217,70 237,76 257,80"
+                    fill="none" stroke="#d29922" stroke-width="2" stroke-dasharray="5,3"/>
+          <!-- Cross marker -->
+          <circle cx="77" cy="64" r="5" fill="none" stroke="#3fb950" stroke-width="2"/>
+          <text x="82" y="55" fill="#3fb950" font-size="9" font-family="sans-serif">上抜け=買い</text>
+          <!-- Labels -->
+          <text x="265" y="80" fill="#58a6ff" font-size="10" font-family="sans-serif">MACD</text>
+          <text x="265" y="95" fill="#d29922" font-size="10" font-family="sans-serif">Signal</text>
+        </svg>
+      </div>
+      <div class="ind-signal-row">
+        <div class="ind-signal-box">
+          <div class="sig-title">買いシグナル</div>
+          <div class="sig-buy">MACDラインがシグナルラインを上抜けた時</div>
+        </div>
+        <div class="ind-signal-box">
+          <div class="sig-title">売りシグナル</div>
+          <div class="sig-sell">MACDラインがシグナルラインを下抜けた時</div>
+        </div>
+        <div class="ind-signal-box">
+          <div class="sig-title">使い方</div>
+          <div class="sig-use">チャート画面のMACDパネルで確認。ヒストグラムが縮小し始めたら転換の前兆</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. RISK MANAGEMENT -->
+  <section class="section">
+    <h2 class="section-title">🛡️ リスク管理の鉄則</h2>
+    <div class="risk-grid">
+      <div class="risk-card">
+        <div class="risk-icon">🛡️</div>
+        <div class="risk-title">2%ルール</div>
+        <div class="risk-desc">1回の損失は資金の2%以内に抑える（10万円なら最大2,000円）</div>
+      </div>
+      <div class="risk-card">
+        <div class="risk-icon">✂️</div>
+        <div class="risk-title">損切り必須</div>
+        <div class="risk-desc">感情で引っ張らず、エントリー前に損切りラインを決めておく</div>
+      </div>
+      <div class="risk-card">
+        <div class="risk-icon">📏</div>
+        <div class="risk-title">ATR損切り</div>
+        <div class="risk-desc">損切り幅 = エントリー価格 − ATR × 1.5（ボラティリティ基準）</div>
+      </div>
+      <div class="risk-card">
+        <div class="risk-icon">🎯</div>
+        <div class="risk-title">RR比 2:1</div>
+        <div class="risk-desc">利確目標 = リスクの2倍（2,000円リスクなら4,000円利確）</div>
+      </div>
+    </div>
+    <div class="risk-example">
+      <div class="risk-example-title">💡 計算例</div>
+      <table>
+        <tr><td>資金</td><td>¥100,000</td></tr>
+        <tr><td>1トレード最大損失（2%）</td><td>¥2,000</td></tr>
+        <tr><td>ATR仮定</td><td>¥500 → 損切り幅 ¥750（ATR × 1.5）</td></tr>
+        <tr><td>購入株数</td><td>¥2,000 ÷ ¥750 = 約2株</td></tr>
+        <tr><td>利確目標（RR=2）</td><td>+¥1,500（¥750 × 2）</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- 7. AGENTS -->
+  <section class="section">
+    <h2 class="section-title">🤖 AIエージェント紹介</h2>
+    <div class="agent-tree">
+      <div class="agent-root">🎯 orche（オーケストレーター）</div>
+      <div class="agent-children">
+        <div class="agent-child">
+          <span class="agent-child-connector">├──</span>
+          <span class="agent-child-name">📈 chart-agent</span>
+          <span class="agent-child-role">　チャートツール開発・運用</span>
+          <span class="agent-child-badge badge-active">稼働中</span>
+        </div>
+        <div class="agent-child">
+          <span class="agent-child-connector">├──</span>
+          <span class="agent-child-name">🔬 research-agent</span>
+          <span class="agent-child-role">　定時スケジューラー・シグナルスキャン</span>
+          <span class="agent-child-badge badge-active">稼働中</span>
+        </div>
+        <div class="agent-child">
+          <span class="agent-child-connector">├──</span>
+          <span class="agent-child-name">🐦 sentiment-agent</span>
+          <span class="agent-child-role">　X/Twitterセンチメント分析</span>
+          <span class="agent-child-badge badge-active">稼働中</span>
+        </div>
+        <div class="agent-child">
+          <span class="agent-child-connector">├──</span>
+          <span class="agent-child-name">⚡ strategy-agent</span>
+          <span class="agent-child-role">　バックテスト・戦略最適化</span>
+          <span class="agent-child-badge badge-active">稼働中</span>
+        </div>
+        <div class="agent-child">
+          <span class="agent-child-connector">└──</span>
+          <span class="agent-child-name">📓 journal-agent</span>
+          <span class="agent-child-role">　デモトレード日誌管理</span>
+          <span class="agent-child-badge badge-active">稼働中</span>
+        </div>
+      </div>
+      <div class="agent-desc">複数のAIエージェントが協力して分析・開発を進めています。各エージェントは専門領域を持ち、オーケストレーターが全体を調整します。</div>
+    </div>
+  </section>
+
+  <!-- 8. ACCOUNT GUIDE -->
+  <section class="section">
+    <h2 class="section-title">🏦 口座開設ガイド</h2>
+    <div class="steps-list">
+      <div class="step-card">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">暗号資産口座（bitFlyer）</div>
+          <div class="step-desc">
+            <ul>
+              <li>最短当日開設・本人確認書類のみ</li>
+              <li>まずBTC/ETHのデモで感覚を掴む</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">株式口座（SBI証券）</div>
+          <div class="step-desc">
+            <ul>
+              <li>約1週間・マイナンバーが必要</li>
+              <li>日本株・米国株両方の取引が可能</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">デモトレードで練習</div>
+          <div class="step-desc">
+            <ul>
+              <li>このツールのバックテスト機能を活用</li>
+              <li>勝率・PFが安定したら実口座へ移行</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">少額実取引（¥10,000〜）</div>
+          <div class="step-desc">
+            <ul>
+              <li>2%ルールを必ず守る</li>
+              <li>1銘柄から開始して経験を積む</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ========== FOOTER ========== -->
+<footer class="guide-footer">
+  <p class="disclaimer">⚠️ このツールは学習目的です。投資判断はご自身の責任で行ってください。</p>
+  <a href="/" class="footer-link">← チャートに戻る</a>
+</footer>
+
+<script>
+  // ===== Roadmap =====
+  const roadmap = [
+    { label: "チャートアプリ基本構築", pct: 100, done: true },
+    { label: "MA/RSI/MACD・バックテスト・アラート", pct: 100, done: true },
+    { label: "追加インジケーター（BB・一目均衡表・ATR・Stochastic・VWAP）", pct: 100, done: true },
+    { label: "ファンダメンタルズ分析（CAN SLIM・SEPA・決算・ニュース要約）", pct: 100, done: true },
+    { label: "X(Twitter)センチメント分析（Grok API）", pct: 100, done: true },
+    { label: "AIシグナルエンジン（テクニカル20%+ファンダ40%+センチメント40%）", pct: 100, done: true },
+    { label: "モメンタムスキャナー・分析ダッシュボード", pct: 100, done: true },
+    { label: "デモトレード日誌・管理システム", pct: 100, done: true },
+    { label: "自動スケジューラー（毎時+定時ジョブ）", pct: 100, done: true },
+    { label: "固定URL公開（https://libra.lunasoph.com）", pct: 100, done: true },
+    { label: "初心者ガイドページ（本ページ）", pct: 100, done: true },
+    { label: "Phase 2: デモトレード開始（7/5〜7/15）", pct: 0, done: false, active: true },
+    { label: "Phase 3: 実口座トレード開始（7/15〜）", pct: 0, done: false },
+  ];
+
+  const list = document.getElementById('roadmap-list');
+  roadmap.forEach(item => {
+    const fillClass = item.done ? 'fill-green' : item.active ? 'fill-blue fill-active' : 'fill-gray';
+    const pctLabel = item.pct > 0 ? item.pct + '%' : '未着手';
+    list.innerHTML += `
+      <div class="roadmap-item">
+        <div class="roadmap-item-header">
+          <span class="roadmap-label">${item.done ? '✅ ' : item.active ? '🔵 ' : '○ '}${item.label}</span>
+          <span class="roadmap-pct">${pctLabel}</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill ${fillClass}" style="width:${item.pct}%"></div>
+        </div>
+      </div>`;
+  });
+
+  // ===== Indicator tabs =====
+  function switchInd(btn, tab) {
+    document.querySelectorAll('.ind-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.ind-tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('ind-' + tab).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // ===== Scroll animation =====
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>分析ダッシュボード</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid #30363d;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: #8b949e;
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
+    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+
+    .ticker-search {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+      align-items: center;
+    }
+    .ticker-search input {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #e6edf3;
+      font-size: 14px;
+      padding: 8px 14px;
+      outline: none;
+      width: 160px;
+      text-transform: uppercase;
+      transition: border-color 0.2s;
+    }
+    .ticker-search input:focus { border-color: #58a6ff; }
+    .btn-analyze {
+      background: #1f6feb;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 18px;
+      transition: background 0.15s;
+    }
+    .btn-analyze:hover { background: #388bfd; }
+
+    /* ---- Main ---- */
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    /* ---- Loading / Error ---- */
+    #global-loading {
+      display: none;
+      text-align: center;
+      padding: 80px;
+      color: #8b949e;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #30363d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .inline-spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #30363d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    /* ---- Cards ---- */
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #dashboard { display: none; }
+
+    /* ---- Section 1: AI Signal ---- */
+    .signal-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    .gauge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .gauge-canvas-wrap { position: relative; width: 220px; height: 130px; overflow: hidden; }
+    .gauge-canvas-wrap canvas { position: absolute; top: 0; left: 0; }
+    .gauge-label {
+      text-align: center;
+      margin-top: 8px;
+    }
+    .gauge-score {
+      font-size: 42px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .gauge-judgment {
+      font-size: 18px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .signal-detail { display: flex; flex-direction: column; gap: 12px; }
+    .reasons-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .reasons-list li {
+      font-size: 13px;
+      color: #c9d1d9;
+      padding: 8px 12px;
+      background: #0d1117;
+      border-radius: 6px;
+      border-left: 3px solid #30363d;
+    }
+    .trade-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .trade-item { background: #0d1117; border-radius: 8px; padding: 12px 14px; }
+    .trade-item .label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .trade-item .value { font-size: 18px; font-weight: 700; }
+
+    /* ---- Section 2: Sentiment ---- */
+    .sentiment-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .sent-score-bar-wrap { margin-bottom: 14px; }
+    .sent-score-bar-bg {
+      height: 10px;
+      background: #21262d;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .sent-score-bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 0.5s;
+    }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .badge-blue { background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); }
+    .badge-green { background: rgba(63,185,80,0.15); color: #3fb950; border: 1px solid rgba(63,185,80,0.3); }
+    .badge-red { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .badge-purple { background: rgba(204,136,255,0.15); color: #cc88ff; border: 1px solid rgba(204,136,255,0.3); }
+    .badge-gray { background: rgba(139,148,158,0.15); color: #8b949e; border: 1px solid rgba(139,148,158,0.3); }
+    .keywords { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .keyword-pill {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+    }
+    .post-cards { display: flex; flex-direction: column; gap: 8px; }
+    .post-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .post-card .post-text { font-size: 13px; color: #c9d1d9; line-height: 1.5; margin-bottom: 4px; }
+    .post-card .post-time { font-size: 11px; color: #8b949e; }
+    .sent-summary {
+      font-size: 14px;
+      color: #c9d1d9;
+      line-height: 1.6;
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 14px;
+      border-left: 3px solid #58a6ff;
+    }
+
+    /* ---- Section 3: Fundamentals + CAN SLIM ---- */
+    .fund-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .metric-box {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .metric-box .m-label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; }
+    .metric-box .m-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+    .canslim-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #21262d;
+    }
+    .canslim-row:last-child { border-bottom: none; }
+    .canslim-letter {
+      font-size: 18px;
+      font-weight: 800;
+      min-width: 28px;
+      color: #58a6ff;
+    }
+    .canslim-name { font-size: 13px; flex: 1; }
+    .canslim-value { font-size: 12px; color: #8b949e; min-width: 80px; text-align: right; }
+    .canslim-icon { font-size: 16px; min-width: 20px; text-align: center; }
+    .grade-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      font-size: 24px;
+      font-weight: 800;
+      border: 3px solid;
+    }
+    .grade-A { border-color: #3fb950; color: #3fb950; background: rgba(63,185,80,0.1); }
+    .grade-B { border-color: #58a6ff; color: #58a6ff; background: rgba(88,166,255,0.1); }
+    .grade-C { border-color: #f0c040; color: #f0c040; background: rgba(240,192,64,0.1); }
+    .grade-D { border-color: #f0a040; color: #f0a040; background: rgba(240,160,64,0.1); }
+    .grade-F { border-color: #f85149; color: #f85149; background: rgba(248,81,73,0.1); }
+    .sepa-box {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      background: #0d1117;
+    }
+    .sepa-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+    .sepa-conditions { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .sepa-conditions li { font-size: 12px; color: #8b949e; display: flex; gap: 8px; align-items: flex-start; }
+    .news-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .news-item {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .news-item a { color: #58a6ff; text-decoration: none; font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px; }
+    .news-item a:hover { text-decoration: underline; }
+    .news-item .news-meta { font-size: 11px; color: #8b949e; }
+
+    /* ---- Section 4: Technical Chart ---- */
+    .chart-container { position: relative; height: 360px; }
+    .volume-container { position: relative; height: 80px; margin-top: 8px; }
+    .atr-info {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #0d1117;
+      border-radius: 8px;
+      border-left: 3px solid #f0a040;
+      font-size: 13px;
+      color: #c9d1d9;
+    }
+
+    /* ---- Section 5: Earnings Calendar ---- */
+    .earnings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .earnings-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px;
+      transition: border-color 0.2s;
+    }
+    .earnings-card:hover { border-color: #58a6ff; }
+    .earnings-ticker { font-size: 20px; font-weight: 800; color: #58a6ff; margin-bottom: 4px; }
+    .earnings-date { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
+    .days-until {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .days-soon { background: rgba(248,81,73,0.15); color: #f85149; }
+    .days-medium { background: rgba(240,192,64,0.15); color: #f0c040; }
+    .days-far { background: rgba(139,148,158,0.15); color: #8b949e; }
+    .earnings-eps { font-size: 12px; color: #8b949e; }
+    .earnings-eps span { color: #e6edf3; font-weight: 600; }
+
+    /* ---- Refresh countdown ---- */
+    #refresh-info {
+      font-size: 12px;
+      color: #8b949e;
+      text-align: right;
+      padding-bottom: 8px;
+    }
+
+    /* ---- Error box ---- */
+    .error-box {
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 8px;
+      color: #f85149;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    /* responsive */
+    @media (max-width: 900px) {
+      .signal-layout { grid-template-columns: 1fr; }
+      .sentiment-layout { grid-template-columns: 1fr; }
+      .fund-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link active">📊 分析</a>
+    <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <div class="ticker-search">
+      <input id="ticker-input" type="text" placeholder="AAPL" value="AAPL">
+      <button class="btn-analyze" onclick="runAnalysis()">分析</button>
+    </div>
+  </nav>
+
+  <main>
+    <div id="global-loading">
+      <div class="spinner"></div>
+      <p>データ取得中...</p>
+    </div>
+
+    <div id="dashboard">
+      <div id="refresh-info"></div>
+
+      <!-- Section 1: AI Signal -->
+      <div class="card">
+        <div class="card-title">Section 1 — AI シグナル（総合判断）</div>
+        <div class="signal-layout">
+          <div class="gauge-wrap">
+            <div class="gauge-canvas-wrap">
+              <canvas id="gaugeCanvas" width="220" height="130"></canvas>
+            </div>
+            <div class="gauge-label">
+              <div class="gauge-score" id="gauge-score">--</div>
+              <div class="gauge-judgment" id="gauge-judgment">--</div>
+            </div>
+          </div>
+          <div class="signal-detail">
+            <div id="signal-breakdown"></div>
+            <ul class="reasons-list" id="reasons-list" style="margin-top:12px"></ul>
+            <div class="trade-grid" id="trade-grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Sentiment -->
+      <div class="card">
+        <div class="card-title">Section 2 — X/Twitter センチメント</div>
+        <div id="sentiment-loading"><span class="inline-spinner"></span> センチメントデータ取得中...</div>
+        <div id="sentiment-content" style="display:none">
+          <div class="sentiment-layout">
+            <div>
+              <div class="sent-score-bar-wrap">
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:#8b949e">
+                  <span>センチメントスコア</span>
+                  <span id="sent-score-label">--</span>
+                </div>
+                <div class="sent-score-bar-bg">
+                  <div class="sent-score-bar-fill" id="sent-score-bar" style="width:50%;background:#8b949e"></div>
+                </div>
+              </div>
+              <div class="badges" id="sent-badges"></div>
+              <div class="keywords" id="sent-keywords"></div>
+              <div class="sent-summary" id="sent-summary"></div>
+            </div>
+            <div class="post-cards" id="sent-posts"></div>
+          </div>
+        </div>
+        <div class="error-box" id="sentiment-error" style="display:none"></div>
+      </div>
+
+      <!-- Section 3: Fundamentals + CAN SLIM -->
+      <div class="card">
+        <div class="card-title">Section 3 — ファンダメンタルズ + CAN SLIM</div>
+        <div id="fund-loading"><span class="inline-spinner"></span> ファンダメンタルズ取得中...</div>
+        <div id="fund-content" style="display:none">
+          <div class="fund-layout">
+            <!-- Left -->
+            <div>
+              <div class="metrics-grid" id="metrics-grid"></div>
+              <div class="sepa-box" id="sepa-box"></div>
+              <div class="news-grid" id="news-grid"></div>
+            </div>
+            <!-- Right: CAN SLIM -->
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+                <span style="font-size:15px;font-weight:700">CAN SLIM スコア</span>
+                <div id="canslim-grade" class="grade-badge">--</div>
+              </div>
+              <div id="canslim-rows"></div>
+            </div>
+          </div>
+        </div>
+        <div class="error-box" id="fund-error" style="display:none"></div>
+      </div>
+
+      <!-- Section 4: Technical Chart -->
+      <div class="card">
+        <div class="card-title">Section 4 — テクニカルチャート</div>
+        <div id="chart-loading"><span class="inline-spinner"></span> チャートデータ取得中...</div>
+        <div id="chart-content" style="display:none">
+          <div class="chart-container"><canvas id="analysisCandle"></canvas></div>
+          <div class="volume-container"><canvas id="analysisVolume"></canvas></div>
+          <div class="atr-info" id="atr-info"></div>
+        </div>
+        <div class="error-box" id="chart-error" style="display:none"></div>
+      </div>
+
+      <!-- Section 5: Earnings Calendar -->
+      <div class="card">
+        <div class="card-title">Section 5 — 決算カレンダー</div>
+        <div id="earnings-loading"><span class="inline-spinner"></span> 決算データ取得中...</div>
+        <div class="earnings-grid" id="earnings-grid" style="display:none"></div>
+        <div class="error-box" id="earnings-error" style="display:none"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let candleInst = null;
+    let volumeInst = null;
+    let refreshTimer = null;
+    let refreshCountdown = 300;
+    let currentTicker = "AAPL";
+
+    const tickerInput = document.getElementById("ticker-input");
+    tickerInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") runAnalysis();
+    });
+
+    // ---- Gauge Drawing ----
+    function drawGauge(score) {
+      const canvas = document.getElementById("gaugeCanvas");
+      const ctx = canvas.getContext("2d");
+      const cx = 110, cy = 120, r = 95;
+      ctx.clearRect(0, 0, 220, 130);
+
+      // Background arc
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI, 0);
+      ctx.lineWidth = 20;
+      ctx.strokeStyle = "#21262d";
+      ctx.stroke();
+
+      // Color zones
+      const zones = [
+        { from: Math.PI,       to: Math.PI * 1.3,  color: "#f85149" },  // sell
+        { from: Math.PI * 1.3, to: Math.PI * 1.7,  color: "#8b949e" },  // neutral
+        { from: Math.PI * 1.7, to: Math.PI * 2.0,  color: "#3fb950" },  // buy
+      ];
+      zones.forEach(z => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, z.from, z.to);
+        ctx.lineWidth = 18;
+        ctx.strokeStyle = z.color;
+        ctx.stroke();
+      });
+
+      // Needle
+      const norm = (score + 100) / 200;  // 0 to 1
+      const angle = Math.PI + norm * Math.PI;
+      const nx = cx + (r - 12) * Math.cos(angle);
+      const ny = cy + (r - 12) * Math.sin(angle);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(nx, ny);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#e6edf3";
+      ctx.lineCap = "round";
+      ctx.stroke();
+
+      // Center dot
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#e6edf3";
+      ctx.fill();
+
+      // Zone labels
+      ctx.font = "10px sans-serif";
+      ctx.fillStyle = "#f85149";
+      ctx.fillText("売り", cx - r + 4, cy - 4);
+      ctx.fillStyle = "#3fb950";
+      ctx.fillText("買い", cx + r - 28, cy - 4);
+    }
+
+    // ---- Section 1: Signal (3層AIシグナルエンジン) ----
+    async function loadSignal(ticker) {
+      try {
+        const res = await fetch(`/api/signal/advanced?ticker=${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        // スコアは total_score (-100〜+100)、判定は signal_ja
+        const score    = data.total_score ?? data.score ?? 0;
+        const judgment = data.signal_ja   ?? data.judgment ?? "—";
+        const scoreEl  = document.getElementById("gauge-score");
+        const judgEl   = document.getElementById("gauge-judgment");
+
+        scoreEl.textContent = (score > 0 ? "+" : "") + score;
+        judgEl.textContent  = judgment;
+
+        const color = score >= 30 ? "#3fb950" : score <= -30 ? "#f85149" : "#8b949e";
+        scoreEl.style.color = color;
+        judgEl.style.color  = color;
+
+        drawGauge(score);
+
+        // 3層スコア内訳
+        const techS = data.technical_score  ?? null;
+        const fundS = data.fundamental_score ?? null;
+        const sentS = data.sentiment_score  ?? null;
+        const breakdownEl = document.getElementById("signal-breakdown");
+        if (breakdownEl && (techS !== null || fundS !== null || sentS !== null)) {
+          const bar = (v, max=100) => {
+            const pct = Math.max(0, Math.min(100, (v + max) / (max * 2) * 100));
+            const c   = v >= 0 ? "#3fb950" : "#f85149";
+            return `<div style="background:#21262d;border-radius:3px;height:6px;margin-top:3px"><div style="background:${c};width:${pct}%;height:100%;border-radius:3px"></div></div>`;
+          };
+          breakdownEl.innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;font-size:11px">
+              <div><div style="color:#8b949e">テクニカル <small>(20%)</small></div><div style="font-weight:700;color:#e6edf3">${techS != null ? (techS > 0 ? '+' : '') + techS : '—'}</div>${techS != null ? bar(techS) : ''}</div>
+              <div><div style="color:#8b949e">ファンダ <small>(40%)</small></div><div style="font-weight:700;color:#e6edf3">${fundS != null ? fundS : '—'}</div>${fundS != null ? bar(fundS - 50, 50) : ''}</div>
+              <div><div style="color:#8b949e">センチメント <small>(40%)</small></div><div style="font-weight:700;color:#e6edf3">${sentS != null ? (sentS > 0 ? '+' : '') + sentS : '—'}</div>${sentS != null ? bar(sentS) : ''}</div>
+            </div>`;
+        }
+
+        const reasonsEl = document.getElementById("reasons-list");
+        reasonsEl.innerHTML = (data.reasons || []).slice(0, 6).map(r =>
+          `<li>${escHtml(r)}</li>`
+        ).join("") || "<li style='color:#8b949e'>理由なし</li>";
+
+        const tradeEl = document.getElementById("trade-grid");
+        const rr = data.risk_reward;
+        tradeEl.innerHTML = `
+          <div class="trade-item">
+            <div class="label">エントリー目安</div>
+            <div class="value" style="font-size:14px;color:#58a6ff">$${data.entry_low ?? data.entry_range?.low ?? "--"} - $${data.entry_high ?? data.entry_range?.high ?? "--"}</div>
+          </div>
+          <div class="trade-item">
+            <div class="label">損切りライン</div>
+            <div class="value" style="color:#f85149">$${data.stop_loss ?? "--"}</div>
+          </div>
+          <div class="trade-item">
+            <div class="label">利確目標</div>
+            <div class="value" style="color:#3fb950">$${data.target ?? "--"}</div>
+          </div>
+          <div class="trade-item">
+            <div class="label">RR比</div>
+            <div class="value" style="color:#d2a8ff">${rr != null ? rr + "x" : "--"}</div>
+          </div>
+          <div class="trade-item">
+            <div class="label">ATR</div>
+            <div class="value" style="color:#8b949e">$${data.atr ?? "--"}</div>
+          </div>
+        `;
+      } catch (e) {
+        document.getElementById("reasons-list").innerHTML = `<li style="color:#f85149">シグナル取得エラー: ${escHtml(e.message)}</li>`;
+      }
+    }
+
+    // ---- Section 2: Sentiment ----
+    async function loadSentiment(ticker) {
+      const loadEl = document.getElementById("sentiment-loading");
+      const contEl = document.getElementById("sentiment-content");
+      const errEl  = document.getElementById("sentiment-error");
+      loadEl.style.display = "block";
+      contEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      try {
+        const res  = await fetch(`/api/sentiment?ticker=${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error && !data.sentiment_score) throw new Error(data.error);
+
+        const score = data.sentiment_score || 0;
+        const pct   = ((score + 100) / 200 * 100).toFixed(0);
+        const fillColor = score > 20 ? "#3fb950" : score < -20 ? "#f85149" : "#8b949e";
+
+        document.getElementById("sent-score-label").textContent = (score > 0 ? "+" : "") + score;
+        const bar = document.getElementById("sent-score-bar");
+        bar.style.width = `${pct}%`;
+        bar.style.background = fillColor;
+
+        const badges = document.getElementById("sent-badges");
+        const velocityClass = data.velocity === "急増" ? "badge-red" : data.velocity === "急減" ? "badge-blue" : "badge-gray";
+        const velocityIcon  = data.velocity === "急増" ? "急増" : data.velocity === "急減" ? "急減" : "安定";
+        let badgesHtml = `<span class="badge ${velocityClass}">${velocityIcon}</span>`;
+        if (data.catalyst_detected) {
+          badgesHtml += `<span class="badge badge-green">触媒検出: ${data.catalyst_type || "unknown"}</span>`;
+        }
+        badges.innerHTML = badgesHtml;
+
+        const kwEl = document.getElementById("sent-keywords");
+        kwEl.innerHTML = (data.trending_keywords || []).map(k =>
+          `<span class="keyword-pill">${k}</span>`
+        ).join("");
+
+        document.getElementById("sent-summary").textContent = data.summary || "";
+
+        const postsEl = document.getElementById("sent-posts");
+        postsEl.innerHTML = (data.notable_posts || []).map(p =>
+          `<div class="post-card">
+            <div class="post-text">${escHtml(p.text || "")}</div>
+            <div class="post-time">${escHtml(p.time || "")}</div>
+          </div>`
+        ).join("") || "<p style='color:#8b949e;font-size:13px'>投稿データなし</p>";
+
+        loadEl.style.display = "none";
+        contEl.style.display = "block";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `センチメント取得エラー: ${e.message}`;
+      }
+    }
+
+    // ---- Section 3: Fundamentals + CAN SLIM ----
+    async function loadFundamentals(ticker) {
+      const loadEl = document.getElementById("fund-loading");
+      const contEl = document.getElementById("fund-content");
+      const errEl  = document.getElementById("fund-error");
+      loadEl.style.display = "block";
+      contEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      try {
+        const [fundRes, canslimRes, sepaRes, newsRes] = await Promise.all([
+          fetch(`/api/fundamentals?ticker=${encodeURIComponent(ticker)}`),
+          fetch(`/api/canslim?ticker=${encodeURIComponent(ticker)}`),
+          fetch(`/api/sepa?ticker=${encodeURIComponent(ticker)}`),
+          fetch(`/api/news?ticker=${encodeURIComponent(ticker)}`),
+        ]);
+
+        const fund    = await fundRes.json();
+        const canslim = await canslimRes.json();
+        const sepa    = await sepaRes.json();
+        const newsData = await newsRes.json();
+
+        // Metrics grid
+        const metricsEl = document.getElementById("metrics-grid");
+        const fmt = (v, suffix="") => (v != null && v !== 0) ? `${v}${suffix}` : "N/A";
+        metricsEl.innerHTML = `
+          <div class="metric-box"><div class="m-label">PER</div><div class="m-value">${fmt(fund.per, "x")}</div></div>
+          <div class="metric-box"><div class="m-label">PBR</div><div class="m-value">${fmt(fund.pbr, "x")}</div></div>
+          <div class="metric-box"><div class="m-label">ROE</div><div class="m-value">${fmt(fund.roe, "%")}</div></div>
+          <div class="metric-box"><div class="m-label">EPS成長</div><div class="m-value" style="color:${(fund.eps_growth_yoy ?? fund.eps_growth ?? 0) >= 0 ? '#3fb950' : '#f85149'}">${fmt(fund.eps_growth_yoy ?? fund.eps_growth, "%")}</div></div>
+          <div class="metric-box"><div class="m-label">機関保有</div><div class="m-value">${fmt(fund.inst_ownership, "%")}</div></div>
+          <div class="metric-box"><div class="m-label">セクター</div><div class="m-value" style="font-size:12px">${fund.sector || "N/A"}</div></div>
+          ${fund.next_earnings_date ? `<div class="metric-box" style="grid-column:span 2"><div class="m-label">次回決算</div><div class="m-value" style="color:#d2a8ff;font-size:13px">${escHtml(fund.next_earnings_date)}</div></div>` : ""}
+          ${fund.analyst_recommendation ? `<div class="metric-box"><div class="m-label">アナリスト</div><div class="m-value" style="font-size:12px;text-transform:capitalize">${escHtml(fund.analyst_recommendation)}</div></div>` : ""}
+          ${fund.analyst_target_price ? `<div class="metric-box"><div class="m-label">目標株価</div><div class="m-value" style="color:#58a6ff">$${fund.analyst_target_price}</div></div>` : ""}
+        `;
+
+        // CAN SLIM
+        const grade = canslim.grade || "F";
+        const gradeEl = document.getElementById("canslim-grade");
+        gradeEl.textContent = grade;
+        gradeEl.className = `grade-badge grade-${grade}`;
+
+        const rowsEl = document.getElementById("canslim-rows");
+        const CANSLIM_NAMES = {C:'現在の四半期EPS', A:'年間EPS成長', N:'新製品・新高値', S:'需給バランス', L:'リーダー/ラガード', I:'機関投資家動向', M:'マーケット方向性'};
+        const canslimEntries = ['C','A','N','S','L','I','M'].filter(k => canslim[k]).map(k => [k, canslim[k]]);
+        rowsEl.innerHTML = canslimEntries.map(([key, c]) =>
+          `<div class="canslim-row">
+            <span class="canslim-letter">${key}</span>
+            <span class="canslim-name">${CANSLIM_NAMES[key] || key}</span>
+            <span class="canslim-value">${c.detail || ""}</span>
+            <span class="canslim-icon">${c.pass ? "✅" : "❌"}</span>
+          </div>`
+        ).join("") || "<p style='color:#8b949e;font-size:13px'>データなし</p>";
+
+        // SEPA
+        const sepaEl = document.getElementById("sepa-box");
+        const sepaOk = sepa.sepa_qualified ?? sepa.is_sepa;
+        sepaEl.innerHTML = `
+          <div class="sepa-title" style="color:${sepaOk ? '#3fb950' : '#f85149'}">
+            SEPA${sepaOk ? "適格 ✅" : "非適格 ❌"}
+            <span style="font-size:12px;color:#8b949e;font-weight:400;margin-left:8px">(${sepa.conditions_met ?? sepa.passed_count ?? 0}/${sepa.total_conditions ?? sepa.total ?? 6}条件)</span>
+          </div>
+          <ul class="sepa-conditions">
+            ${(sepa.conditions || []).map(c =>
+              `<li><span>${c.pass ? "✅" : "❌"}</span><span>${c.name || c.label || ""} — <span style="color:#c9d1d9">${c.value ?? c.detail ?? ""}</span></span></li>`
+            ).join("")}
+          </ul>`;
+
+        // News
+        const newsEl = document.getElementById("news-grid");
+        const articles = (newsData.articles || []).slice(0, 5);
+        const aiSummary = newsData.ai_summary || "";
+        if (articles.length > 0) {
+          const summaryHtml = aiSummary
+            ? `<div style="background:#1c2333;border:1px solid #30363d;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#c9d1d9;line-height:1.6">
+                <span style="font-size:11px;font-weight:700;color:#58a6ff;text-transform:uppercase;letter-spacing:.06em">AI要約</span><br>
+                ${escHtml(aiSummary)}
+               </div>` : "";
+          newsEl.innerHTML = summaryHtml +
+            `<div style="font-size:13px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">最新ニュース</div>` +
+            articles.map(a =>
+              `<div class="news-item">
+                <a href="${escHtml(a.url || '#')}" target="_blank" rel="noopener">${escHtml(a.title || "タイトルなし")}</a>
+                <div class="news-meta">${escHtml(a.source || "")} ${(a.pub_date || a.published) ? "・" + escHtml(String(a.pub_date || a.published).slice(0,10)) : ""}</div>
+              </div>`
+            ).join("");
+        } else {
+          newsEl.innerHTML = "<p style='color:#8b949e;font-size:13px;margin-top:8px'>ニュースなし</p>";
+        }
+
+        loadEl.style.display = "none";
+        contEl.style.display = "block";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `ファンダメンタルズ取得エラー: ${e.message}`;
+      }
+    }
+
+    // ---- Section 4: Technical Chart ----
+    async function loadChart(ticker) {
+      const loadEl = document.getElementById("chart-loading");
+      const contEl = document.getElementById("chart-content");
+      const errEl  = document.getElementById("chart-error");
+      loadEl.style.display = "block";
+      contEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      try {
+        const res  = await fetch(`/api/chart?ticker=${encodeURIComponent(ticker)}&period=3mo`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        renderAnalysisChart(data);
+        renderAnalysisVolume(data);
+
+        const atrVal  = data.atr || 0;
+        const price   = data.current_price || 0;
+        const slLine  = (price - atrVal * 1.5).toFixed(2);
+        document.getElementById("atr-info").innerHTML =
+          `現在ATR: <strong>$${atrVal.toFixed(2)}</strong> &nbsp;|&nbsp; 損切り幅目安: <strong>$${(atrVal * 1.5).toFixed(2)}</strong>（ATR×1.5）&nbsp;|&nbsp; ストップロスライン目安: <strong style="color:#f85149">$${slLine}</strong>`;
+
+        loadEl.style.display = "none";
+        contEl.style.display = "block";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `チャート取得エラー: ${e.message}`;
+      }
+    }
+
+    function renderAnalysisChart(data) {
+      if (candleInst) candleInst.destroy();
+      const ctx = document.getElementById("analysisCandle").getContext("2d");
+
+      const datasets = [{
+        label: data.ticker,
+        type: "candlestick",
+        data: data.candles,
+        color: { up: "#3fb950", down: "#f85149", unchanged: "#8b949e" },
+      }];
+
+      // BB
+      if (data.bb && data.bb.upper && data.bb.upper.length) {
+        datasets.push({ label: "BB上限", type: "line", data: data.bb.upper, borderColor: "rgba(240,160,64,0.8)", borderWidth: 1, pointRadius: 0, tension: 0, borderDash: [3,2] });
+        datasets.push({ label: "BB中央", type: "line", data: data.bb.middle, borderColor: "rgba(240,160,64,0.4)", borderWidth: 1, pointRadius: 0, tension: 0 });
+        datasets.push({ label: "BB下限", type: "line", data: data.bb.lower, borderColor: "rgba(240,160,64,0.8)", borderWidth: 1, pointRadius: 0, tension: 0, borderDash: [3,2] });
+      }
+
+      // 一目
+      if (data.ichimoku) {
+        const ich = data.ichimoku;
+        if (ich.tenkan_sen && ich.tenkan_sen.length)
+          datasets.push({ label: "転換線", type: "line", data: ich.tenkan_sen, borderColor: "#4ecdc4", borderWidth: 1.5, pointRadius: 0, tension: 0 });
+        if (ich.kijun_sen && ich.kijun_sen.length)
+          datasets.push({ label: "基準線", type: "line", data: ich.kijun_sen, borderColor: "#ff6b6b", borderWidth: 1.5, pointRadius: 0, tension: 0 });
+        if (ich.senkou_span_a && ich.senkou_span_a.length)
+          datasets.push({ label: "先行A", type: "line", data: ich.senkou_span_a, borderColor: "rgba(63,185,80,0.5)", borderWidth: 1, pointRadius: 0, tension: 0 });
+        if (ich.senkou_span_b && ich.senkou_span_b.length)
+          datasets.push({ label: "先行B", type: "line", data: ich.senkou_span_b, borderColor: "rgba(248,81,73,0.5)", borderWidth: 1, pointRadius: 0, tension: 0 });
+      }
+
+      // Support / Resistance lines (annotation style via extra datasets)
+      const sr = data.support_resistance || {};
+      const allCandles = data.candles || [];
+      if (allCandles.length > 0) {
+        const minX = allCandles[0].x;
+        const maxX = allCandles[allCandles.length - 1].x;
+        (sr.support || []).forEach(lvl => {
+          datasets.push({ label: `S ${lvl}`, type: "line",
+            data: [{ x: minX, y: lvl }, { x: maxX, y: lvl }],
+            borderColor: "rgba(63,185,80,0.5)", borderWidth: 1, pointRadius: 0, borderDash: [6,3] });
+        });
+        (sr.resistance || []).forEach(lvl => {
+          datasets.push({ label: `R ${lvl}`, type: "line",
+            data: [{ x: minX, y: lvl }, { x: maxX, y: lvl }],
+            borderColor: "rgba(248,81,73,0.5)", borderWidth: 1, pointRadius: 0, borderDash: [6,3] });
+        });
+      }
+
+      // Pattern markers
+      const buyPatterns  = (data.patterns || []).filter(p => p.signal === "buy");
+      const sellPatterns = (data.patterns || []).filter(p => p.signal === "sell");
+      if (buyPatterns.length)
+        datasets.push({ label: "買いパターン", type: "scatter",
+          data: buyPatterns.map(p => ({ x: p.date, y: allCandles.find(c => c.x === p.date)?.l || 0 })),
+          backgroundColor: "#3fb950", pointStyle: "triangle", radius: 8 });
+      if (sellPatterns.length)
+        datasets.push({ label: "売りパターン", type: "scatter",
+          data: sellPatterns.map(p => ({ x: p.date, y: allCandles.find(c => c.x === p.date)?.h || 0 })),
+          backgroundColor: "#f85149", pointStyle: "triangle", rotation: 180, radius: 8 });
+
+      candleInst = new Chart(ctx, {
+        type: "candlestick",
+        data: { datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, labels: { color: "#8b949e", usePointStyle: true, pointStyleWidth: 14, boxHeight: 2, font: { size: 11 },
+              filter: item => !item.text.startsWith("S ") && !item.text.startsWith("R ") } },
+            tooltip: { callbacks: { label: ctx => {
+              if (ctx.dataset.type === "candlestick" || ctx.dataset.label === data.ticker) {
+                const d = ctx.raw;
+                if (d && d.o != null) return [`始値: ${d.o}`, `高値: ${d.h}`, `安値: ${d.l}`, `終値: ${d.c}`];
+              }
+              return `${ctx.dataset.label}: ${ctx.raw.y}`;
+            }}}
+          },
+          scales: {
+            x: { type: "timeseries", ticks: { color: "#8b949e", maxTicksLimit: 8 }, grid: { color: "#21262d" } },
+            y: { position: "right", ticks: { color: "#8b949e" }, grid: { color: "#21262d" } }
+          }
+        }
+      });
+    }
+
+    function renderAnalysisVolume(data) {
+      if (volumeInst) volumeInst.destroy();
+      const ctx = document.getElementById("analysisVolume").getContext("2d");
+      const colors = (data.candles || []).map(c => c.c >= c.o ? "rgba(63,185,80,0.5)" : "rgba(248,81,73,0.5)");
+      volumeInst = new Chart(ctx, {
+        type: "bar",
+        data: { datasets: [{ label: "Volume", data: data.volumes || [], backgroundColor: colors, borderWidth: 0 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `出来高: ${ctx.raw.y.toLocaleString()}` } } },
+          scales: {
+            x: { type: "timeseries", ticks: { display: false }, grid: { display: false } },
+            y: { position: "right", ticks: { color: "#8b949e", maxTicksLimit: 3, callback: v => v >= 1e6 ? `${(v/1e6).toFixed(0)}M` : v }, grid: { color: "#21262d" } }
+          }
+        }
+      });
+    }
+
+    // ---- Section 5: Earnings Calendar ----
+    async function loadEarnings() {
+      const loadEl = document.getElementById("earnings-loading");
+      const gridEl = document.getElementById("earnings-grid");
+      const errEl  = document.getElementById("earnings-error");
+      loadEl.style.display = "block";
+      gridEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      try {
+        const res  = await fetch("/api/earnings/calendar");
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) {
+          gridEl.innerHTML = "<p style='color:#8b949e;font-size:13px'>決算データなし</p>";
+          loadEl.style.display = "none";
+          gridEl.style.display = "block";
+          return;
+        }
+
+        const today = new Date();
+        gridEl.innerHTML = data.map(item => {
+          const dateStr = item.earnings_date || item.date || "";
+          let daysUntil = null;
+          let daysClass = "days-far";
+          let daysLabel = "";
+          if (dateStr) {
+            const d = new Date(dateStr);
+            daysUntil = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+            if (daysUntil < 7)  daysClass = "days-soon";
+            else if (daysUntil < 30) daysClass = "days-medium";
+            daysLabel = daysUntil >= 0 ? `${daysUntil}日後` : "発表済み";
+          }
+          const eps = (item.est_eps ?? item.eps_estimate) != null ? `$${item.est_eps ?? item.eps_estimate}` : "N/A";
+          return `
+            <div class="earnings-card">
+              <div class="earnings-ticker">${escHtml(item.ticker || "")}</div>
+              <div class="earnings-date">${escHtml(dateStr)}</div>
+              ${daysUntil != null ? `<span class="days-until ${daysClass}">${daysLabel}</span>` : ""}
+              <div class="earnings-eps">EPS予想: <span>${eps}</span></div>
+            </div>`;
+        }).join("");
+
+        loadEl.style.display = "none";
+        gridEl.style.display = "grid";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `決算データ取得エラー: ${e.message}`;
+      }
+    }
+
+    // ---- Main analysis runner ----
+    async function runAnalysis() {
+      const ticker = tickerInput.value.trim().toUpperCase();
+      if (!ticker) return;
+      currentTicker = ticker;
+
+      document.getElementById("global-loading").style.display = "block";
+      document.getElementById("dashboard").style.display = "none";
+
+      // セクション別スピナーで管理するためダッシュボードを即表示
+      document.getElementById("global-loading").style.display = "none";
+      document.getElementById("dashboard").style.display = "block";
+
+      await Promise.all([
+        loadSignal(ticker),
+        loadSentiment(ticker),
+        loadFundamentals(ticker),
+        loadChart(ticker),
+        loadEarnings(),
+      ]);
+
+      startRefreshTimer();
+    }
+
+    // ---- Auto-refresh every 5 minutes (sentiment + signal) ----
+    function startRefreshTimer() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshCountdown = 300;
+      updateRefreshInfo();
+      refreshTimer = setInterval(() => {
+        refreshCountdown -= 1;
+        updateRefreshInfo();
+        if (refreshCountdown <= 0) {
+          refreshCountdown = 300;
+          loadSentiment(currentTicker);
+          loadSignal(currentTicker);
+        }
+      }, 1000);
+    }
+
+    function updateRefreshInfo() {
+      const m = Math.floor(refreshCountdown / 60);
+      const s = refreshCountdown % 60;
+      document.getElementById("refresh-info").textContent =
+        `センチメント・シグナル 自動更新: ${m}:${String(s).padStart(2,"0")} 後`;
+    }
+
+    // ---- Utility ----
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // ページ初期ロード — URLパラメータ ?ticker= があれば優先
+    window.addEventListener("DOMContentLoaded", () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlTicker = params.get("ticker");
+      if (urlTicker) tickerInput.value = urlTicker.toUpperCase();
+      runAnalysis();
+    });
+  </script>
+</body>
+</html>

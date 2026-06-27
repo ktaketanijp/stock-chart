@@ -1,0 +1,44 @@
+# 環境変数・機密情報
+.env
+*.env
+.env.*
+
+# データファイル（個人の取引データ）
+data/paper_trades.json
+data/*.json
+
+# レポートデータ（自動生成）
+data/reports/
+
+# ログ
+*.log
+logs/
+data/*.log
+
+# アラートデータ
+alerts.json
+
+# Pythonキャッシュ
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# 仮想環境
+venv/
+env/
+.venv/
+
+# エディタ
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>プロジェクト状況 | トレードAI</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid #30363d;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: #8b949e;
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
+    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+
+    main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+    /* Phase banner */
+    .phase-banner {
+      border-radius: 10px; padding: 16px 20px; margin-bottom: 24px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    }
+    .phase-banner.blue   { background: rgba(88,166,255,.12); border: 1px solid rgba(88,166,255,.3); }
+    .phase-banner.yellow { background: rgba(240,192,64,.12); border: 1px solid rgba(240,192,64,.3); }
+    .phase-banner.orange { background: rgba(248,132,74,.12); border: 1px solid rgba(248,132,74,.3); }
+    .phase-banner.green  { background: rgba(63,185,80,.12);  border: 1px solid rgba(63,185,80,.3); }
+    .phase-text { font-size: 16px; font-weight: 700; }
+    .phase-banner.blue   .phase-text { color: #58a6ff; }
+    .phase-banner.yellow .phase-text { color: #f0c040; }
+    .phase-banner.orange .phase-text { color: #f8844a; }
+    .phase-banner.green  .phase-text { color: #3fb950; }
+    .updated-at { font-size: 12px; color: #8b949e; }
+    .refresh-btn {
+      background: #21262d; border: 1px solid #30363d; border-radius: 6px;
+      color: #8b949e; cursor: pointer; font-size: 12px; padding: 5px 12px; transition: all .15s;
+    }
+    .refresh-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    /* Progress */
+    .section-title { font-size: 14px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+    .section { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+
+    .overall-progress { margin-bottom: 20px; }
+    .pct-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+    .pct-label .num { font-size: 24px; font-weight: 700; color: #58a6ff; }
+    .prog-bar-bg { background: #21262d; border-radius: 99px; height: 12px; overflow: hidden; }
+    .prog-bar-fill { height: 100%; border-radius: 99px; transition: width 1s ease;
+      background: linear-gradient(90deg, #1f6feb, #58a6ff); }
+
+    /* File status grid */
+    .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+    .file-item {
+      display: flex; align-items: center; gap: 10px;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 10px 14px;
+    }
+    .file-item.done { border-color: rgba(63,185,80,.4); }
+    .file-icon { font-size: 18px; flex-shrink: 0; }
+    .file-label { font-size: 13px; flex: 1; }
+    .file-badge {
+      font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+      white-space: nowrap;
+    }
+    .badge-done    { background: rgba(63,185,80,.15);  color: #3fb950; }
+    .badge-pending { background: rgba(139,148,158,.1); color: #8b949e; }
+    .badge-active  { background: rgba(88,166,255,.15); color: #58a6ff; animation: pulse-text 1.5s ease infinite; }
+    @keyframes pulse-text { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    /* Tasks */
+    .task-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media(max-width:700px){ .task-cols { grid-template-columns: 1fr; } }
+    .task-col h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+    .task-col.pending h3   { color: #8b949e; }
+    .task-col.progress h3  { color: #58a6ff; }
+    .task-col.completed h3 { color: #3fb950; }
+    .task-item {
+      font-size: 12px; padding: 6px 10px; border-radius: 6px; margin-bottom: 6px;
+      background: #0d1117; border: 1px solid #30363d;
+    }
+    .task-col.completed .task-item { border-color: rgba(63,185,80,.3); color: #3fb950; }
+    .task-col.progress  .task-item { border-color: rgba(88,166,255,.3); color: #58a6ff; }
+
+    /* Agent sessions */
+    .agent-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+    .agent-chip {
+      display: flex; align-items: center; gap: 8px;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 20px; padding: 6px 14px;
+    }
+    .agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-active   { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
+    .dot-idle     { background: #8b949e; }
+    .agent-name { font-size: 13px; font-weight: 600; }
+    .agent-role { font-size: 11px; color: #8b949e; }
+
+    /* Timeline */
+    .timeline { position: relative; padding-left: 20px; }
+    .timeline::before { content:''; position:absolute; left:6px; top:0; bottom:0; width:2px; background:#21262d; }
+    .tl-item { position: relative; margin-bottom: 16px; }
+    .tl-dot { position:absolute; left:-17px; top:3px; width:10px; height:10px; border-radius:50%; border:2px solid #0d1117; }
+    .dot-g { background: #3fb950; } .dot-b { background: #58a6ff; animation: pulse-dot 1.5s ease infinite; }
+    .dot-x { background: #30363d; }
+    @keyframes pulse-dot { 0%,100%{box-shadow:0 0 0 0 rgba(88,166,255,.4)} 50%{box-shadow:0 0 0 4px rgba(88,166,255,0)} }
+    .tl-date { font-size: 11px; color: #8b949e; margin-bottom: 2px; }
+    .tl-text { font-size: 13px; }
+
+    /* Spinner */
+    #spinner { display:none; text-align:center; padding: 60px; color: #8b949e; }
+    .spin { width:32px; height:32px; border:3px solid #21262d; border-top-color:#58a6ff; border-radius:50%; animation:spin .7s linear infinite; margin:0 auto 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .countdown { font-size: 12px; color: #8b949e; text-align: right; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link">📊 分析</a>
+    <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link active">⚙️ 状況</a>
+  </nav>
+
+  <main>
+    <div style="padding: 16px 24px 0;">
+      <h1 style="font-size: 18px; font-weight: 700; color: #58a6ff;">📡 プロジェクト状況</h1>
+    </div>
+    <div id="spinner"><div class="spin"></div><p>データ読み込み中...</p></div>
+    <div id="content" style="display:none">
+
+      <!-- Phase banner -->
+      <div class="phase-banner" id="phase-banner">
+        <div>
+          <div class="phase-text" id="phase-text">読み込み中...</div>
+          <div class="updated-at" id="updated-at"></div>
+        </div>
+        <button class="refresh-btn" onclick="loadStatus()">🔄 今すぐ更新</button>
+      </div>
+
+      <!-- Overall progress -->
+      <div class="section overall-progress">
+        <div class="section-title">📊 全体進捗</div>
+        <div class="pct-label">
+          <span>機能実装完了率</span>
+          <span class="num" id="pct-num">0%</span>
+        </div>
+        <div class="prog-bar-bg"><div class="prog-bar-fill" id="prog-bar" style="width:0%"></div></div>
+        <div class="countdown" id="next-update"></div>
+      </div>
+
+      <!-- File status -->
+      <div class="section">
+        <div class="section-title">🗂️ 機能実装状況</div>
+        <div class="file-grid" id="file-grid"></div>
+      </div>
+
+      <!-- Agent sessions -->
+      <div class="section">
+        <div class="section-title">🤖 稼働中エージェント</div>
+        <div class="agent-grid" id="agent-grid"></div>
+      </div>
+
+      <!-- Tasks -->
+      <div class="section">
+        <div class="section-title">📋 タスク一覧</div>
+        <div class="task-cols">
+          <div class="task-col pending">
+            <h3>⏳ 待機中</h3>
+            <div id="tasks-pending"></div>
+          </div>
+          <div class="task-col progress">
+            <h3>🔄 実行中</h3>
+            <div id="tasks-progress"></div>
+          </div>
+          <div class="task-col completed">
+            <h3>✅ 完了</h3>
+            <div id="tasks-completed"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="section">
+        <div class="section-title">📅 ロードマップ</div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-dot dot-g"></div>
+            <div class="tl-date">6/21</div>
+            <div class="tl-text">✅ チャートアプリ基本構築・MA/RSI/MACD・バックテスト・アラート・ガイドページ完成</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot dot-b"></div>
+            <div class="tl-date">6/21〜6/28 — Phase 1A（現在）</div>
+            <div class="tl-text">🔄 X/Twitterセンチメント・ファンダメンタルズ・CAN SLIM・SEPA・分析ダッシュボード・追加インジケーター</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot dot-x"></div>
+            <div class="tl-date">6/28〜7/5 — Phase 1B</div>
+            <div class="tl-text">⏳ シグナルエンジン統合・モメンタムスキャナー・デモ日誌・自動スケジューラー・Obsidian Wiki充実</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot dot-x"></div>
+            <div class="tl-date">7/5〜7/15 — Phase 2</div>
+            <div class="tl-text">⏳ デモトレード実践（¥100,000元手で¥10,000利益目標）</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot dot-x"></div>
+            <div class="tl-date">7/15〜 — Phase 3</div>
+            <div class="tl-text">⏳ 実口座での少額実取引開始</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    const AGENT_ROLES = {
+      "chart-agent":     "チャートUI・インジケーター",
+      "research-agent":  "ファンダメンタルズ・CAN SLIM",
+      "sentiment-agent": "X/Twitterセンチメント",
+      "strategy-agent":  "シグナルエンジン・戦略",
+      "journal-agent":   "デモトレード日誌",
+      "orche":           "オーケストレーター",
+      "stock-chart":     "Flask サーバー",
+      "chart":           "チャート開発",
+      "0":               "メインセッション",
+    };
+
+    let nextRefreshSec = 3600;
+    let countdownTimer = null;
+
+    async function loadStatus() {
+      document.getElementById("spinner").style.display = "block";
+      document.getElementById("content").style.display = "none";
+      try {
+        const r = await fetch("/api/status");
+        if (!r.ok) throw new Error("fetch failed");
+        const d = await r.json();
+        render(d);
+      } catch(e) {
+        document.getElementById("spinner").innerHTML = `<p style="color:#f85149">データ取得失敗。サーバーを確認してください。</p>`;
+      }
+    }
+
+    function render(d) {
+      document.getElementById("spinner").style.display = "none";
+      document.getElementById("content").style.display = "block";
+
+      // Phase
+      const banner = document.getElementById("phase-banner");
+      banner.className = `phase-banner ${d.phase_color || "blue"}`;
+      document.getElementById("phase-text").textContent = "🚀 " + d.phase;
+      document.getElementById("updated-at").textContent = "最終更新: " + d.updated_at;
+
+      // Progress
+      const pct = d.progress_pct || 0;
+      document.getElementById("pct-num").textContent = pct + "%";
+      document.getElementById("prog-bar").style.width = pct + "%";
+
+      // Files
+      const fg = document.getElementById("file-grid");
+      fg.innerHTML = (d.files || []).map(f => `
+        <div class="file-item ${f.done ? "done" : ""}">
+          <span class="file-icon">${f.done ? "✅" : "🔲"}</span>
+          <span class="file-label">${f.label}</span>
+          <span class="file-badge ${f.done ? "badge-done" : "badge-pending"}">${f.done ? "完了" : "待機"}</span>
+        </div>
+      `).join("");
+
+      // Agents
+      const ag = document.getElementById("agent-grid");
+      const sessions = d.tmux_sessions || [];
+      const knownAgents = ["orche","chart-agent","research-agent","sentiment-agent","strategy-agent","journal-agent","stock-chart"];
+      ag.innerHTML = knownAgents.map(name => {
+        const active = sessions.includes(name);
+        return `<div class="agent-chip">
+          <div class="agent-dot ${active ? "dot-active" : "dot-idle"}"></div>
+          <div>
+            <div class="agent-name">${name}</div>
+            <div class="agent-role">${AGENT_ROLES[name] || ""}</div>
+          </div>
+        </div>`;
+      }).join("");
+
+      // Tasks
+      const tasks = d.tasks || {};
+      ["pending","in_progress","completed"].forEach((key, i) => {
+        const elId = ["tasks-pending","tasks-progress","tasks-completed"][i];
+        const items = tasks[key] || [];
+        document.getElementById(elId).innerHTML = items.length
+          ? items.map(t => `<div class="task-item">${t}</div>`).join("")
+          : `<div style="color:#8b949e;font-size:12px">なし</div>`;
+      });
+
+      // Countdown
+      startCountdown();
+    }
+
+    function startCountdown() {
+      if (countdownTimer) clearInterval(countdownTimer);
+      nextRefreshSec = 3600;
+      countdownTimer = setInterval(() => {
+        nextRefreshSec--;
+        const m = Math.floor(nextRefreshSec / 60);
+        const s = nextRefreshSec % 60;
+        document.getElementById("next-update").textContent =
+          `次回自動更新まで: ${m}分${s}秒`;
+        if (nextRefreshSec <= 0) {
+          clearInterval(countdownTimer);
+          loadStatus();
+        }
+      }, 1000);
+    }
+
+    loadStatus();
+  </script>
+</body>
+</html>

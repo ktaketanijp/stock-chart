@@ -1,0 +1,734 @@
+from flask import Flask, render_template, jsonify, request
+import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
+import json, os, threading, time
+from sentiment import get_twitter_sentiment, scan_breaking_catalysts, get_trending_stocks
+from fundamentals import (
+    get_fundamentals,
+    get_canslim_score,
+    get_sepa_score,
+    get_earnings_calendar,
+    get_news_with_summary,
+    get_sector_rotation,
+)
+from indicators import (
+    calc_bollinger_bands, calc_ichimoku, calc_atr,
+    calc_stochastic, calc_vwap, detect_candlestick_patterns,
+    find_support_resistance,
+)
+
+app = Flask(__name__)
+
+# ---------------------------------------------------------------------------
+# シンプルインメモリキャッシュ（重い scan_opportunities 向け）
+# ---------------------------------------------------------------------------
+_app_cache: dict = {}
+_app_cache_lock = threading.Lock()
+
+def _app_cache_get(key: str, ttl: int):
+    with _app_cache_lock:
+        entry = _app_cache.get(key)
+        if entry and time.time() - entry["ts"] < ttl:
+            return entry["data"]
+    return None
+
+def _app_cache_set(key: str, data):
+    with _app_cache_lock:
+        _app_cache[key] = {"ts": time.time(), "data": data}
+
+PERIOD_MAP = {
+    "1d": ("1d", "5m"),
+    "5d": ("5d", "15m"),
+    "1mo": ("1mo", "1h"),
+    "3mo": ("3mo", "1d"),
+    "6mo": ("6mo", "1d"),
+    "1y": ("1y", "1d"),
+    "2y": ("2y", "1wk"),
+    "5y": ("5y", "1wk"),
+}
+
+def calc_ma(series, window):
+    result = series.rolling(window).mean()
+    out = []
+    for ts, val in result.items():
+        if pd.notna(val):
+            out.append({"x": int(ts.timestamp() * 1000), "y": round(float(val), 2)})
+    return out
+
+def calc_rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(com=period - 1, min_periods=period).mean()
+    avg_loss = loss.ewm(com=period - 1, min_periods=period).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    out = []
+    for ts, val in rsi.items():
+        if pd.notna(val):
+            out.append({"x": int(ts.timestamp() * 1000), "y": round(float(val), 2)})
+    return out
+
+def calc_macd(series, fast=12, slow=26, signal=9):
+    ema_fast = series.ewm(span=fast, adjust=False).mean()
+    ema_slow = series.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    histogram = macd_line - signal_line
+
+    macd_out, signal_out, hist_out = [], [], []
+    for ts in macd_line.index:
+        t = int(ts.timestamp() * 1000)
+        m = macd_line[ts]
+        s = signal_line[ts]
+        h = histogram[ts]
+        if pd.notna(m):
+            macd_out.append({"x": t, "y": round(float(m), 4)})
+        if pd.notna(s):
+            signal_out.append({"x": t, "y": round(float(s), 4)})
+        if pd.notna(h):
+            hist_out.append({"x": t, "y": round(float(h), 4)})
+    return macd_out, signal_out, hist_out
+
+
+ALERTS_FILE = os.path.join(os.path.dirname(__file__), "alerts.json")
+_alerts_lock = threading.Lock()
+
+def load_alerts():
+    if not os.path.exists(ALERTS_FILE):
+        return []
+    with open(ALERTS_FILE) as f:
+        return json.load(f)
+
+def save_alerts(alerts):
+    with open(ALERTS_FILE, "w") as f:
+        json.dump(alerts, f, ensure_ascii=False, indent=2)
+
+
+def run_backtest(ticker, strategy, period, params):
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period=period, interval="1d")
+    if hist.empty:
+        return None
+
+    closes = hist["Close"]
+    dates = [int(ts.timestamp() * 1000) for ts in hist.index]
+    prices = closes.tolist()
+    n = len(prices)
+
+    capital = float(params.get("capital", 1000000))
+    initial = capital
+    position = 0
+    entry_price = 0
+    trades = []
+
+    if strategy == "ma_cross":
+        fast = int(params.get("fast", 20))
+        slow = int(params.get("slow", 50))
+        ma_fast = closes.rolling(fast).mean()
+        ma_slow = closes.rolling(slow).mean()
+        for i in range(1, n):
+            if pd.isna(ma_fast.iloc[i]) or pd.isna(ma_slow.iloc[i]):
+                continue
+            prev_diff = ma_fast.iloc[i-1] - ma_slow.iloc[i-1]
+            curr_diff = ma_fast.iloc[i] - ma_slow.iloc[i]
+            price = prices[i]
+            if prev_diff <= 0 and curr_diff > 0 and position == 0:
+                shares = int(capital / price)
+                if shares > 0:
+                    position = shares
+                    entry_price = price
+                    capital -= shares * price
+                    trades.append({"date": dates[i], "type": "buy", "price": round(price, 2), "shares": shares})
+            elif prev_diff >= 0 and curr_diff < 0 and position > 0:
+                capital += position * price
+                pnl = (price - entry_price) * position
+                trades.append({"date": dates[i], "type": "sell", "price": round(price, 2), "shares": position, "pnl": round(pnl, 2)})
+                position = 0
+
+    elif strategy == "rsi":
+        period_rsi = int(params.get("rsi_period", 14))
+        oversold = float(params.get("oversold", 30))
+        overbought = float(params.get("overbought", 70))
+        delta = closes.diff()
+        gain = delta.clip(lower=0).ewm(com=period_rsi-1, min_periods=period_rsi).mean()
+        loss = (-delta.clip(upper=0)).ewm(com=period_rsi-1, min_periods=period_rsi).mean()
+        rsi = 100 - (100 / (1 + gain / loss))
+        for i in range(1, n):
+            if pd.isna(rsi.iloc[i]):
+                continue
+            price = prices[i]
+            if rsi.iloc[i] < oversold and position == 0:
+                shares = int(capital / price)
+                if shares > 0:
+                    position = shares
+                    entry_price = price
+                    capital -= shares * price
+                    trades.append({"date": dates[i], "type": "buy", "price": round(price, 2), "shares": shares})
+            elif rsi.iloc[i] > overbought and position > 0:
+                capital += position * price
+                pnl = (price - entry_price) * position
+                trades.append({"date": dates[i], "type": "sell", "price": round(price, 2), "shares": position, "pnl": round(pnl, 2)})
+                position = 0
+
+    if position > 0:
+        final_price = prices[-1]
+        capital += position * final_price
+        pnl = (final_price - entry_price) * position
+        trades.append({"date": dates[-1], "type": "sell(final)", "price": round(final_price, 2), "shares": position, "pnl": round(pnl, 2)})
+        position = 0
+
+    total_return = (capital - initial) / initial * 100
+    win_trades = [t for t in trades if t.get("type") in ("sell", "sell(final)") and t.get("pnl", 0) > 0]
+    sell_trades = [t for t in trades if t.get("type") in ("sell", "sell(final)")]
+    win_rate = len(win_trades) / len(sell_trades) * 100 if sell_trades else 0
+
+    equity = []
+    eq_capital = initial
+    eq_pos = 0
+    eq_entry = 0
+    trade_idx = 0
+    for i, (d, p) in enumerate(zip(dates, prices)):
+        while trade_idx < len(trades) and trades[trade_idx]["date"] == d:
+            t = trades[trade_idx]
+            if t["type"] == "buy":
+                eq_capital -= t["shares"] * t["price"]
+                eq_pos = t["shares"]
+                eq_entry = t["price"]
+            else:
+                eq_capital += t["shares"] * t["price"]
+                eq_pos = 0
+            trade_idx += 1
+        equity.append({"x": d, "y": round(eq_capital + eq_pos * p, 2)})
+
+    return {
+        "initial": initial,
+        "final": round(capital, 2),
+        "total_return": round(total_return, 2),
+        "win_rate": round(win_rate, 2),
+        "trade_count": len(sell_trades),
+        "trades": trades,
+        "equity": equity,
+        "candles": [{"x": d, "o": round(float(hist["Open"].iloc[i]),2),
+                     "h": round(float(hist["High"].iloc[i]),2),
+                     "l": round(float(hist["Low"].iloc[i]),2),
+                     "c": round(float(p),2)} for i,(d,p) in enumerate(zip(dates,prices))],
+    }
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/guide")
+def guide():
+    return render_template("guide.html")
+
+@app.route("/api/chart")
+def chart():
+    ticker = request.args.get("ticker", "").upper().strip()
+    period = request.args.get("period", "3mo")
+
+    if not ticker:
+        return jsonify({"error": "Ticker is required"}), 400
+    if period not in PERIOD_MAP:
+        return jsonify({"error": "Invalid period"}), 400
+
+    yf_period, interval = PERIOD_MAP[period]
+
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period=yf_period, interval=interval)
+
+        if hist.empty:
+            return jsonify({"error": f"No data found for '{ticker}'"}), 404
+
+        info = stock.fast_info
+        try:
+            name = stock.info.get("longName") or stock.info.get("shortName") or ticker
+        except Exception:
+            name = ticker
+        currency = getattr(info, "currency", "USD") or "USD"
+        current_price = float(getattr(info, "last_price", hist["Close"].iloc[-1]))
+        prev_close = float(getattr(info, "previous_close", hist["Close"].iloc[-2] if len(hist) > 1 else current_price))
+        change = current_price - prev_close
+        change_pct = (change / prev_close * 100) if prev_close else 0
+
+        candles = []
+        volumes = []
+        for ts, row in hist.iterrows():
+            t = int(ts.timestamp() * 1000)
+            candles.append({
+                "x": t,
+                "o": round(float(row["Open"]), 2),
+                "h": round(float(row["High"]), 2),
+                "l": round(float(row["Low"]), 2),
+                "c": round(float(row["Close"]), 2),
+            })
+            volumes.append({"x": t, "y": int(row["Volume"])})
+
+        closes = hist["Close"]
+        macd_data, signal_data, hist_data = calc_macd(closes)
+
+        # Advanced indicators
+        bb = calc_bollinger_bands(closes)
+        ichimoku = calc_ichimoku(hist["High"], hist["Low"], hist["Close"])
+        atr = calc_atr(hist["High"], hist["Low"], hist["Close"])
+        stoch = calc_stochastic(hist["High"], hist["Low"], hist["Close"])
+        patterns = detect_candlestick_patterns(hist)
+        sr_levels = find_support_resistance(hist)
+
+        # VWAPは短い足のみ（1d / 5d）
+        vwap_data = []
+        if period in ("1d", "5d"):
+            vwap_data = calc_vwap(hist)
+
+        return jsonify({
+            "ticker": ticker,
+            "name": name,
+            "currency": currency,
+            "current_price": round(current_price, 2),
+            "change": round(change, 2),
+            "change_pct": round(change_pct, 2),
+            "candles": candles,
+            "volumes": volumes,
+            "ma20": calc_ma(closes, 20),
+            "ma50": calc_ma(closes, 50),
+            "ma200": calc_ma(closes, 200),
+            "rsi": calc_rsi(closes),
+            "macd": macd_data,
+            "macd_signal": signal_data,
+            "macd_hist": hist_data,
+            "bb": bb,
+            "ichimoku": ichimoku,
+            "atr": atr[-1]["y"] if atr else None,
+            "atr_series": atr,
+            "stochastic": stoch,
+            "vwap": vwap_data,
+            "patterns": patterns,
+            "support_resistance": sr_levels,
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/search")
+def search():
+    query = request.args.get("q", "").strip()
+    if not query or len(query) < 1:
+        return jsonify([])
+
+    popular = [
+        {"symbol": "AAPL", "name": "Apple Inc."},
+        {"symbol": "MSFT", "name": "Microsoft Corporation"},
+        {"symbol": "GOOGL", "name": "Alphabet Inc."},
+        {"symbol": "AMZN", "name": "Amazon.com Inc."},
+        {"symbol": "NVDA", "name": "NVIDIA Corporation"},
+        {"symbol": "TSLA", "name": "Tesla Inc."},
+        {"symbol": "META", "name": "Meta Platforms Inc."},
+        {"symbol": "7203.T", "name": "トヨタ自動車"},
+        {"symbol": "6758.T", "name": "ソニーグループ"},
+        {"symbol": "9984.T", "name": "ソフトバンクグループ"},
+        {"symbol": "6861.T", "name": "キーエンス"},
+        {"symbol": "8306.T", "name": "三菱UFJフィナンシャル"},
+        {"symbol": "BTC-USD", "name": "Bitcoin USD"},
+        {"symbol": "ETH-USD", "name": "Ethereum USD"},
+        {"symbol": "SPY", "name": "SPDR S&P 500 ETF"},
+        {"symbol": "QQQ", "name": "Invesco QQQ Trust"},
+        {"symbol": "^N225", "name": "日経平均株価"},
+        {"symbol": "^GSPC", "name": "S&P 500"},
+        {"symbol": "^DJI", "name": "Dow Jones"},
+    ]
+
+    q = query.upper()
+    results = [s for s in popular if q in s["symbol"].upper() or q in s["name"].upper()]
+    return jsonify(results[:8])
+
+
+@app.route("/api/backtest", methods=["POST"])
+def backtest():
+    data = request.get_json()
+    ticker = data.get("ticker", "").upper().strip()
+    strategy = data.get("strategy", "ma_cross")
+    period = data.get("period", "1y")
+    params = data.get("params", {})
+    if not ticker:
+        return jsonify({"error": "Ticker is required"}), 400
+    try:
+        result = run_backtest(ticker, strategy, period, params)
+        if result is None:
+            return jsonify({"error": f"No data for '{ticker}'"}), 404
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/alerts", methods=["GET"])
+def get_alerts():
+    with _alerts_lock:
+        return jsonify(load_alerts())
+
+@app.route("/api/alerts", methods=["POST"])
+def add_alert():
+    data = request.get_json()
+    ticker = data.get("ticker", "").upper().strip()
+    condition = data.get("condition")  # "above" or "below"
+    price = float(data.get("price", 0))
+    if not ticker or condition not in ("above", "below") or price <= 0:
+        return jsonify({"error": "Invalid alert"}), 400
+    alert = {"id": int(datetime.now().timestamp() * 1000), "ticker": ticker,
+             "condition": condition, "price": price, "triggered": False,
+             "created": datetime.now().strftime("%Y-%m-%d %H:%M")}
+    with _alerts_lock:
+        alerts = load_alerts()
+        alerts.append(alert)
+        save_alerts(alerts)
+    return jsonify(alert)
+
+@app.route("/api/alerts/<int:alert_id>", methods=["DELETE"])
+def delete_alert(alert_id):
+    with _alerts_lock:
+        alerts = load_alerts()
+        alerts = [a for a in alerts if a["id"] != alert_id]
+        save_alerts(alerts)
+    return jsonify({"ok": True})
+
+@app.route("/api/alerts/check", methods=["GET"])
+def check_alerts():
+    # ロック外で価格取得（時間のかかる IO をロック内に入れない）
+    with _alerts_lock:
+        alerts = load_alerts()
+
+    triggered = []
+    updates = {}  # id -> 更新フィールド
+    for alert in alerts:
+        if alert["triggered"]:
+            continue
+        try:
+            info = yf.Ticker(alert["ticker"]).fast_info
+            price = float(getattr(info, "last_price", 0))
+            hit = (alert["condition"] == "above" and price >= alert["price"]) or \
+                  (alert["condition"] == "below" and price <= alert["price"])
+            if hit:
+                updates[alert["id"]] = {
+                    "triggered": True,
+                    "triggered_price": round(price, 2),
+                    "triggered_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                }
+        except Exception:
+            pass
+
+    if updates:
+        with _alerts_lock:
+            alerts = load_alerts()  # 再読み込みで競合を防ぐ
+            for alert in alerts:
+                if alert["id"] in updates:
+                    alert.update(updates[alert["id"]])
+                    triggered.append(alert)
+            save_alerts(alerts)
+
+    return jsonify({"triggered": triggered, "alerts": alerts})
+
+
+@app.route("/api/sentiment")
+def sentiment():
+    ticker = request.args.get("ticker", "AAPL").upper().strip()
+    data = get_twitter_sentiment(ticker)
+    return jsonify(data)
+
+@app.route("/api/news/breaking")
+def breaking_news():
+    data = scan_breaking_catalysts()
+    return jsonify(data)
+
+@app.route("/api/trending")
+def trending():
+    data = get_trending_stocks()
+    return jsonify(data)
+
+
+# ---------------------------------------------------------------------------
+# Fundamentals / CAN SLIM / SEPA routes
+# ---------------------------------------------------------------------------
+
+@app.route("/api/fundamentals")
+def fundamentals_api():
+    ticker = request.args.get("ticker", "AAPL").upper()
+    return jsonify(get_fundamentals(ticker))
+
+@app.route("/api/canslim")
+def canslim_api():
+    ticker = request.args.get("ticker", "AAPL").upper()
+    return jsonify(get_canslim_score(ticker))
+
+@app.route("/api/sepa")
+def sepa_api():
+    ticker = request.args.get("ticker", "AAPL").upper()
+    return jsonify(get_sepa_score(ticker))
+
+@app.route("/api/earnings/calendar")
+def earnings_calendar():
+    days = int(request.args.get("days", 30))
+    return jsonify(get_earnings_calendar(days))
+
+@app.route("/api/news")
+def news_api():
+    ticker = request.args.get("ticker", "AAPL").upper()
+    return jsonify(get_news_with_summary(ticker))
+
+@app.route("/api/sector/rotation")
+def sector_rotation():
+    return jsonify(get_sector_rotation())
+
+
+@app.route("/status")
+def status_page():
+    return render_template("status.html")
+
+@app.route("/api/status")
+def status_api():
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("update_status",
+            os.path.join(os.path.dirname(__file__), "update_status.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return jsonify(mod.build_status())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/analysis")
+def analysis():
+    return render_template("analysis.html")
+
+
+@app.route("/api/signal")
+def signal():
+    ticker = request.args.get("ticker", "AAPL").upper().strip()
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="3mo", interval="1d")
+        if hist.empty:
+            return jsonify({"error": "No data"}), 404
+
+        closes = hist["Close"]
+        rsi_data = calc_rsi(closes)
+        current_rsi = rsi_data[-1]["y"] if rsi_data else 50
+        macd_line, sig_line, _ = calc_macd(closes)
+        macd_val = macd_line[-1]["y"] if macd_line else 0
+        sig_val = sig_line[-1]["y"] if sig_line else 0
+        bb = calc_bollinger_bands(closes)
+        current_price = float(closes.iloc[-1])
+        atr_list = calc_atr(hist["High"], hist["Low"], hist["Close"])
+        atr_val = atr_list[-1]["y"] if atr_list else 0
+
+        score = 0
+        reasons = []
+
+        # RSI シグナル
+        if current_rsi < 30:
+            score += 30
+            reasons.append(f"RSIが{current_rsi:.1f}と売られすぎゾーン（買いシグナル）")
+        elif current_rsi > 70:
+            score -= 30
+            reasons.append(f"RSIが{current_rsi:.1f}と買われすぎゾーン（売りシグナル）")
+        elif current_rsi < 50:
+            score -= 10
+            reasons.append(f"RSIが{current_rsi:.1f}と中立ゾーン下部")
+        else:
+            score += 10
+            reasons.append(f"RSIが{current_rsi:.1f}と中立ゾーン上部")
+
+        # MACD シグナル
+        if macd_val > sig_val:
+            score += 20
+            reasons.append("MACDがシグナル線を上回る（強気）")
+        else:
+            score -= 20
+            reasons.append("MACDがシグナル線を下回る（弱気）")
+
+        # ボリンジャーバンド シグナル
+        if bb.get("lower") and bb.get("upper"):
+            bb_lower = bb["lower"][-1]["y"]
+            bb_upper = bb["upper"][-1]["y"]
+            bb_mid   = bb["middle"][-1]["y"]
+            if current_price < bb_lower:
+                score += 25
+                reasons.append("株価がボリンジャーバンド下限を下回る（反発期待）")
+            elif current_price > bb_upper:
+                score -= 25
+                reasons.append("株価がボリンジャーバンド上限を超過（過熱警戒）")
+            elif current_price > bb_mid:
+                score += 10
+                reasons.append("株価がボリンジャーバンド中央線の上（強気）")
+            else:
+                score -= 10
+                reasons.append("株価がボリンジャーバンド中央線の下（弱気）")
+
+        # MA トレンド
+        ma20 = calc_ma(closes, 20)
+        ma50 = calc_ma(closes, 50)
+        if ma20 and ma50:
+            if ma20[-1]["y"] > ma50[-1]["y"]:
+                score += 15
+                reasons.append("MA20がMA50を上回るゴールデンクロス状態")
+            else:
+                score -= 15
+                reasons.append("MA20がMA50を下回るデッドクロス状態")
+
+        score = max(-100, min(100, score))
+
+        if score >= 30:
+            judgment = "買い"
+        elif score <= -30:
+            judgment = "売り"
+        else:
+            judgment = "中立"
+
+        stop_loss   = round(current_price - atr_val * 1.5, 2)
+        target      = round(current_price + atr_val * 3.0, 2)
+        entry_low   = round(current_price * 0.99, 2)
+        entry_high  = round(current_price * 1.01, 2)
+
+        return jsonify({
+            "ticker": ticker,
+            "score": round(score),
+            "judgment": judgment,
+            "reasons": reasons,
+            "current_price": round(current_price, 2),
+            "entry_range": {"low": entry_low, "high": entry_high},
+            "stop_loss": stop_loss,
+            "target": target,
+            "atr": round(atr_val, 2),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+from signal_engine import generate_signal, scan_opportunities
+from scanner import scan_momentum, scan_premarket, scan_top_movers
+
+@app.route("/api/signal/advanced")
+def signal_advanced_api():
+    ticker = request.args.get("ticker", "AAPL").upper()
+    try:
+        return jsonify(generate_signal(ticker))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/scan/opportunities")
+def opportunities_api():
+    try:
+        cached = _app_cache_get("opportunities", ttl=1800)
+        if cached is not None:
+            return jsonify(cached)
+        result = scan_opportunities()
+        _app_cache_set("opportunities", result)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/scan/momentum")
+def momentum_api():
+    try:
+        return jsonify(scan_momentum())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/scan/premarket")
+def premarket_api():
+    try:
+        return jsonify(scan_premarket())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/scan/top-movers")
+def top_movers_api():
+    try:
+        return jsonify(scan_top_movers())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+from paper_trading import get_portfolio, open_trade, close_trade, get_performance, calc_position_size, check_stop_losses, update_daily_pnl
+
+@app.route("/journal")
+def journal_page():
+    return render_template("journal.html")
+
+@app.route("/api/journal")
+def journal_api():
+    try:
+        portfolio = get_portfolio()
+        perf = get_performance()
+        return jsonify({"portfolio": portfolio, "performance": perf})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/journal/open", methods=["POST"])
+def journal_open():
+    try:
+        data = request.get_json()
+        result = open_trade(
+            data["ticker"], int(data["shares"]), float(data["entry_price"]),
+            data.get("reason",""), float(data.get("stop_loss",0)), float(data.get("target",0))
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/journal/daily-pnl", methods=["POST"])
+def journal_daily_pnl():
+    """本日の損益を手動記録"""
+    try:
+        entry = update_daily_pnl()
+        return jsonify(entry)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/journal/check-stops")
+def journal_check_stops():
+    """損切りライン到達ポジションのアラート"""
+    try:
+        return jsonify(check_stop_losses())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/journal/size", methods=["POST"])
+def journal_size():
+    """2%ルールに基づくポジションサイズ計算"""
+    try:
+        data = request.get_json()
+        result = calc_position_size(
+            float(data["entry_price"]),
+            float(data["stop_loss"]),
+            float(data.get("risk_pct", 2.0))
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/journal/close", methods=["POST"])
+def journal_close():
+    try:
+        data = request.get_json()
+        result = close_trade(data["position_id"], float(data["exit_price"]), data.get("memo",""))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/scanner")
+def scanner_page():
+    return render_template("scanner.html")
+
+
+@app.route("/ptcg")
+def ptcg():
+    return render_template("ptcg.html")
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)
