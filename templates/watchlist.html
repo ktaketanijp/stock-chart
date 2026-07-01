@@ -368,6 +368,68 @@
       min-height: 18px;
     }
 
+    /* === 一括インポートセクション === */
+    .bulk-import-section {
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+    }
+    .bulk-import-section .section-label {
+      font-size: 12px;
+      color: #8b949e;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 8px;
+    }
+    .btn-primary {
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-sm {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .btn-sm:hover { background: #30363d; }
+
+    /* === モバイル対応 === */
+    @media (max-width: 768px) {
+      .g-nav {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        height: auto;
+        padding: 6px 12px;
+      }
+      .g-nav-link {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+      }
+      .g-nav-logo {
+        font-size: 14px;
+        padding-right: 10px;
+        margin-right: 4px;
+      }
+    }
+
     /* === モーダルタブ === */
     .modal-tabs {
       display: flex;
@@ -436,6 +498,31 @@
     </div>
 
     <div class="msg" id="status-msg"></div>
+
+    <!-- 一括インポートセクション -->
+    <div class="bulk-import-section">
+      <div class="section-label">一括インポート</div>
+      <div style="display:flex;gap:0.5rem;align-items:flex-start;flex-wrap:wrap">
+        <textarea id="bulk-tickers"
+          placeholder="銘柄をカンマ区切りで入力&#10;例: AAPL, MSFT, NVDA, GOOGL"
+          style="flex:1;min-width:200px;height:60px;resize:vertical;
+                 background:#0d1117;color:#e6edf3;
+                 border:1px solid #30363d;border-radius:0.375rem;padding:0.5rem;
+                 font-size:0.85rem;outline:none;"
+        ></textarea>
+        <button onclick="bulkImport()" class="btn-primary" style="align-self:flex-start">
+          一括追加
+        </button>
+      </div>
+      <div id="import-result" style="font-size:0.8rem;color:#8b949e;margin-top:0.4rem;min-height:1.2em"></div>
+      <!-- プリセット -->
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem;align-items:center">
+        <span style="font-size:0.8rem;color:#8b949e;flex-shrink:0">プリセット:</span>
+        <button class="btn-sm" onclick="importPreset('mag7')">MAG7</button>
+        <button class="btn-sm" onclick="importPreset('dividend')">高配当</button>
+        <button class="btn-sm" onclick="importPreset('japan')">日本株ETF</button>
+      </div>
+    </div>
 
     <div class="table-wrap">
       <table>
@@ -878,6 +965,56 @@
       } catch (err) {
         setStatus('削除に失敗しました: ' + err.message, true);
       }
+    }
+
+    // =====================
+    // 一括インポート
+    // =====================
+
+    async function bulkImport() {
+      const raw = document.getElementById('bulk-tickers').value.trim();
+      if (!raw) return;
+
+      const resultEl = document.getElementById('import-result');
+      resultEl.textContent = '追加中...';
+
+      try {
+        const resp = await fetch('/api/watchlist/import', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({tickers: raw})
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+          resultEl.textContent = 'エラー: ' + data.error;
+          return;
+        }
+
+        const parts = [];
+        if (data.added.length)   parts.push('追加: ' + data.added.join(', '));
+        if (data.skipped.length) parts.push('既存: ' + data.skipped.join(', '));
+        if (data.failed.length)  parts.push('失敗: ' + data.failed.join(', '));
+
+        resultEl.textContent = parts.join(' / ') || '変更なし';
+        document.getElementById('bulk-tickers').value = '';
+
+        setTimeout(() => loadWatchlist(false), 500);
+      } catch (err) {
+        resultEl.textContent = 'エラー: ' + err.message;
+      }
+    }
+
+    async function importPreset(name) {
+      const presets = {
+        mag7:     'AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA',
+        dividend: 'JNJ,KO,PEP,MCD,VZ,T,XOM',
+        japan:    'EWJ,DXJ,HEWJ,DBJP',
+      };
+      const tickers = presets[name] || '';
+      if (!tickers) return;
+      document.getElementById('bulk-tickers').value = tickers;
+      await bulkImport();
     }
 
     // Enterキーで追加

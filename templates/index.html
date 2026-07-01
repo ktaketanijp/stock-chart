@@ -96,6 +96,22 @@
     .g-nav-link:hover { color: var(--text-primary); background: var(--hover-bg); }
     .g-nav-link.active { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
 
+    @media (max-width: 768px) {
+      .g-nav {
+        gap: 0.25rem;
+        padding: 6px 12px;
+      }
+      .g-nav-link {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+      }
+      .g-nav-logo {
+        font-size: 14px;
+        padding-right: 10px;
+        margin-right: 4px;
+      }
+    }
+
     .theme-btn {
       background: none;
       border: 1px solid var(--border-color);

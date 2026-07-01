@@ -1105,6 +1105,50 @@ def remove_from_watchlist(ticker):
     return jsonify({"ok": True, "tickers": wl["tickers"]})
 
 
+@app.route("/api/watchlist/import", methods=["POST"])
+def watchlist_import():
+    """
+    一括インポート: {"tickers": "AAPL,MSFT,NVDA,GOOGL"}
+    カンマ・スペース・改行・タブで分割してウォッチリストに追加
+    """
+    import re
+
+    data = request.get_json() or {}
+    raw = data.get("tickers", "")
+
+    if not raw:
+        return jsonify({"error": "tickersが空です"}), 400
+
+    tickers = [t.strip().upper() for t in re.split(r'[,\s\t\n]+', raw) if t.strip()]
+
+    added = []
+    skipped = []
+    failed = []
+
+    for ticker in tickers[:20]:  # 最大20銘柄
+        if not ticker or not ticker.replace(".", "").replace("-", "").isalnum() or len(ticker) > 10:
+            failed.append(ticker)
+            continue
+        try:
+            with _watchlist_lock:
+                wl = _load_watchlist()
+                if ticker in wl["tickers"]:
+                    skipped.append(ticker)
+                else:
+                    wl["tickers"].append(ticker)
+                    _save_watchlist(wl)
+                    added.append(ticker)
+        except Exception:
+            failed.append(ticker)
+
+    return jsonify({
+        "added": added,
+        "skipped": skipped,
+        "failed": failed,
+        "total": len(added),
+    })
+
+
 # ---------------------------------------------------------------------------
 # バックテスト: RSIリバーサル戦略
 # ---------------------------------------------------------------------------
