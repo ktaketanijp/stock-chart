@@ -2055,74 +2055,198 @@
 
       const candles = data.candles;
       const W = canvas.parentElement.offsetWidth || 800;
-      const H = 350;
+      const H = 420;  // 高さを増やす（出来高エリア分）
       canvas.width = W;
       canvas.height = H;
 
-      // 価格範囲
+      // ===== エリア定義 =====
+      const padL = 55, padR = 10, padT = 20, padB = 30;
+      const volH = 60;  // 出来高エリア高さ
+      const mainH = H - padT - padB - volH - 10;  // ローソク足エリア
+
+      // ===== 価格レンジ計算 =====
       const prices = candles.flatMap(c => [c.h, c.l]);
       const pMin = Math.min(...prices) * 0.995;
       const pMax = Math.max(...prices) * 1.005;
       const pRange = pMax - pMin;
 
-      // パディング
-      const padL = 10, padR = 10, padT = 20, padB = 30;
       const chartW = W - padL - padR;
-      const chartH = H - padT - padB;
-
       const candleW = Math.max(2, Math.floor(chartW / candles.length) - 1);
 
-      // 背景
-      const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--card-bg').trim() || '#1f2937';
+      // ===== ヘルパー関数 =====
+      const priceToY = (price) => padT + mainH * (1 - (price - pMin) / pRange);
+      const idxToX = (i) => padL + (i + 0.5) / candles.length * chartW;
+
+      // ===== MA計算 =====
+      function calcMA(arr, period) {
+        return arr.map((_, i) => {
+          if (i < period - 1) return null;
+          const slice = arr.slice(i - period + 1, i + 1);
+          return slice.reduce((a, b) => a + b, 0) / period;
+        });
+      }
+      const closes = candles.map(c => c.c);
+      const ma20 = calcMA(closes, 20);
+      const ma50 = calcMA(closes, 50);
+      const ma200 = calcMA(closes, 200);
+
+      // ===== 出来高レンジ =====
+      const maxVol = Math.max(...candles.map(c => c.v));
+      const volYTop = padT + mainH + 10;
+
+      // ===== 背景 =====
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      const bgColor = isDark ? '#111827' : '#f9fafb';
+      const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
+      const textColor = isDark ? 'rgba(156,163,175,0.9)' : 'rgba(75,85,99,0.9)';
+
       ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, W, H);
 
-      // グリッド線（水平）
-      ctx.strokeStyle = 'rgba(128,128,128,0.2)';
+      // ===== グリッド + 価格ラベル =====
+      ctx.strokeStyle = gridColor;
       ctx.lineWidth = 0.5;
-      for (let i = 0; i <= 4; i++) {
-        const y = padT + chartH * (i / 4);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = textColor;
+      for (let i = 0; i <= 5; i++) {
+        const y = padT + mainH * (i / 5);
         ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
-        const price = pMax - pRange * (i / 4);
-        ctx.fillStyle = 'rgba(156,163,175,0.8)';
-        ctx.font = '10px monospace';
-        ctx.fillText('$' + price.toFixed(0), padL + 2, y - 2);
+        const price = pMax - pRange * (i / 5);
+        ctx.fillText('$' + price.toFixed(0), 2, y + 3);
       }
 
-      // ローソク描画
+      // ===== ローソク足 =====
       candles.forEach((c, i) => {
-        const x = padL + (i / candles.length) * chartW + candleW / 2;
-        const yO = padT + (1 - (c.o - pMin) / pRange) * chartH;
-        const yC = padT + (1 - (c.c - pMin) / pRange) * chartH;
-        const yH = padT + (1 - (c.h - pMin) / pRange) * chartH;
-        const yL = padT + (1 - (c.l - pMin) / pRange) * chartH;
-
+        const x = idxToX(i);
+        const yO = priceToY(c.o);
+        const yC = priceToY(c.c);
+        const yH = priceToY(c.h);
+        const yL = priceToY(c.l);
         const isUp = c.c >= c.o;
         const color = isUp ? '#22c55e' : '#ef4444';
 
-        // ヒゲ（高値-安値）
         ctx.strokeStyle = color;
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x, yH); ctx.lineTo(x, yL); ctx.stroke();
 
-        // 実体
-        ctx.fillStyle = color;
+        ctx.fillStyle = isUp ? 'rgba(34,197,94,0.9)' : 'rgba(239,68,68,0.9)';
         const bodyY = Math.min(yO, yC);
         const bodyH = Math.max(2, Math.abs(yC - yO));
-        ctx.fillRect(x - candleW / 2, bodyY, candleW, bodyH);
+        ctx.fillRect(x - candleW/2, bodyY, candleW, bodyH);
       });
 
-      // 最新価格ライン
+      // ===== MA ライン =====
+      function drawMA(maArr, color, label) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        let started = false;
+        maArr.forEach((val, i) => {
+          if (val === null) return;
+          const x = idxToX(i);
+          const y = priceToY(val);
+          if (!started) { ctx.moveTo(x, y); started = true; }
+          else { ctx.lineTo(x, y); }
+        });
+        ctx.stroke();
+
+        // ラベル（右端）
+        const lastVal = [...maArr].reverse().find(v => v !== null);
+        if (lastVal) {
+          ctx.fillStyle = color;
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText(label + ':$' + lastVal.toFixed(0), W - padR - 70, priceToY(lastVal) - 3);
+        }
+      }
+
+      if (candles.length >= 20) drawMA(ma20, '#3b82f6', 'MA20');
+      if (candles.length >= 50) drawMA(ma50, '#f97316', 'MA50');
+      if (candles.length >= 200) drawMA(ma200, '#ef4444', 'MA200');
+
+      // ===== 出来高サブチャート =====
+      ctx.fillStyle = gridColor;
+      ctx.fillRect(padL, volYTop, chartW, volH);
+
+      candles.forEach((c, i) => {
+        const x = idxToX(i);
+        const volBarH = (c.v / maxVol) * volH;
+        const isUp = c.c >= c.o;
+        ctx.fillStyle = isUp ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.6)';
+        ctx.fillRect(x - candleW/2, volYTop + volH - volBarH, candleW, volBarH);
+      });
+
+      // 出来高ラベル
+      ctx.fillStyle = textColor;
+      ctx.font = '9px monospace';
+      ctx.fillText('Vol', 2, volYTop + 10);
+
+      // ===== 最新価格ライン =====
       const lastClose = candles[candles.length - 1].c;
-      const yLast = padT + (1 - (lastClose - pMin) / pRange) * chartH;
+      const yLast = priceToY(lastClose);
       ctx.strokeStyle = '#f59e0b';
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
       ctx.beginPath(); ctx.moveTo(padL, yLast); ctx.lineTo(W - padR, yLast); ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = '#f59e0b';
-      ctx.font = 'bold 11px monospace';
-      ctx.fillText('$' + lastClose.toFixed(2), W - padR - 60, yLast - 3);
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText('$' + lastClose.toFixed(2), W - padR - 55, yLast - 3);
+
+      // ===== 日付ラベル（X軸、数本おき） =====
+      const step = Math.max(1, Math.floor(candles.length / 8));
+      ctx.fillStyle = textColor;
+      ctx.font = '9px monospace';
+      candles.forEach((c, i) => {
+        if (i % step === 0) {
+          const x = idxToX(i);
+          const label = c.t.slice(5);  // MM-DD
+          ctx.fillText(label, x - 12, H - 5);
+        }
+      });
+
+      // ===== マウスオーバーツールチップ =====
+      // 既存のmousemoveリスナーを削除してから追加
+      canvas._mouseMoveHandler && canvas.removeEventListener('mousemove', canvas._mouseMoveHandler);
+
+      canvas._mouseMoveHandler = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const i = Math.round((mouseX - padL) / chartW * candles.length - 0.5);
+
+        if (i < 0 || i >= candles.length) return;
+        const c = candles[i];
+
+        // ツールチップ再描画
+        const ttW = 160, ttH = 90;
+        const ttX = Math.min(mouseX + 10, W - ttW - 5);
+        const ttY = padT;
+
+        // 再描画（クリーンな領域）
+        ctx.fillStyle = isDark ? 'rgba(31,41,55,0.95)' : 'rgba(255,255,255,0.95)';
+        ctx.strokeStyle = isDark ? 'rgba(75,85,99,0.5)' : 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(ttX, ttY, ttW, ttH, 4);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = isDark ? '#f9fafb' : '#111827';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(c.t, ttX + 8, ttY + 16);
+        ctx.font = '10px monospace';
+        ctx.fillText(`O: $${c.o}  C: $${c.c}`, ttX + 8, ttY + 32);
+        ctx.fillText(`H: $${c.h}  L: $${c.l}`, ttX + 8, ttY + 48);
+        ctx.fillText(`Vol: ${c.v.toLocaleString()}`, ttX + 8, ttY + 64);
+
+        // 十字線
+        ctx.strokeStyle = 'rgba(156,163,175,0.4)';
+        ctx.lineWidth = 0.5;
+        ctx.setLineDash([3, 3]);
+        const x = idxToX(i);
+        ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + mainH); ctx.stroke();
+        ctx.setLineDash([]);
+      };
+
+      canvas.addEventListener('mousemove', canvas._mouseMoveHandler);
     }
 
     // ---- 高度分析: アナリスト評価 / VWAP / フィボナッチ ----
