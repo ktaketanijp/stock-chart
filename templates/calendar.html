@@ -416,6 +416,7 @@
       <button class="tab-btn active" onclick="switchTab('economic')">経済指標</button>
       <button class="tab-btn" onclick="switchTab('earnings')">主要決算</button>
       <button class="tab-btn" onclick="switchTab('watchlist-earnings')">ウォッチリスト</button>
+      <button class="tab-btn" onclick="switchTab('dividends')">配当カレンダー</button>
     </div>
 
     <!-- タブ: 経済指標 -->
@@ -458,6 +459,37 @@
           <button class="refresh-btn" onclick="loadEarnings()">更新</button>
         </div>
         <div id="earnings-area">
+          <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- タブ: 配当カレンダー -->
+    <div class="tab-panel" id="panel-dividends">
+      <div class="earnings-section">
+        <div class="section-header">
+          <div class="section-title">ウォッチリスト 配当カレンダー</div>
+          <button class="refresh-btn" onclick="loadDividendCalendar()">更新</button>
+        </div>
+
+        <!-- サマリーカード -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">
+          <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">配当銘柄数</div>
+            <div id="div-count" style="font-size:22px;font-weight:700;color:#e6edf3">--</div>
+          </div>
+          <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">最高利回り</div>
+            <div id="div-best-yield" style="font-size:22px;font-weight:700;color:#3fb950">--</div>
+          </div>
+          <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">次回権利落ち</div>
+            <div id="div-next" style="font-size:18px;font-weight:700;color:#e6edf3">--</div>
+          </div>
+        </div>
+
+        <!-- 配当テーブル -->
+        <div id="dividend-table-wrapper" style="overflow-x:auto">
           <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
         </div>
       </div>
@@ -628,10 +660,11 @@
     // ---- タブ切り替え ----
     let watchlistEarningsLoaded = false;
     let earningsLoaded = false;
+    let dividendsLoaded = false;
 
     function switchTab(name) {
       document.querySelectorAll(".tab-btn").forEach((b, i) => {
-        const names = ["economic", "earnings", "watchlist-earnings"];
+        const names = ["economic", "earnings", "watchlist-earnings", "dividends"];
         b.classList.toggle("active", names[i] === name);
       });
       document.querySelectorAll(".tab-panel").forEach(p => {
@@ -646,6 +679,10 @@
       if (name === "watchlist-earnings" && !watchlistEarningsLoaded) {
         watchlistEarningsLoaded = true;
         loadWatchlistEarnings();
+      }
+      if (name === "dividends" && !dividendsLoaded) {
+        dividendsLoaded = true;
+        loadDividendCalendar();
       }
     }
 
@@ -722,6 +759,82 @@
       } catch (err) {
         container.innerHTML =
           `<p style="color:#f85149;padding:16px">取得エラー: ${err.message}</p>`;
+      }
+    }
+
+    // ---- 配当カレンダー ----
+    async function loadDividendCalendar() {
+      const wrapper = document.getElementById("dividend-table-wrapper");
+      wrapper.innerHTML = `<div class="loading-box"><div class="spinner"></div>yfinanceから取得中...</div>`;
+      document.getElementById("div-count").textContent = "読込中...";
+
+      try {
+        const resp = await fetch("/api/watchlist/dividends");
+        const data = await resp.json();
+
+        if (!data.dividends || !data.dividends.length) {
+          wrapper.innerHTML = `<p class="earnings-empty">ウォッチリストに配当株がありません</p>`;
+          document.getElementById("div-count").textContent = "0銘柄";
+          document.getElementById("div-best-yield").textContent = "—";
+          document.getElementById("div-next").textContent = "情報なし";
+          return;
+        }
+
+        document.getElementById("div-count").textContent = `${data.count}銘柄`;
+
+        const bestYield = Math.max(...data.dividends.map(d => d.dividend_yield));
+        const bestTicker = data.dividends.find(d => d.dividend_yield === bestYield)?.ticker;
+        document.getElementById("div-best-yield").textContent = `${bestYield}% (${bestTicker})`;
+
+        const next = data.dividends.find(d => d.ex_date && d.days_until_ex >= 0);
+        document.getElementById("div-next").textContent = next
+          ? `${next.ticker} (${next.days_until_ex}日後)`
+          : "情報なし";
+
+        const rows = data.dividends.map(d => {
+          const daysColor = d.days_until_ex !== null && d.days_until_ex <= 7  ? "#f85149" :
+                            d.days_until_ex !== null && d.days_until_ex <= 30 ? "#d4a017" : "";
+          const daysWeight = d.days_until_ex !== null && d.days_until_ex <= 7 ? "700" : "400";
+          const daysText = d.days_until_ex === null    ? "—" :
+                           d.days_until_ex < 0         ? `${Math.abs(d.days_until_ex)}日前` :
+                           d.days_until_ex === 0        ? "本日" :
+                           `${d.days_until_ex}日後`;
+          return `
+            <tr>
+              <td style="font-weight:700;color:#58a6ff">
+                <a href="/analysis?ticker=${d.ticker}" style="color:#58a6ff;text-decoration:none">${d.ticker}</a>
+              </td>
+              <td>$${d.price}</td>
+              <td>$${d.dividend_rate}</td>
+              <td style="color:#3fb950;font-weight:600">${d.dividend_yield}%</td>
+              <td>${d.ex_date || "—"}</td>
+              <td style="color:${daysColor};font-weight:${daysWeight}">${daysText}</td>
+              <td style="font-size:11px;color:#8b949e">${d.sector || "—"}</td>
+            </tr>
+          `;
+        }).join("");
+
+        wrapper.innerHTML = `
+          <div class="event-table-wrap">
+            <table class="event-table">
+              <thead>
+                <tr>
+                  <th>銘柄</th>
+                  <th>価格</th>
+                  <th>配当/年(USD)</th>
+                  <th>利回り</th>
+                  <th>権利落ち日</th>
+                  <th>残り日数</th>
+                  <th>セクター</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+      } catch (err) {
+        wrapper.innerHTML = `<p style="color:#f85149;padding:16px">取得エラー: ${err.message}</p>`;
+        document.getElementById("div-count").textContent = "エラー";
       }
     }
 

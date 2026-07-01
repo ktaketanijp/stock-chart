@@ -304,6 +304,17 @@
       </div>
     </div>
 
+    <!-- ウォッチリストニュース -->
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="refresh-btn" onclick="loadWatchlistNews()">ウォッチリストのニュース</button>
+      <button class="refresh-btn" onclick="hideWatchlistNews()"
+              style="background:transparent;border:1px solid var(--border-color);color:var(--text-secondary)">全ニュース</button>
+    </div>
+    <div id="wl-news-section" style="display:none;margin-bottom:20px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:10px;padding:14px 16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em">ウォッチリストのニュース</div>
+      <div id="wl-news-list"></div>
+    </div>
+
     <!-- 銘柄フィルター -->
     <div id="ticker-filters">
       <button class="filter-badge active" onclick="filterNews('ALL')" data-ticker="ALL">すべて</button>
@@ -456,6 +467,48 @@
     function startAutoRefresh() {
       if (autoRefreshTimer) clearInterval(autoRefreshTimer);
       autoRefreshTimer = setInterval(loadNews, 5 * 60 * 1000);
+    }
+
+    // ========== ウォッチリストニュース ==========
+    async function loadWatchlistNews() {
+      const section = document.getElementById("wl-news-section");
+      section.style.display = "block";
+      document.getElementById("wl-news-list").innerHTML =
+        '<p style="color:var(--text-secondary)"><span class="spinner"></span>読み込み中...</p>';
+
+      try {
+        const resp = await fetch("/api/watchlist/news");
+        const data = await resp.json();
+
+        if (!data.news || !data.news.length) {
+          document.getElementById("wl-news-list").innerHTML =
+            '<p style="color:var(--text-secondary);font-size:14px">ウォッチリストを追加してください</p>';
+          return;
+        }
+
+        document.getElementById("wl-news-list").innerHTML = data.news.map(n => {
+          const color = tickerColor(n.ticker);
+          const title = (n.title || "（タイトルなし）").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          return `
+            <div style="padding:8px 0;border-bottom:1px solid var(--border-color)">
+              <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;
+                           background:${color};color:#fff;margin-right:6px">${n.ticker}</span>
+              <a href="${n.url || "#"}" target="_blank" rel="noopener noreferrer"
+                 style="font-size:13px;color:var(--text-primary);text-decoration:none">${title}</a>
+              <span style="font-size:11px;color:var(--text-secondary);margin-left:6px">
+                ${(n.publisher || "").replace(/</g, "&lt;")} · ${n.published_str || ""}
+              </span>
+            </div>
+          `;
+        }).join("");
+      } catch (err) {
+        document.getElementById("wl-news-list").innerHTML =
+          `<p style="color:var(--negative)">取得エラー: ${err.message}</p>`;
+      }
+    }
+
+    function hideWatchlistNews() {
+      document.getElementById("wl-news-section").style.display = "none";
     }
 
     // ========== 初期化 ==========

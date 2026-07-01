@@ -3399,5 +3399,103 @@ def advanced_analysis(ticker):
     return jsonify(result)
 
 
+@app.route("/api/watchlist/dividends")
+def watchlist_dividends():
+    """
+    ウォッチリスト銘柄の配当情報（次回権利落ち日、利回り等）
+    """
+    from datetime import date
+
+    watchlist = _load_watchlist()
+    tickers = watchlist.get("tickers", []) if isinstance(watchlist, dict) else watchlist
+
+    if not tickers:
+        return jsonify({"dividends": [], "count": 0})
+
+    results = []
+
+    for ticker in tickers[:20]:
+        try:
+            info = yf.Ticker(ticker).info
+            div_rate = info.get("dividendRate") or 0
+            div_yield = info.get("dividendYield") or 0
+            ex_date_ts = info.get("exDividendDate")
+            price = info.get("currentPrice") or info.get("regularMarketPrice") or 0
+
+            if div_rate <= 0:
+                continue  # 無配当銘柄はスキップ
+
+            # 配当利回り（正確に計算）
+            yield_pct = round(div_rate / price * 100, 2) if price > 0 else 0
+            if yield_pct > 15:
+                yield_pct = round(div_yield * 100, 2)  # フォールバック
+
+            # ex-dividend date
+            ex_date_str = None
+            days_until = None
+            if ex_date_ts:
+                ex_date = date.fromtimestamp(ex_date_ts)
+                ex_date_str = ex_date.isoformat()
+                days_until = (ex_date - date.today()).days
+
+            results.append({
+                "ticker": ticker,
+                "price": round(price, 2),
+                "dividend_rate": round(div_rate, 4),
+                "dividend_yield": yield_pct,
+                "ex_date": ex_date_str,
+                "days_until_ex": days_until,
+                "sector": info.get("sector", ""),
+            })
+        except Exception:
+            continue
+
+    # 権利落ち日が近い順に並べ替え（日付なしは末尾）
+    results.sort(key=lambda x: (
+        x["days_until_ex"] is None,
+        x["days_until_ex"] if x["days_until_ex"] is not None else 9999
+    ))
+
+    return jsonify({"dividends": results, "count": len(results)})
+
+
+@app.route("/api/watchlist/news")
+def watchlist_news():
+    """ウォッチリスト全銘柄のニュースを集約（最新20件）"""
+    watchlist = _load_watchlist()
+    tickers = watchlist.get("tickers", []) if isinstance(watchlist, dict) else watchlist
+
+    if not tickers:
+        return jsonify({"news": []})
+
+    all_news = []
+    for ticker in tickers[:10]:
+        try:
+            news = yf.Ticker(ticker).news or []
+            for item in news[:3]:
+                all_news.append({
+                    "ticker": ticker,
+                    "title": item.get("title", ""),
+                    "url": item.get("link", ""),
+                    "publisher": item.get("publisher", ""),
+                    "published_at": item.get("providerPublishTime", 0),
+                })
+        except Exception:
+            continue
+
+    # 新しい順にソート
+    all_news.sort(key=lambda x: -x.get("published_at", 0))
+
+    # 公開日を人間が読める形式に変換
+    for item in all_news:
+        ts = item.get("published_at", 0)
+        if ts:
+            from datetime import datetime
+            dt = datetime.fromtimestamp(ts)
+            item["published_str"] = dt.strftime("%m/%d %H:%M")
+
+    return jsonify({"news": all_news[:20]})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
