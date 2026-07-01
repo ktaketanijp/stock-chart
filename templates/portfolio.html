@@ -357,6 +357,31 @@
     /* === 結果エリア初期非表示 === */
     #results-area { display: none; }
 
+    /* === データテーブル === */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .data-table th {
+      background: var(--table-header-bg);
+      color: var(--text-secondary);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 11px;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .data-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border-light);
+      color: var(--text-primary);
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: var(--hover-bg); }
+
     /* === 配分サマリー === */
     .alloc-list {
       display: flex;
@@ -499,6 +524,25 @@
         <div class="card-title">個別銘柄 リターン比較</div>
         <div class="bar-chart-container">
           <canvas id="barChart"></canvas>
+        </div>
+
+        <!-- 貢献度テーブル -->
+        <div id="attribution-section" style="display:none;margin-top:1rem">
+          <h3 style="font-size:1rem;margin-bottom:0.5rem">銘柄別貢献度</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>銘柄</th>
+                <th>比率</th>
+                <th>個別リターン</th>
+                <th>ポートフォリオ貢献</th>
+              </tr>
+            </thead>
+            <tbody id="attribution-tbody"></tbody>
+          </table>
+          <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem">
+            貢献度 = 比率 × 個別リターン。合計がポートフォリオ総リターンに相当。
+          </p>
         </div>
       </div>
     </div>
@@ -684,6 +728,27 @@
 
       // 個別銘柄バーチャート
       renderBarChart(data);
+
+      // 貢献度テーブル
+      if (data.attribution) {
+        const tbody = document.getElementById('attribution-tbody');
+        const rows = Object.entries(data.attribution)
+          .sort((a, b) => Math.abs(b[1].contribution_pct) - Math.abs(a[1].contribution_pct))
+          .map(([ticker, attr]) => `
+            <tr>
+              <td><strong>${ticker}</strong></td>
+              <td>${attr.weight_pct}%</td>
+              <td style="color:${attr.total_return_pct >= 0 ? 'var(--positive)' : 'var(--negative)'}">
+                ${attr.total_return_pct >= 0 ? '+' : ''}${attr.total_return_pct}%
+              </td>
+              <td style="color:${attr.contribution_pct >= 0 ? 'var(--positive)' : 'var(--negative)'}">
+                ${attr.contribution_pct >= 0 ? '+' : ''}${attr.contribution_pct}%
+              </td>
+            </tr>
+          `).join('');
+        tbody.innerHTML = rows;
+        document.getElementById('attribution-section').style.display = 'block';
+      }
     }
 
     function renderCumulChart(data) {

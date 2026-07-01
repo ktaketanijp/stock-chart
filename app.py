@@ -1806,6 +1806,7 @@ def compare_stocks():
     period = request.args.get("period", "6mo")
 
     result = {}
+    stats = {}
     for ticker in tickers_param.split(",")[:4]:  # 最大4銘柄
         ticker = ticker.strip().upper()
         if not ticker:
@@ -1826,10 +1827,20 @@ def compare_stocks():
                 "max_return": round(max(returns), 2) if returns else 0,
                 "min_return": round(min(returns), 2) if returns else 0,
             }
+            # 各銘柄の統計を計算（returns は % 表記なので /100 で比率に変換）
+            vals = returns
+            if len(vals) >= 5:
+                daily_rets = [(vals[i] - vals[i-1]) / 100 for i in range(1, len(vals))]
+                vol = (sum(r**2 for r in daily_rets) / len(daily_rets))**0.5 * (252**0.5) * 100 if daily_rets else 0
+                stats[ticker] = {
+                    "total_return": round(vals[-1], 2),
+                    "volatility": round(vol, 1),
+                    "max_drawdown": 0,
+                }
         except Exception:
             continue
 
-    return jsonify({"data": result, "period": period})
+    return jsonify({"data": result, "period": period, "stats": stats})
 
 
 @app.route("/api/analysis/earnings-history/<ticker>")
@@ -2379,6 +2390,17 @@ def portfolio_backtest():
     # 最終資産額（JPY換算）
     final_jpy = round(initial_jpy * cumulative[-1])
 
+    # 加重貢献度の計算（Portfolio Attribution）
+    attribution = {}
+    for ticker, info in returns_data.items():
+        weight = weights.get(ticker, 0)
+        weighted_return = weight * info["total_return"] / 100  # ポートフォリオへの貢献
+        attribution[ticker] = {
+            "weight_pct": round(weight * 100, 1),
+            "total_return_pct": round(info["total_return"], 2),
+            "contribution_pct": round(weighted_return * 100, 2),
+        }
+
     return jsonify({
         "portfolio": weights,
         "period": period,
@@ -2392,6 +2414,7 @@ def portfolio_backtest():
         "dates": dates,
         "cumulative_returns": [round((v - 1) * 100, 2) for v in cumulative[1:]],
         "individual_returns": {t: round(r["total_return"], 2) for t, r in returns_data.items()},
+        "attribution": attribution,
     })
 
 
