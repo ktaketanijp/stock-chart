@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>経済カレンダー - StockChart</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid #30363d;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: #8b949e;
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
+    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+
+    /* === メインレイアウト === */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px;
+    }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-bottom: 6px;
+    }
+    .page-subtitle {
+      font-size: 13px;
+      color: #8b949e;
+      margin-bottom: 28px;
+    }
+
+    /* === セクションタイトル === */
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #21262d;
+    }
+
+    /* === スピナー === */
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid #30363d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-box {
+      text-align: center;
+      padding: 40px;
+      color: #8b949e;
+      font-size: 14px;
+    }
+
+    /* === ① 今後7日間ハイライトカード === */
+    .highlight-section { margin-bottom: 36px; }
+    .highlight-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    .highlight-scroll::-webkit-scrollbar { height: 4px; }
+    .highlight-scroll::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+
+    .hl-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 14px 18px;
+      min-width: 220px;
+      flex-shrink: 0;
+      transition: border-color 0.2s;
+    }
+    .hl-card:hover { border-color: #58a6ff; }
+    .hl-card-date {
+      font-size: 11px;
+      color: #8b949e;
+      margin-bottom: 6px;
+    }
+    .hl-card-event {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e6edf3;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .hl-card-desc {
+      font-size: 12px;
+      color: #8b949e;
+      line-height: 1.4;
+    }
+    .hl-empty {
+      color: #8b949e;
+      font-size: 14px;
+      padding: 20px 0;
+    }
+
+    /* === 重要度バッジ === */
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      margin-bottom: 6px;
+    }
+    .badge-HIGH   { background: rgba(248,81,73,0.15);   color: #f85149; }
+    .badge-MEDIUM { background: rgba(210,153,34,0.15);  color: #d4a017; }
+    .badge-LOW    { background: rgba(139,148,158,0.12); color: #8b949e; }
+
+    /* カテゴリバッジ */
+    .cat-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(88,166,255,0.12);
+      color: #58a6ff;
+      margin-left: 6px;
+    }
+
+    /* === ② イベントリスト テーブル === */
+    .event-section { margin-bottom: 36px; }
+
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .filter-btn {
+      background: transparent;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .filter-btn.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+
+    .event-table-wrap {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .event-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .event-table th {
+      background: #21262d;
+      color: #8b949e;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 10px 14px;
+      text-align: left;
+    }
+    .event-table td {
+      padding: 11px 14px;
+      border-top: 1px solid #21262d;
+      vertical-align: top;
+    }
+    .event-table tr:hover td { background: rgba(33,38,45,0.6); }
+
+    .event-date-cell { white-space: nowrap; color: #8b949e; font-size: 12px; min-width: 90px; }
+    .event-name-cell { color: #e6edf3; font-weight: 500; }
+    .event-desc-cell { color: #8b949e; font-size: 12px; }
+
+    /* 今日・直近強調 */
+    .row-today td { background: rgba(31,111,235,0.06); }
+    .row-soon td { background: rgba(63,185,80,0.04); }
+
+    .no-events {
+      text-align: center;
+      padding: 40px;
+      color: #8b949e;
+      font-size: 14px;
+    }
+
+    /* === ③ 決算カレンダー === */
+    .earnings-section { margin-bottom: 36px; }
+
+    .earnings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .earnings-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: border-color 0.2s;
+    }
+    .earnings-card:hover { border-color: #3fb950; }
+    .earnings-ticker {
+      font-size: 16px;
+      font-weight: 700;
+      color: #58a6ff;
+      min-width: 70px;
+    }
+    .earnings-info { flex: 1; }
+    .earnings-date { font-size: 13px; color: #e6edf3; font-weight: 500; }
+    .earnings-desc { font-size: 11px; color: #8b949e; margin-top: 3px; }
+    .earnings-days {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(63,185,80,0.12);
+      color: #3fb950;
+      white-space: nowrap;
+    }
+    .earnings-empty {
+      color: #8b949e;
+      font-size: 14px;
+      padding: 20px 0;
+      text-align: center;
+    }
+
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 4px 12px;
+      transition: all 0.15s;
+      margin-left: auto;
+    }
+    .refresh-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .section-header .section-title { margin-bottom: 0; flex: 1; }
+  </style>
+</head>
+<body>
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link">📊 分析</a>
+    <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
+    <a href="/calendar" class="g-nav-link active">📅 カレンダー</a>
+  </nav>
+
+  <main>
+    <div class="page-title">経済カレンダー</div>
+    <div class="page-subtitle">FRB・CPI・雇用統計などの重要経済イベントとウォッチリスト銘柄の決算日</div>
+
+    <!-- ① 今後7日間ハイライト -->
+    <div class="highlight-section">
+      <div class="section-title">今後7日間のイベント</div>
+      <div id="highlight-area">
+        <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+      </div>
+    </div>
+
+    <!-- ② イベントリスト -->
+    <div class="event-section">
+      <div class="section-header">
+        <div class="section-title">経済イベント一覧</div>
+        <button class="refresh-btn" onclick="loadEconomic()">更新</button>
+      </div>
+      <div class="filter-bar" id="filter-bar">
+        <button class="filter-btn active" data-cat="ALL" onclick="setFilter(this)">すべて</button>
+        <button class="filter-btn" data-cat="FRB" onclick="setFilter(this)">FRB</button>
+        <button class="filter-btn" data-cat="CPI" onclick="setFilter(this)">CPI</button>
+        <button class="filter-btn" data-cat="雇用" onclick="setFilter(this)">雇用統計</button>
+        <button class="filter-btn" data-cat="PCE" onclick="setFilter(this)">PCE</button>
+        <button class="filter-btn" data-cat="GDP" onclick="setFilter(this)">GDP</button>
+        <button class="filter-btn" data-cat="景況感" onclick="setFilter(this)">ISM</button>
+        <button class="filter-btn" data-cat="日銀" onclick="setFilter(this)">日銀</button>
+      </div>
+      <div id="event-table-area">
+        <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+      </div>
+    </div>
+
+    <!-- ③ 決算カレンダー -->
+    <div class="earnings-section">
+      <div class="section-header">
+        <div class="section-title">決算カレンダー（ウォッチリスト銘柄 / 今後90日）</div>
+        <button class="refresh-btn" onclick="loadEarnings()">更新</button>
+      </div>
+      <div id="earnings-area">
+        <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let allEvents = [];
+    let currentFilter = "ALL";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    function todayStr() {
+      return today.toISOString().slice(0, 10);
+    }
+
+    function daysUntil(dateStr) {
+      const d = new Date(dateStr + "T00:00:00");
+      return Math.round((d - today) / 86400000);
+    }
+
+    function formatDateJP(dateStr) {
+      const d = new Date(dateStr + "T00:00:00");
+      const mm = d.getMonth() + 1;
+      const dd = d.getDate();
+      const days = ["日","月","火","水","木","金","土"];
+      const dow = days[d.getDay()];
+      return `${mm}/${dd}（${dow}）`;
+    }
+
+    function importanceBadge(imp) {
+      return `<span class="badge badge-${imp}">${imp === "HIGH" ? "重要" : imp === "MEDIUM" ? "中程度" : "低"}</span>`;
+    }
+
+    // ---- ① ハイライト描画 ----
+    function renderHighlight(events) {
+      const area = document.getElementById("highlight-area");
+      const upcoming = events.filter(e => {
+        const d = daysUntil(e.date);
+        return d >= 0 && d <= 7;
+      });
+
+      if (upcoming.length === 0) {
+        area.innerHTML = `<p class="hl-empty">今後7日間に重要イベントはありません</p>`;
+        return;
+      }
+
+      const cards = upcoming.map(e => {
+        const d = daysUntil(e.date);
+        const label = d === 0 ? "今日" : d === 1 ? "明日" : `${d}日後`;
+        return `
+          <div class="hl-card">
+            ${importanceBadge(e.importance)}
+            <div class="hl-card-date">${formatDateJP(e.date)} <span style="color:#58a6ff;font-weight:700">${label}</span></div>
+            <div class="hl-card-event">${e.event}</div>
+            <div class="hl-card-desc">${e.description}</div>
+          </div>
+        `;
+      }).join("");
+
+      area.innerHTML = `<div class="highlight-scroll">${cards}</div>`;
+    }
+
+    // ---- ② イベントテーブル描画 ----
+    function renderEventTable(events, filter) {
+      const area = document.getElementById("event-table-area");
+      const filtered = filter === "ALL" ? events : events.filter(e => e.category === filter);
+
+      if (filtered.length === 0) {
+        area.innerHTML = `<div class="no-events">該当するイベントはありません</div>`;
+        return;
+      }
+
+      const rows = filtered.map(e => {
+        const d = daysUntil(e.date);
+        let rowClass = "";
+        if (d === 0) rowClass = "row-today";
+        else if (d >= 1 && d <= 7) rowClass = "row-soon";
+
+        const diffLabel = d === 0 ? '<span style="color:#58a6ff;font-size:11px;font-weight:700">今日</span>'
+                        : d === 1 ? '<span style="color:#3fb950;font-size:11px">明日</span>'
+                        : d <= 7  ? `<span style="color:#3fb950;font-size:11px">${d}日後</span>`
+                        : "";
+
+        return `
+          <tr class="${rowClass}">
+            <td class="event-date-cell">${formatDateJP(e.date)}<br>${diffLabel}</td>
+            <td class="event-name-cell">
+              ${e.event}
+              <span class="cat-badge">${e.category}</span>
+            </td>
+            <td>${importanceBadge(e.importance)}</td>
+            <td class="event-desc-cell">${e.description}</td>
+          </tr>
+        `;
+      }).join("");
+
+      area.innerHTML = `
+        <div class="event-table-wrap">
+          <table class="event-table">
+            <thead>
+              <tr>
+                <th>日付</th>
+                <th>イベント</th>
+                <th>重要度</th>
+                <th>説明</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    // ---- フィルター ----
+    function setFilter(btn) {
+      document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentFilter = btn.dataset.cat;
+      renderEventTable(allEvents, currentFilter);
+    }
+
+    // ---- ③ 決算カレンダー描画 ----
+    function renderEarnings(earnings) {
+      const area = document.getElementById("earnings-area");
+      if (earnings.length === 0) {
+        area.innerHTML = `<p class="earnings-empty">ウォッチリストに銘柄がないか、今後90日の決算情報が取得できませんでした</p>`;
+        return;
+      }
+
+      const cards = earnings.map(e => {
+        const d = daysUntil(e.date);
+        const daysLabel = d === 0 ? "今日" : d === 1 ? "明日" : `${d}日後`;
+        return `
+          <div class="earnings-card">
+            <div class="earnings-ticker">${e.ticker}</div>
+            <div class="earnings-info">
+              <div class="earnings-date">${formatDateJP(e.date)} ${e.date}</div>
+              <div class="earnings-desc">${e.description}</div>
+            </div>
+            <div class="earnings-days">${daysLabel}</div>
+          </div>
+        `;
+      }).join("");
+
+      area.innerHTML = `<div class="earnings-grid">${cards}</div>`;
+    }
+
+    // ---- データ取得 ----
+    async function loadEconomic() {
+      document.getElementById("highlight-area").innerHTML =
+        `<div class="loading-box"><div class="spinner"></div>読み込み中...</div>`;
+      document.getElementById("event-table-area").innerHTML =
+        `<div class="loading-box"><div class="spinner"></div>読み込み中...</div>`;
+      try {
+        const res = await fetch("/api/calendar/economic");
+        const data = await res.json();
+        allEvents = data.events || [];
+        renderHighlight(allEvents);
+        renderEventTable(allEvents, currentFilter);
+      } catch (err) {
+        document.getElementById("highlight-area").innerHTML =
+          `<p style="color:#f85149;padding:16px">取得エラー: ${err.message}</p>`;
+        document.getElementById("event-table-area").innerHTML =
+          `<p style="color:#f85149;padding:16px">取得エラー: ${err.message}</p>`;
+      }
+    }
+
+    async function loadEarnings() {
+      document.getElementById("earnings-area").innerHTML =
+        `<div class="loading-box"><div class="spinner"></div>読み込み中（yfinance API呼び出し中）...</div>`;
+      try {
+        const res = await fetch("/api/calendar/earnings");
+        const data = await res.json();
+        renderEarnings(data.earnings || []);
+      } catch (err) {
+        document.getElementById("earnings-area").innerHTML =
+          `<p style="color:#f85149;padding:16px">取得エラー: ${err.message}</p>`;
+      }
+    }
+
+    // 初期ロード
+    loadEconomic();
+    loadEarnings();
+  </script>
+</body>
+</html>

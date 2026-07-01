@@ -1370,5 +1370,219 @@ def watchlist_correlation():
         return jsonify({"error": str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# 経済カレンダー
+# ---------------------------------------------------------------------------
+
+@app.route("/calendar")
+def calendar_page():
+    return render_template("calendar.html")
+
+
+@app.route("/api/calendar/economic")
+def economic_calendar():
+    """主要経済イベントの予定（ハードコードされた2026年のイベント）"""
+    today = datetime.now()
+    today_str = today.strftime("%Y-%m-%d")
+    events = []
+
+    # FOMC会合（2026年）
+    fomc_dates = [
+        ("2026-07-28", "2026-07-29"),
+        ("2026-09-15", "2026-09-16"),
+        ("2026-11-03", "2026-11-04"),
+        ("2026-12-15", "2026-12-16"),
+    ]
+    for start_date, end_date in fomc_dates:
+        if end_date >= today_str:
+            events.append({
+                "date": start_date,
+                "event": "FOMC会合（1日目）",
+                "importance": "HIGH",
+                "category": "FRB",
+                "description": "連邦公開市場委員会 - 金利決定前日",
+            })
+            events.append({
+                "date": end_date,
+                "event": "FOMC会合（金利発表）",
+                "importance": "HIGH",
+                "category": "FRB",
+                "description": "連邦公開市場委員会 - 金利決定・議長会見",
+            })
+
+    # CPI（消費者物価指数）2026年残月の予定（米国BLS発表）
+    cpi_dates = [
+        ("2026-07-15", "6月CPI"),
+        ("2026-08-12", "7月CPI"),
+        ("2026-09-11", "8月CPI"),
+        ("2026-10-14", "9月CPI"),
+        ("2026-11-13", "10月CPI"),
+        ("2026-12-11", "11月CPI"),
+    ]
+    for date, label in cpi_dates:
+        if date >= today_str:
+            events.append({
+                "date": date,
+                "event": f"CPI（消費者物価指数）- {label}",
+                "importance": "HIGH",
+                "category": "CPI",
+                "description": "米国消費者物価指数 - インフレ指標（BLS発表）",
+            })
+
+    # 雇用統計（毎月第1金曜日）
+    jobs_dates = [
+        ("2026-07-02", "6月雇用統計"),
+        ("2026-08-07", "7月雇用統計"),
+        ("2026-09-04", "8月雇用統計"),
+        ("2026-10-02", "9月雇用統計"),
+        ("2026-11-06", "10月雇用統計"),
+        ("2026-12-04", "11月雇用統計"),
+    ]
+    for date, label in jobs_dates:
+        if date >= today_str:
+            events.append({
+                "date": date,
+                "event": f"雇用統計 - {label}",
+                "importance": "HIGH",
+                "category": "雇用",
+                "description": "米国非農業部門雇用者数・失業率（BLS発表）",
+            })
+
+    # PCE（個人消費支出物価指数）
+    pce_dates = [
+        ("2026-07-31", "5月PCE"),
+        ("2026-08-28", "7月PCE"),
+        ("2026-09-25", "8月PCE"),
+        ("2026-10-30", "9月PCE"),
+        ("2026-11-25", "10月PCE"),
+        ("2026-12-23", "11月PCE"),
+    ]
+    for date, label in pce_dates:
+        if date >= today_str:
+            events.append({
+                "date": date,
+                "event": f"PCE物価指数 - {label}",
+                "importance": "HIGH",
+                "category": "PCE",
+                "description": "個人消費支出物価指数 - FRBが重視するインフレ指標",
+            })
+
+    # GDP速報値（四半期）
+    gdp_dates = [
+        ("2026-07-30", "Q2 2026 GDP速報値"),
+        ("2026-10-29", "Q3 2026 GDP速報値"),
+    ]
+    for date, label in gdp_dates:
+        if date >= today_str:
+            events.append({
+                "date": date,
+                "event": f"GDP速報値 - {label}",
+                "importance": "MEDIUM",
+                "category": "GDP",
+                "description": "米国GDP速報値（商務省発表）",
+            })
+
+    # ISM製造業景況感指数
+    ism_dates = [
+        ("2026-07-01", "6月ISM製造業"),
+        ("2026-08-03", "7月ISM製造業"),
+        ("2026-09-01", "8月ISM製造業"),
+        ("2026-10-01", "9月ISM製造業"),
+        ("2026-11-02", "10月ISM製造業"),
+        ("2026-12-01", "11月ISM製造業"),
+    ]
+    for date, label in ism_dates:
+        if date >= today_str:
+            events.append({
+                "date": date,
+                "event": f"ISM製造業景況感指数 - {label}",
+                "importance": "MEDIUM",
+                "category": "景況感",
+                "description": "米国製造業景況感指数（50以上で拡大）",
+            })
+
+    # 日銀金融政策決定会合（2026年）
+    boj_dates = [
+        ("2026-07-30", "2026-07-31"),
+        ("2026-09-18", "2026-09-19"),
+        ("2026-10-29", "2026-10-30"),
+        ("2026-12-18", "2026-12-19"),
+    ]
+    for start_date, end_date in boj_dates:
+        if end_date >= today_str:
+            events.append({
+                "date": end_date,
+                "event": "日銀金融政策決定会合（結果発表）",
+                "importance": "HIGH",
+                "category": "日銀",
+                "description": "日本銀行 金融政策決定会合・政策金利発表",
+            })
+
+    events.sort(key=lambda x: x["date"])
+    return jsonify({"events": events, "as_of": today_str})
+
+
+@app.route("/api/calendar/earnings")
+def earnings_calendar_api():
+    """ウォッチリスト銘柄の決算日（今後90日）"""
+    with _watchlist_lock:
+        wl = _load_watchlist()
+    tickers = wl.get("tickers", [])
+
+    today = datetime.now()
+    today_str = today.strftime("%Y-%m-%d")
+    cutoff = (today + timedelta(days=90)).strftime("%Y-%m-%d")
+
+    results = []
+    for ticker in tickers:
+        found = False
+        # calendar から試みる
+        try:
+            t = yf.Ticker(ticker)
+            cal = t.calendar
+            if cal is not None and not cal.empty:
+                for col in ["Earnings Date", "earnings_date"]:
+                    if col in cal.columns:
+                        for val in cal[col]:
+                            try:
+                                date_str = pd.Timestamp(val).strftime("%Y-%m-%d")
+                                if today_str <= date_str <= cutoff:
+                                    results.append({
+                                        "ticker": ticker,
+                                        "date": date_str,
+                                        "description": "決算発表予定",
+                                    })
+                                    found = True
+                            except Exception:
+                                pass
+                        break
+        except Exception:
+            pass
+
+        # earnings_dates からも試みる
+        if not found:
+            try:
+                t = yf.Ticker(ticker)
+                ed = t.earnings_dates
+                if ed is not None and not ed.empty:
+                    for idx in ed.index:
+                        try:
+                            date_str = pd.Timestamp(idx).strftime("%Y-%m-%d")
+                            if today_str <= date_str <= cutoff:
+                                results.append({
+                                    "ticker": ticker,
+                                    "date": date_str,
+                                    "description": "決算発表予定（予測含む）",
+                                })
+                                break
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+    results.sort(key=lambda x: x["date"])
+    return jsonify({"earnings": results, "as_of": today_str})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

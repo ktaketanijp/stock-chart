@@ -437,6 +437,7 @@
     <a href="/status" class="g-nav-link">⚙️ 状況</a>
     <a href="/market" class="g-nav-link">🌐 市場</a>
     <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
+    <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
     <div class="ticker-search">
       <input id="ticker-input" type="text" placeholder="AAPL" value="AAPL">
       <button class="btn-analyze" onclick="runAnalysis()">分析</button>
@@ -1158,6 +1159,95 @@
       }
     }
 
+    // ---- Section 7: RSIダイバージェンス / MAクロス / サポレジ ----
+    async function loadDivergence(ticker) {
+      const loadEl = document.getElementById("div-loading");
+      const contEl = document.getElementById("div-content");
+      const errEl  = document.getElementById("div-error");
+      loadEl.style.display = "block";
+      contEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      try {
+        const res  = await fetch(`/api/analysis/divergence/${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        // --- RSIダイバージェンス ---
+        const div     = data.divergence || {};
+        const sigEl   = document.getElementById("divergence-signal");
+        const descEl  = document.getElementById("divergence-desc");
+        const divSig  = div.signal || "NEUTRAL";
+        const divColor = divSig === "BUY" ? "#3fb950" : divSig === "SELL" ? "#f85149" : "#8b949e";
+        const divLabel = divSig === "BUY"
+          ? "買い（強気ダイバージェンス）"
+          : divSig === "SELL"
+          ? "売り（弱気ダイバージェンス）"
+          : "中立";
+        sigEl.textContent  = divLabel;
+        sigEl.style.color  = divColor;
+        descEl.textContent = div.description || "";
+
+        // --- MAクロス ---
+        const mac       = data.ma_cross || {};
+        const macSigEl  = document.getElementById("ma-cross-signal");
+        const macDescEl = document.getElementById("ma-cross-desc");
+        const macSig    = mac.signal || "NEUTRAL";
+        const macColor  = macSig === "BUY" ? "#3fb950" : macSig === "SELL" ? "#f85149" : "#8b949e";
+        const macLabel  = mac.cross === "golden"
+          ? "買い（ゴールデンクロス）"
+          : mac.cross === "dead"
+          ? "売り（デッドクロス）"
+          : "中立";
+        macSigEl.textContent  = macLabel;
+        macSigEl.style.color  = macColor;
+        macDescEl.textContent = mac.description || "";
+
+        // --- サポート・レジスタンス ---
+        const sr           = data.support_resistance || {};
+        const currentPrice = data.current_price || 0;
+
+        function renderLevels(levels, isSupport) {
+          if (!levels || levels.length === 0) {
+            return `<div style="font-size:12px;color:#8b949e">データなし</div>`;
+          }
+          return levels.map(item => {
+            const price   = item.price;
+            const distPct = item.dist_pct;
+            const color   = isSupport ? "#3fb950" : "#f85149";
+            const sign    = distPct >= 0 ? "+" : "";
+            return `<div style="display:flex;align-items:center;justify-content:space-between;
+                      background:#161b22;border-radius:6px;padding:8px 12px;
+                      border-left:3px solid ${color}">
+                      <span style="font-size:14px;font-weight:700;color:#e6edf3">$${price.toFixed(2)}</span>
+                      <span style="font-size:12px;font-weight:600;color:${color}">${sign}${distPct.toFixed(1)}%</span>
+                    </div>`;
+          }).join("");
+        }
+
+        const supEl = document.getElementById("support-levels");
+        const resEl = document.getElementById("resistance-levels");
+        // サポートは現在価格より低いものを降順（近い順）で表示
+        const supSorted = (sr.support || [])
+          .filter(item => item.price <= currentPrice)
+          .sort((a, b) => b.price - a.price);
+        // レジスタンスは現在価格より高いものを昇順（近い順）で表示
+        const resSorted = (sr.resistance || [])
+          .filter(item => item.price >= currentPrice)
+          .sort((a, b) => a.price - b.price);
+
+        supEl.innerHTML = renderLevels(supSorted, true);
+        resEl.innerHTML = renderLevels(resSorted, false);
+
+        loadEl.style.display = "none";
+        contEl.style.display = "block";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `ダイバージェンスデータ取得エラー: ${escHtml(e.message)}`;
+      }
+    }
+
     // ---- Main analysis runner ----
     async function runAnalysis() {
       const ticker = tickerInput.value.trim().toUpperCase();
@@ -1178,6 +1268,7 @@
         loadChart(ticker),
         loadEarnings(),
         loadMTF(ticker),
+        loadDivergence(ticker),
       ]);
 
       startRefreshTimer();
