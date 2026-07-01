@@ -393,14 +393,36 @@
     </div>
   </div>
 
-  <!-- 累計損益チャート -->
+  <!-- 累積P&Lチャート（強化版） -->
   <div class="section">
     <div class="section-header">
-      <span class="section-title">累計損益チャート</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="section-title">📈 累積損益チャート</span>
+        <span id="pnl-target-info" style="font-size:0.8rem;color:#8b949e">目標: ¥10,000</span>
+      </div>
       <button class="btn btn-secondary" onclick="recordDailyPnl()" id="btn-record-pnl" style="font-size:12px;padding:5px 12px">本日損益を記録</button>
     </div>
     <div class="chart-wrap">
-      <canvas id="pnl-chart" height="100"></canvas>
+      <!-- プログレスバー -->
+      <div style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.25rem;color:#c9d1d9">
+          <span>目標達成率</span>
+          <span id="pnl-achievement-pct" style="font-weight:700">0%</span>
+        </div>
+        <div style="background:#21262d;border-radius:9999px;height:8px;overflow:hidden">
+          <div id="pnl-progress-bar" style="height:100%;border-radius:9999px;transition:width 0.5s ease;background:linear-gradient(to right,#10b981,#34d399);width:0%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#8b949e;margin-top:0.25rem">
+          <span>¥0</span>
+          <span id="pnl-current-val" style="font-weight:700;color:#e6edf3">¥0</span>
+          <span>¥10,000</span>
+        </div>
+      </div>
+      <!-- Canvasチャート -->
+      <canvas id="pnl-chart" height="120" style="width:100%;display:block"></canvas>
+      <p id="pnl-no-data" style="text-align:center;color:#8b949e;font-size:0.85rem;display:none">
+        トレードを記録するとチャートが表示されます
+      </p>
     </div>
   </div>
 
@@ -501,8 +523,6 @@ const fmt = (v, digits=2) => v != null ? v.toLocaleString('ja-JP', {minimumFract
 const fmtYen = (v) => v != null ? (v >= 0 ? '+¥' : '-¥') + Math.abs(v).toLocaleString('ja-JP', {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '—';
 const pnlClass = (v) => v == null ? '' : v > 0 ? 'pos' : v < 0 ? 'neg' : 'neu';
 
-let pnlChart = null;
-
 // ---- データ取得 ----
 async function loadData() {
   try {
@@ -510,6 +530,7 @@ async function loadData() {
     const json = await res.json();
     if (json.error) { console.error(json.error); return; }
     renderAll(json.portfolio, json.performance);
+    renderPnlChart(json.portfolio.daily_pnl || [], json.performance.total_pnl || 0);
   } catch(e) { console.error('データ取得エラー:', e); }
 }
 
@@ -519,7 +540,6 @@ function renderAll(portfolio, perf) {
   renderProgress(perf);
   renderPositions(portfolio.positions || []);
   renderTrades(portfolio.trades || []);
-  renderChart(portfolio.daily_pnl || []);
 }
 
 function renderCards(portfolio, perf) {
@@ -631,62 +651,118 @@ function renderTrades(trades) {
   }).join('');
 }
 
-function renderChart(dailyPnl) {
-  const ctx = document.getElementById('pnl-chart').getContext('2d');
-  const labels = dailyPnl.map(d => d.date);
-  const values = dailyPnl.map(d => d.pnl);
+// ---- 累積P&Lチャート描画（Canvas 2D） ----
+function renderPnlChart(dailyPnl, totalPnl) {
+  const target = 10000;
+  const pct = Math.max(0, Math.min(100, totalPnl / target * 100));
 
-  if (pnlChart) pnlChart.destroy();
-  pnlChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: '累計損益',
-          data: values,
-          borderColor: '#58a6ff',
-          backgroundColor: 'rgba(88,166,255,.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.3,
-          pointBackgroundColor: '#58a6ff',
-          pointRadius: 4,
-        },
-        {
-          label: '目標 ¥10,000',
-          data: labels.map(() => 10000),
-          borderColor: '#f85149',
-          borderDash: [6, 4],
-          borderWidth: 1.5,
-          pointRadius: 0,
-          fill: false,
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { labels: { color: '#8b949e', font: { size: 12 } } },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              const v = ctx.parsed.y;
-              return ` ${ctx.dataset.label}: ${v >= 0 ? '+' : ''}¥${v.toLocaleString()}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } },
-        y: {
-          ticks: {
-            color: '#8b949e',
-            callback: v => (v >= 0 ? '+' : '') + '¥' + v.toLocaleString()
-          },
-          grid: { color: '#21262d' }
-        }
-      }
+  // プログレスバー更新
+  document.getElementById('pnl-achievement-pct').textContent = `${pct.toFixed(1)}%`;
+  document.getElementById('pnl-current-val').textContent = `${totalPnl >= 0 ? '+' : ''}¥${totalPnl.toLocaleString()}`;
+  document.getElementById('pnl-current-val').style.color = totalPnl >= 0 ? '#3fb950' : '#f85149';
+
+  const bar = document.getElementById('pnl-progress-bar');
+  bar.style.width = `${pct}%`;
+  if (totalPnl < 0) {
+    bar.style.background = 'linear-gradient(to right,#da3633,#f85149)';
+  } else if (pct >= 100) {
+    bar.style.background = 'linear-gradient(to right,#f59e0b,#fbbf24)';
+  } else {
+    bar.style.background = 'linear-gradient(to right,#10b981,#34d399)';
+  }
+
+  // データなし
+  if (!dailyPnl.length) {
+    document.getElementById('pnl-chart').style.display = 'none';
+    document.getElementById('pnl-no-data').style.display = 'block';
+    return;
+  }
+  document.getElementById('pnl-chart').style.display = 'block';
+  document.getElementById('pnl-no-data').style.display = 'none';
+
+  const canvas = document.getElementById('pnl-chart');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth || 640;
+  const H = 120;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const padL = 54, padR = 12, padT = 12, padB = 26;
+
+  const lineColor = totalPnl >= 0 ? '#3fb950' : '#f85149';
+  const textColor = '#8b949e';
+  const bgColor   = '#161b22';
+
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, W, H);
+
+  const values = dailyPnl.map(d => d.pnl);
+  const maxVal = Math.max(Math.max(...values), target, 1);
+  const minVal = Math.min(Math.min(...values), 0);
+  const range  = maxVal - minVal || 1;
+
+  const toX = i => padL + i * (W - padL - padR) / Math.max(values.length - 1, 1);
+  const toY = v => padT + (H - padT - padB) * (1 - (v - minVal) / range);
+
+  // グリッド（¥0線・目標線）
+  [{ val: 0, color: 'rgba(255,255,255,0.18)', label: '¥0', lc: textColor },
+   { val: target, color: 'rgba(245,158,11,0.35)', label: '¥10,000', lc: '#f59e0b' }
+  ].forEach(({ val, color, label, lc }) => {
+    const y = toY(val);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(W - padR, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = lc;
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(label, padL - 4, y + 3);
+  });
+
+  // 塗りつぶしエリア
+  ctx.beginPath();
+  ctx.moveTo(toX(0), toY(0));
+  values.forEach((v, i) => ctx.lineTo(toX(i), toY(v)));
+  ctx.lineTo(toX(values.length - 1), toY(0));
+  ctx.closePath();
+  ctx.fillStyle = totalPnl >= 0 ? 'rgba(63,185,80,0.12)' : 'rgba(248,81,73,0.12)';
+  ctx.fill();
+
+  // ライン
+  ctx.beginPath();
+  values.forEach((v, i) => i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)));
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  ctx.stroke();
+
+  // 最新点の強調ドット
+  if (values.length > 0) {
+    const lx = toX(values.length - 1);
+    const ly = toY(values[values.length - 1]);
+    ctx.beginPath();
+    ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+    ctx.fillStyle = lineColor;
+    ctx.fill();
+  }
+
+  // 日付ラベル（最大5点）
+  const step = Math.max(1, Math.floor(values.length / 5));
+  ctx.fillStyle = textColor;
+  ctx.font = '8px sans-serif';
+  ctx.textAlign = 'center';
+  dailyPnl.forEach((d, i) => {
+    if (i % step === 0 || i === values.length - 1) {
+      ctx.fillText(d.date.slice(5), toX(i), H - 6);
     }
   });
 }
