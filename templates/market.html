@@ -561,7 +561,13 @@
       </div>
       <div class="update-info">
         <span id="last-updated">更新中...</span>
-        <button class="refresh-btn" onclick="refreshAll()">今すぐ更新</button>
+        <span style="font-size:0.75rem;color:#8b949e">🔄 自動更新</span>
+        <span id="refresh-countdown" style="font-weight:600;color:#58a6ff;font-size:0.8rem;min-width:2.8rem;text-align:center">5:00</span>
+        <button class="refresh-btn" onclick="triggerManualRefresh()">今すぐ更新</button>
+        <label style="display:flex;align-items:center;gap:0.25rem;cursor:pointer;font-size:0.75rem;color:#8b949e">
+          <input type="checkbox" id="auto-refresh-toggle" checked onchange="toggleAutoRefresh()">
+          <span>自動ON</span>
+        </label>
       </div>
     </div>
 
@@ -1070,11 +1076,68 @@
         '最終更新: ' + new Date().toLocaleTimeString('ja-JP');
     }
 
+    // ---- 自動更新カウントダウン ----
+    let _countdownInterval = null;
+    let _countdown = 300; // 5分 (秒)
+
+    function updateCountdownDisplay() {
+      const el = document.getElementById('refresh-countdown');
+      if (!el) return;
+      const m = Math.floor(_countdown / 60);
+      const s = _countdown % 60;
+      el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function startAutoRefresh() {
+      if (_countdownInterval) clearInterval(_countdownInterval);
+      _countdown = 300;
+      updateCountdownDisplay();
+      _countdownInterval = setInterval(() => {
+        _countdown--;
+        if (_countdown <= 0) {
+          _countdown = 300;
+          refreshAll();
+        }
+        updateCountdownDisplay();
+      }, 1000);
+    }
+
+    function stopAutoRefresh() {
+      if (_countdownInterval) {
+        clearInterval(_countdownInterval);
+        _countdownInterval = null;
+      }
+      const el = document.getElementById('refresh-countdown');
+      if (el) el.textContent = '—';
+    }
+
+    function toggleAutoRefresh() {
+      const enabled = document.getElementById('auto-refresh-toggle').checked;
+      if (enabled) startAutoRefresh();
+      else stopAutoRefresh();
+    }
+
+    function triggerManualRefresh() {
+      const el = document.getElementById('refresh-countdown');
+      if (el) {
+        el.textContent = '更新中...';
+        el.style.color = '#3fb950';
+        setTimeout(() => { el.style.color = '#58a6ff'; }, 1500);
+      }
+      if (_countdownInterval) {
+        clearInterval(_countdownInterval);
+        _countdownInterval = null;
+      }
+      refreshAll().then(() => {
+        if (document.getElementById('auto-refresh-toggle').checked) startAutoRefresh();
+      });
+    }
+
     // 初回ロード
     refreshAll();
 
-    // 60秒ごと自動更新
-    setInterval(refreshAll, REFRESH_INTERVAL);
+    // カウントダウン開始（5分）
+    startAutoRefresh();
   </script>
 </body>
 </html>

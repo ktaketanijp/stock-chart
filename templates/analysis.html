@@ -675,6 +675,40 @@
         <div class="error-box" id="chart-error" style="display:none"></div>
       </div>
 
+      <!-- Section 4.5: 価格トレンド予測 -->
+      <div class="card" style="margin-top:0.75rem">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <h3 style="font-size:0.9rem;font-weight:600;color:var(--text-primary)">📊 価格トレンド予測（線形回帰・20日）</h3>
+          <button class="btn-sm" onclick="loadPricePrediction()">予測実行</button>
+        </div>
+
+        <div id="prediction-result" style="display:none;margin-top:0.6rem">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0.5rem;margin-bottom:0.6rem">
+            <div class="metric-card">
+              <div class="metric-label">トレンド方向</div>
+              <div id="pred-direction" class="metric-value">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">トレンド強度</div>
+              <div id="pred-strength" class="metric-value">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">10日後予測</div>
+              <div id="pred-price" class="metric-value">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">予測変化率</div>
+              <div id="pred-change" class="metric-value">—</div>
+            </div>
+          </div>
+          <p id="pred-caution" style="font-size:0.7rem;color:var(--text-secondary)"></p>
+        </div>
+        <div id="prediction-loading" style="display:none;font-size:0.8rem;color:var(--text-secondary)">
+          <span class="inline-spinner"></span> 予測計算中...
+        </div>
+        <div id="prediction-error" class="error-box" style="display:none"></div>
+      </div>
+
       <!-- Section 5: Earnings Calendar -->
       <div class="card">
         <div class="card-title">Section 5 — 決算カレンダー</div>
@@ -2475,6 +2509,54 @@
       } catch (e) {
         document.getElementById('analyst-info').innerHTML =
           `<span style="color:var(--negative);font-size:0.85rem">取得エラー: ${escHtml(e.message)}</span>`;
+      }
+    }
+
+    // ---- 価格トレンド予測（線形回帰） ----
+    async function loadPricePrediction() {
+      const ticker = (typeof currentTicker !== 'undefined' && currentTicker)
+        ? currentTicker
+        : new URLSearchParams(location.search).get('ticker') || 'AAPL';
+
+      const resultEl  = document.getElementById('prediction-result');
+      const loadEl    = document.getElementById('prediction-loading');
+      const errorEl   = document.getElementById('prediction-error');
+
+      resultEl.style.display = 'none';
+      errorEl.style.display  = 'none';
+      loadEl.style.display   = 'block';
+
+      try {
+        const resp = await fetch(`/api/analysis/price-prediction/${encodeURIComponent(ticker)}`);
+        const data = await resp.json();
+        loadEl.style.display = 'none';
+
+        if (data.error) {
+          errorEl.textContent    = '予測データ取得失敗: ' + data.error;
+          errorEl.style.display  = 'block';
+          return;
+        }
+
+        const dirEl = document.getElementById('pred-direction');
+        dirEl.textContent  = data.trend_direction;
+        dirEl.style.color  = data.trend_direction === '上昇' ? 'var(--positive)' : 'var(--negative)';
+
+        document.getElementById('pred-strength').textContent =
+          `${data.trend_strength} (R²=${data.r_squared})`;
+
+        document.getElementById('pred-price').textContent = `$${data.predicted_10d}`;
+
+        const chg    = data.trend_pct_10d;
+        const chgEl  = document.getElementById('pred-change');
+        chgEl.textContent = `${chg >= 0 ? '+' : ''}${chg}%`;
+        chgEl.style.color = chg >= 0 ? 'var(--positive)' : 'var(--negative)';
+
+        document.getElementById('pred-caution').textContent = data.caution;
+        resultEl.style.display = 'block';
+      } catch (e) {
+        loadEl.style.display   = 'none';
+        errorEl.textContent    = '通信エラー: ' + e.message;
+        errorEl.style.display  = 'block';
       }
     }
 

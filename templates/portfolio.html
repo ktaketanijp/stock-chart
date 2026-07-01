@@ -546,6 +546,57 @@
         </div>
       </div>
     </div>
+
+    <!-- リバランス計算機 -->
+    <div class="card" style="margin-top:1rem">
+      <h3>&#x2696;&#xFE0F; リバランス計算機</h3>
+      <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.75rem">
+        現在の保有株から目標配分への調整量を計算します
+      </p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem">
+        <div>
+          <label style="font-size:0.8rem;font-weight:600">保有株数（例: AAPL:10,NVDA:5）</label>
+          <input id="rb-holdings" type="text" class="field-group"
+                 placeholder="AAPL:10, NVDA:5, MSFT:8"
+                 style="width:100%;margin-top:0.25rem;background:var(--input-bg);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:14px;padding:8px 12px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:0.8rem;font-weight:600">目標配分%（合計100推奨）</label>
+          <input id="rb-targets" type="text"
+                 placeholder="AAPL:40, NVDA:30, MSFT:30"
+                 style="width:100%;margin-top:0.25rem;background:var(--input-bg);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:14px;padding:8px 12px;outline:none;">
+        </div>
+      </div>
+
+      <!-- プリセットボタン -->
+      <div style="margin-bottom:0.5rem;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-preset" onclick="setRbPreset('equal')">均等配分</button>
+        <button class="btn-preset" onclick="setRbPreset('mag7')">MAG7中心</button>
+        <button class="btn-preset" onclick="setRbPreset('growth')">成長重視</button>
+      </div>
+
+      <button class="btn btn-run" style="font-size:14px;padding:9px 20px" onclick="calcRebalance()">計算する</button>
+
+      <div id="rb-result" style="display:none;margin-top:0.75rem">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0.5rem;margin-bottom:0.75rem">
+          <div class="metric-card">
+            <div class="metric-label">総資産（JPY）</div>
+            <div id="rb-total" class="metric-value">—</div>
+          </div>
+        </div>
+
+        <table class="data-table" style="font-size:0.83rem">
+          <thead>
+            <tr>
+              <th>銘柄</th><th>現在株数</th><th>現在比率</th><th>目標比率</th>
+              <th>売買株数</th><th>売買金額(JPY)</th><th>アクション</th>
+            </tr>
+          </thead>
+          <tbody id="rb-tbody"></tbody>
+        </table>
+      </div>
+    </div>
   </main>
 
   <script>
@@ -920,6 +971,95 @@
       const btn = document.getElementById("theme-toggle");
       if (btn) btn.textContent = saved === "dark" ? "☀️" : "🌙";
     })();
+
+    // ========================
+    //  リバランス計算機
+    // ========================
+    function parseTickerInput(str) {
+      const result = {};
+      str.split(',').forEach(item => {
+        const [ticker, val] = item.trim().split(':');
+        if (ticker && val) {
+          result[ticker.trim().toUpperCase()] = parseFloat(val.trim());
+        }
+      });
+      return result;
+    }
+
+    function setRbPreset(type) {
+      const presets = {
+        equal: {
+          holdings: 'AAPL:10, NVDA:10, MSFT:10, AMZN:10, GOOGL:10',
+          targets: 'AAPL:20, NVDA:20, MSFT:20, AMZN:20, GOOGL:20',
+        },
+        mag7: {
+          holdings: 'AAPL:10, MSFT:8, NVDA:5, AMZN:3, GOOGL:4, META:6, TSLA:7',
+          targets: 'AAPL:25, MSFT:20, NVDA:20, AMZN:10, GOOGL:10, META:10, TSLA:5',
+        },
+        growth: {
+          holdings: 'NVDA:5, META:5, AMZN:3, GOOGL:4',
+          targets: 'NVDA:40, META:25, AMZN:20, GOOGL:15',
+        },
+      };
+      const p = presets[type];
+      if (p) {
+        document.getElementById('rb-holdings').value = p.holdings;
+        document.getElementById('rb-targets').value = p.targets;
+      }
+    }
+
+    async function calcRebalance() {
+      const holdings = parseTickerInput(document.getElementById('rb-holdings').value);
+      const targets = parseTickerInput(document.getElementById('rb-targets').value);
+
+      if (!Object.keys(holdings).length) {
+        alert('保有株数を入力してください');
+        return;
+      }
+
+      const btn = event.target;
+      btn.textContent = '計算中...';
+      btn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/portfolio/rebalance', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({holdings, target_weights: targets}),
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+
+        document.getElementById('rb-total').textContent = '¥' + data.total_value_jpy.toLocaleString();
+
+        document.getElementById('rb-tbody').innerHTML = data.rebalance.map(r => `
+          <tr>
+            <td><a href="/analysis?ticker=${r.ticker}" style="color:var(--accent)">${r.ticker}</a></td>
+            <td>${r.current_shares}株</td>
+            <td>${r.current_weight}%</td>
+            <td>${r.target_weight}%</td>
+            <td>${r.shares_to_trade > 0 ? r.shares_to_trade + '株' : '—'}</td>
+            <td style="color:${r.action === '買い増し' ? 'var(--positive)' : r.action === '売却' ? 'var(--negative)' : ''}">
+              ${r.diff_jpy !== 0 ? (r.diff_jpy > 0 ? '+' : '') + r.diff_jpy.toLocaleString() + '円' : '—'}
+            </td>
+            <td>
+              <span style="padding:0.1rem 0.4rem;border-radius:0.2rem;font-size:0.75rem;
+                background:${r.action === '買い増し' ? '#15803d' : r.action === '売却' ? '#dc2626' : '#374151'};
+                color:white">${r.action}</span>
+            </td>
+          </tr>
+        `).join('');
+
+        document.getElementById('rb-result').style.display = 'block';
+      } finally {
+        btn.textContent = '計算する';
+        btn.disabled = false;
+      }
+    }
   </script>
 </body>
 </html>

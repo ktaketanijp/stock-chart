@@ -3497,5 +3497,165 @@ def watchlist_news():
     return jsonify({"news": all_news[:20]})
 
 
+@app.route("/api/portfolio/rebalance", methods=["POST"])
+def portfolio_rebalance():
+    """
+    ポートフォリオリバランス計算
+    現在の保有株 → 目標配分への調整量を計算
+
+    POST: {
+        "holdings": {"AAPL": 10, "NVDA": 5, "MSFT": 8},  // 保有株数
+        "target_weights": {"AAPL": 40, "NVDA": 30, "MSFT": 30},  // 目標比率(%)
+        "total_budget": 1000000  // 総資産JPY（省略可）
+    }
+    """
+    body = request.get_json() or {}
+    holdings = body.get("holdings", {})
+    target_weights = body.get("target_weights", {})
+
+    if not holdings:
+        return jsonify({"error": "holdingsが必要です"})
+
+    # 現在価格を取得
+    tickers = list(set(list(holdings.keys()) + list(target_weights.keys())))
+    prices = {}
+    for ticker in tickers:
+        try:
+            info = yf.Ticker(ticker).fast_info
+            price = float(getattr(info, "last_price", 0) or 0)
+            if price > 0:
+                prices[ticker] = price
+        except Exception:
+            pass
+
+    # USD/JPY
+    try:
+        rate = float(yf.Ticker("JPY=X").fast_info.last_price or 150)
+    except Exception:
+        rate = 150.0
+
+    # 現在の保有額（USD）
+    current_values = {}
+    for ticker, shares in holdings.items():
+        price = prices.get(ticker, 0)
+        current_values[ticker] = round(price * shares, 2)
+
+    total_value_usd = sum(current_values.values())
+    total_value_jpy = round(total_value_usd * rate)
+
+    # 現在の配分比率
+    current_weights = {}
+    for ticker, val in current_values.items():
+        current_weights[ticker] = round(val / total_value_usd * 100, 2) if total_value_usd else 0
+
+    # リバランス計算
+    rebalance_actions = []
+
+    if target_weights:
+        total_target = sum(target_weights.values())
+
+        for ticker in set(list(holdings.keys()) + list(target_weights.keys())):
+            target_pct = target_weights.get(ticker, 0) / total_target * 100
+            current_val = current_values.get(ticker, 0)
+            target_val = total_value_usd * target_pct / 100
+            diff_usd = target_val - current_val
+            price = prices.get(ticker, 0)
+
+            if price > 0:
+                shares_diff = round(diff_usd / price)
+            else:
+                shares_diff = 0
+
+            action = "保持" if abs(shares_diff) == 0 else ("買い増し" if shares_diff > 0 else "売却")
+
+            rebalance_actions.append({
+                "ticker": ticker,
+                "current_shares": holdings.get(ticker, 0),
+                "current_weight": current_weights.get(ticker, 0),
+                "target_weight": round(target_pct, 1),
+                "diff_usd": round(diff_usd, 0),
+                "diff_jpy": round(diff_usd * rate),
+                "shares_to_trade": abs(shares_diff),
+                "action": action,
+                "price_usd": round(price, 2),
+            })
+
+        rebalance_actions.sort(key=lambda x: -abs(x["diff_jpy"]))
+
+    return jsonify({
+        "total_value_usd": total_value_usd,
+        "total_value_jpy": total_value_jpy,
+        "usd_jpy_rate": round(rate, 2),
+        "current_weights": current_weights,
+        "rebalance": rebalance_actions,
+        "prices": {k: round(v, 2) for k, v in prices.items()},
+    })
+
+
+@app.route("/api/analysis/price-prediction/<ticker>")
+def price_prediction(ticker: str):
+    """
+    線形回帰による価格トレンド予測（過去20日→今後10日）
+    """
+    import numpy as np
+
+    try:
+        hist = yf.Ticker(ticker.upper()).history(period="3mo", interval="1d")
+        close = hist["Close"].dropna()
+
+        if len(close) < 20:
+            return jsonify({"error": "データ不足"})
+
+        # 過去20日で線形回帰
+        n = 20
+        recent = close.values[-n:]
+        x = np.arange(n, dtype=float)
+
+        # 最小二乗法
+        x_mean = x.mean()
+        y_mean = recent.mean()
+        slope = float(np.sum((x - x_mean) * (recent - y_mean)) / np.sum((x - x_mean) ** 2))
+        intercept = float(y_mean - slope * x_mean)
+
+        current_price = float(close.iloc[-1])
+
+        # 今後10日の予測
+        predictions = []
+        for i in range(1, 11):
+            pred_price = intercept + slope * (n - 1 + i)
+            predictions.append({
+                "day": i,
+                "predicted_price": round(float(pred_price), 2),
+            })
+
+        predicted_10d = predictions[-1]["predicted_price"]
+        trend_pct = round((predicted_10d - current_price) / current_price * 100, 2)
+
+        # R²（決定係数）でトレンドの強さを評価
+        y_fitted = slope * x + intercept
+        ss_res = float(np.sum((recent - y_fitted) ** 2))
+        ss_tot = float(np.sum((recent - y_mean) ** 2))
+        r_squared = round(1 - ss_res / ss_tot, 3) if ss_tot > 0 else 0
+
+        trend_direction = "上昇" if slope > 0 else "下落"
+        trend_strength = "強い" if r_squared > 0.7 else "中程度" if r_squared > 0.4 else "弱い"
+
+        return jsonify({
+            "ticker": ticker.upper(),
+            "current_price": round(current_price, 2),
+            "slope_per_day": round(slope, 4),
+            "r_squared": r_squared,
+            "trend_direction": trend_direction,
+            "trend_strength": trend_strength,
+            "trend_pct_10d": trend_pct,
+            "predicted_10d": predicted_10d,
+            "predictions": predictions,
+            "caution": "統計的なトレンド外挿であり投資助言ではありません",
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
