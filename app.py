@@ -1585,6 +1585,51 @@ def watchlist_momentum_rank():
     return jsonify({"rankings": results, "count": len(results)})
 
 
+@app.route("/api/watchlist/export")
+def watchlist_export():
+    """ウォッチリスト全銘柄の価格・指標データをCSV出力用に返す"""
+    from datetime import date
+
+    watchlist = _load_watchlist()
+    tickers = watchlist.get("tickers", []) if isinstance(watchlist, dict) else watchlist
+
+    rows = []
+    for ticker in tickers[:30]:
+        try:
+            t = yf.Ticker(ticker)
+            info = t.info
+            hist = t.history(period="1mo", interval="1d")
+            close = hist["Close"] if not hist.empty else None
+
+            price = info.get("currentPrice") or info.get("regularMarketPrice") or 0
+            prev_close = info.get("regularMarketPreviousClose") or 0
+            change_pct = round((price - prev_close) / prev_close * 100, 2) if prev_close else 0
+
+            m1m = 0
+            if close is not None and len(close) >= 2:
+                m1m = round((float(close.iloc[-1]) - float(close.iloc[0])) / float(close.iloc[0]) * 100, 2)
+
+            market_cap = info.get("marketCap") or 0
+            dividend_rate = info.get("dividendRate") or 0
+
+            rows.append({
+                "銘柄": ticker,
+                "価格(USD)": round(price, 2),
+                "前日比(%)": change_pct,
+                "1ヶ月(%)": m1m,
+                "時価総額(B)": round(market_cap / 1e9, 2),
+                "PER": round(float(info.get("trailingPE") or 0), 2),
+                "配当利回り(%)": round(dividend_rate / price * 100, 2) if price else 0,
+                "セクター": info.get("sector", ""),
+                "業種": info.get("industry", ""),
+                "出力日": date.today().isoformat(),
+            })
+        except Exception:
+            rows.append({"銘柄": ticker, "エラー": "データ取得失敗"})
+
+    return jsonify({"data": rows, "count": len(rows)})
+
+
 # ---------------------------------------------------------------------------
 # 経済カレンダー
 # ---------------------------------------------------------------------------
@@ -3065,6 +3110,109 @@ def sector_rotation_api():
         "sectors": results,
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     })
+
+
+@app.route("/api/market/regime")
+def market_regime():
+    """
+    マーケットレジーム判定
+    VIX + S&P500トレンド + 移動平均乖離率でBULL/BEAR/VOLATILE/SIDEWAYS判定
+    """
+    import numpy as np
+
+    try:
+        # S&P500 (3ヶ月)
+        spy = yf.Ticker("SPY").history(period="3mo", interval="1d")["Close"]
+        # VIX
+        vix_hist = yf.Ticker("^VIX").history(period="1mo", interval="1d")["Close"]
+        vix = float(vix_hist.iloc[-1])
+        vix_avg = float(vix_hist.mean())
+
+        price = float(spy.iloc[-1])
+        ma20 = float(spy.rolling(20).mean().iloc[-1])
+        ma50 = float(spy.rolling(50).mean().iloc[-1])
+
+        # 1ヶ月トレンド
+        m1m = (price - float(spy.iloc[-21])) / float(spy.iloc[-21]) * 100 if len(spy) >= 21 else 0
+        m3m = (price - float(spy.iloc[0])) / float(spy.iloc[0]) * 100
+
+        # MA乖離率
+        ma20_dev = (price - ma20) / ma20 * 100
+
+        # レジーム判定ロジック
+        regime_signals = {
+            "bull": 0,
+            "bear": 0,
+            "volatile": 0,
+            "sideways": 0,
+        }
+
+        # VIX: 20以下=強気, 20-30=注意, 30以上=恐怖
+        if vix < 20:
+            regime_signals["bull"] += 2
+        elif vix < 30:
+            regime_signals["sideways"] += 1
+        else:
+            regime_signals["volatile"] += 2
+            regime_signals["bear"] += 1
+
+        # VIX上昇トレンド
+        if vix > vix_avg * 1.2:
+            regime_signals["volatile"] += 1
+
+        # S&P500トレンド
+        if m1m > 3 and m3m > 5:
+            regime_signals["bull"] += 2
+        elif m1m > 0 and m3m > 0:
+            regime_signals["bull"] += 1
+        elif m1m < -3 and m3m < -5:
+            regime_signals["bear"] += 2
+        elif m1m < 0 and m3m < 0:
+            regime_signals["bear"] += 1
+        else:
+            regime_signals["sideways"] += 1
+
+        # MA配置
+        if price > ma20 > ma50:
+            regime_signals["bull"] += 1
+        elif price < ma20 < ma50:
+            regime_signals["bear"] += 1
+        else:
+            regime_signals["sideways"] += 1
+
+        # 最高スコアのレジームを選択
+        regime = max(regime_signals, key=lambda x: regime_signals[x])
+
+        regime_labels = {
+            "bull": "強気相場",
+            "bear": "弱気相場",
+            "volatile": "高ボラティリティ",
+            "sideways": "横ばい相場",
+        }
+
+        regime_strategies = {
+            "bull": "成長株・テック銘柄に強気配分。押し目買いを積極的に",
+            "bear": "守備的セクター（ヘルスケア・生活必需品）へシフト。現金比率を高める",
+            "volatile": "ヘッジを強化。ポジションサイズを縮小。VIX低下待ち",
+            "sideways": "配当株・バリュー株でインカムゲイン狙い",
+        }
+
+        return jsonify({
+            "regime": regime,
+            "regime_label": regime_labels[regime],
+            "strategy": regime_strategies[regime],
+            "signals": regime_signals,
+            "vix": round(vix, 2),
+            "vix_avg_1m": round(vix_avg, 2),
+            "spy_1m_return": round(m1m, 2),
+            "spy_3m_return": round(m3m, 2),
+            "spy_above_ma20": bool(price > ma20),
+            "spy_above_ma50": bool(price > ma50),
+            "ma20_deviation": round(ma20_dev, 2),
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 
 # ---------------------------------------------------------------------------

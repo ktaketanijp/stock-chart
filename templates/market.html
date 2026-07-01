@@ -595,6 +595,37 @@
       </div>
     </div>
 
+    <!-- マーケットレジームカード -->
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;margin-bottom:28px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:600;color:#8b949e;letter-spacing:0.06em;text-transform:uppercase">
+          マーケットレジーム
+        </div>
+        <button class="refresh-btn" onclick="loadMarketRegime()">更新</button>
+      </div>
+
+      <div id="regime-display">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.75rem">
+          <div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px 14px">
+            <div style="font-size:11px;color:#8b949e;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">現在レジーム</div>
+            <div id="regime-label" style="font-weight:700;color:#e6edf3;font-size:0.95rem">—</div>
+          </div>
+          <div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px 14px">
+            <div style="font-size:11px;color:#8b949e;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">VIX</div>
+            <div id="regime-vix" style="font-weight:700;color:#e6edf3">—</div>
+          </div>
+          <div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px 14px">
+            <div style="font-size:11px;color:#8b949e;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">S&amp;P500（1ヶ月）</div>
+            <div id="regime-spy" style="font-weight:700;color:#e6edf3">—</div>
+          </div>
+        </div>
+        <div id="regime-strategy" style="padding:0.5rem 0.75rem;border-radius:0.375rem;
+             background:#0d1117;border:1px solid #30363d;font-size:0.85rem;color:#8b949e">
+          読み込み中...
+        </div>
+      </div>
+    </div>
+
     <!-- ① 主要指数 -->
     <div class="section-title">主要指数</div>
     <div class="indices-grid" id="indices-grid">
@@ -1010,6 +1041,42 @@
       }).join('');
     }
 
+    // ---- マーケットレジーム ----
+    async function loadMarketRegime() {
+      try {
+        const resp = await fetch('/api/market/regime');
+        const data = await resp.json();
+
+        if (data.error) {
+          document.getElementById('regime-strategy').textContent = 'エラー: ' + data.error;
+          return;
+        }
+
+        const colors = {
+          bull: '#3fb950',
+          bear: '#f85149',
+          volatile: '#f59e0b',
+          sideways: '#8b949e',
+        };
+
+        const label = document.getElementById('regime-label');
+        label.textContent = data.regime_label;
+        label.style.color = colors[data.regime] || '#e6edf3';
+
+        const vixEl = document.getElementById('regime-vix');
+        vixEl.textContent = data.vix;
+        vixEl.style.color = data.vix < 20 ? '#3fb950' : data.vix > 30 ? '#f85149' : '#f59e0b';
+
+        const spyEl = document.getElementById('regime-spy');
+        spyEl.textContent = `${data.spy_1m_return >= 0 ? '+' : ''}${data.spy_1m_return}%`;
+        spyEl.style.color = data.spy_1m_return >= 0 ? '#3fb950' : '#f85149';
+
+        document.getElementById('regime-strategy').textContent = data.strategy;
+      } catch (e) {
+        document.getElementById('regime-strategy').textContent = '取得エラー: ' + e.message;
+      }
+    }
+
     // ---- ヒートマップ ----
     async function loadHeatmap() {
       try {
@@ -1063,6 +1130,7 @@
       document.getElementById('last-updated').textContent = '更新中...';
       await Promise.all([
         loadSentiment(),
+        loadMarketRegime(),
         loadIndices(),
         loadSectors(),
         loadWatchlist(),
