@@ -3049,5 +3049,82 @@ def market_movers():
     })
 
 
+# ---------------------------------------------------------------------------
+# 高度分析: VWAP・フィボナッチ・アナリスト目標株価
+# ---------------------------------------------------------------------------
+
+@app.route("/api/analysis/advanced/<ticker>")
+def advanced_analysis(ticker):
+    """
+    高度分析: VWAP・フィボナッチ・アナリスト目標株価
+    """
+    from indicators import calc_fibonacci_levels
+
+    t = yf.Ticker(ticker.upper())
+    result = {"ticker": ticker.upper()}
+
+    try:
+        # 直近3ヶ月データ
+        hist = t.history(period="3mo", interval="1d")
+
+        # VWAP（典型価格×出来高の累積 / 出来高累積）
+        typical_price = (hist["High"] + hist["Low"] + hist["Close"]) / 3
+        volume = hist["Volume"].replace(0, float("nan"))
+        vwap = (typical_price * volume).cumsum() / volume.cumsum()
+        current_vwap = round(float(vwap.iloc[-1]), 2)
+        current_price = round(float(hist["Close"].iloc[-1]), 2)
+
+        result["vwap"] = {
+            "current": current_vwap,
+            "price_vs_vwap": round(current_price - current_vwap, 2),
+            "price_vs_vwap_pct": round((current_price - current_vwap) / current_vwap * 100, 2),
+            "above_vwap": current_price > current_vwap,
+        }
+
+        # フィボナッチ（52週高値・安値ベース）
+        hist_1y = t.history(period="1y", interval="1d")
+        high_52w = float(hist_1y["High"].max())
+        low_52w = float(hist_1y["Low"].min())
+        result["fibonacci"] = calc_fibonacci_levels(high_52w, low_52w)
+
+        # どのフィボナッチレベルに近いか
+        fib_levels = result["fibonacci"]["levels"]
+        closest = min(fib_levels.items(), key=lambda x: abs(float(x[1]) - current_price))
+        result["fibonacci"]["nearest_level"] = closest[0]
+        result["fibonacci"]["nearest_price"] = closest[1]
+    except Exception as e:
+        result["error_indicators"] = str(e)
+
+    try:
+        # アナリスト目標株価
+        info = t.info
+        target_mean = info.get("targetMeanPrice")
+        target_high = info.get("targetHighPrice")
+        target_low = info.get("targetLowPrice")
+        rec = info.get("recommendationKey", "")
+        num_analysts = info.get("numberOfAnalystOpinions", 0)
+
+        if target_mean:
+            current = float(info.get("currentPrice", 0) or 0)
+            upside = round((float(target_mean) - current) / current * 100, 1) if current else None
+
+            result["analyst"] = {
+                "target_mean": round(float(target_mean), 2),
+                "target_high": round(float(target_high), 2) if target_high else None,
+                "target_low": round(float(target_low), 2) if target_low else None,
+                "upside_pct": upside,
+                "recommendation": rec,
+                "recommendation_ja": {
+                    "strong_buy": "強い買い", "buy": "買い",
+                    "hold": "保有", "underperform": "弱い", "sell": "売り"
+                }.get(rec, rec),
+                "num_analysts": int(num_analysts or 0),
+            }
+    except Exception as e:
+        result["error_analyst"] = str(e)
+
+    return jsonify(result)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

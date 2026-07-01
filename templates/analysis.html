@@ -818,6 +818,23 @@
         <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">※ ITM=イン・ザ・マネー（現在価格より有利な行使価格）</p>
       </div>
 
+      <!-- アナリスト目標・VWAP・フィボナッチ -->
+      <div class="section-card" id="advanced-section">
+        <h3>アナリスト評価 / VWAP / フィボナッチ</h3>
+
+        <!-- アナリスト評価 -->
+        <div id="analyst-info" style="margin-bottom:1rem"></div>
+
+        <!-- VWAPと現在価格 -->
+        <div id="vwap-info" style="margin-bottom:1rem;font-size:0.9rem"></div>
+
+        <!-- フィボナッチレベル（コンパクト表示） -->
+        <div id="fibonacci-info">
+          <h4 style="font-size:0.85rem;margin-bottom:0.5rem">フィボナッチ（52週高値-安値）</h4>
+          <div id="fib-levels" style="font-size:0.8rem;color:var(--text-secondary)"></div>
+        </div>
+      </div>
+
       <!-- Section 8: RSIダイバージェンス・MAクロス・サポレジ -->
       <div class="card">
         <div class="card-title">Section 8 — RSIダイバージェンス / MAクロス / サポート・レジスタンス</div>
@@ -2108,6 +2125,69 @@
       ctx.fillText('$' + lastClose.toFixed(2), W - padR - 60, yLast - 3);
     }
 
+    // ---- 高度分析: アナリスト評価 / VWAP / フィボナッチ ----
+    async function loadAdvancedAnalysis(ticker) {
+      // 初期化
+      document.getElementById('analyst-info').innerHTML = '<span class="inline-spinner"></span> 取得中...';
+      document.getElementById('vwap-info').innerHTML = '';
+      document.getElementById('fib-levels').innerHTML = '';
+
+      try {
+        const resp = await fetch(`/api/analysis/advanced/${encodeURIComponent(ticker)}`);
+        const data = await resp.json();
+
+        // アナリスト評価
+        const analystEl = document.getElementById('analyst-info');
+        if (data.analyst) {
+          const a = data.analyst;
+          const upsideColor = a.upside_pct > 0 ? 'var(--positive)' : 'var(--negative)';
+          analystEl.innerHTML = `
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
+              <div>
+                <div style="font-size:0.75rem;color:var(--text-secondary)">アナリスト評価</div>
+                <div style="font-size:1.2rem;font-weight:700">${escHtml(a.recommendation_ja || '--')}</div>
+                <div style="font-size:0.75rem;color:var(--text-secondary)">${a.num_analysts}人のアナリスト</div>
+              </div>
+              <div>
+                <div style="font-size:0.75rem;color:var(--text-secondary)">目標株価（平均）</div>
+                <div style="font-size:1.2rem;font-weight:700">$${a.target_mean}</div>
+                <div style="font-size:0.8rem;color:${upsideColor}">アップサイド ${a.upside_pct > 0 ? '+' : ''}${a.upside_pct}%</div>
+              </div>
+              <div style="font-size:0.8rem;color:var(--text-secondary)">
+                高: $${a.target_high || '--'} / 低: $${a.target_low || '--'}
+              </div>
+            </div>`;
+        } else {
+          analystEl.innerHTML = '<span style="font-size:0.85rem;color:var(--text-secondary)">アナリストデータなし</span>';
+        }
+
+        // VWAP
+        if (data.vwap) {
+          const v = data.vwap;
+          document.getElementById('vwap-info').innerHTML = `
+            <span style="margin-right:1rem">VWAP: <strong>$${v.current}</strong></span>
+            <span style="color:${v.above_vwap ? 'var(--positive)' : 'var(--negative)'}">
+              ${v.above_vwap ? '▲ VWAP上' : '▼ VWAP下'} (${v.price_vs_vwap > 0 ? '+' : ''}${v.price_vs_vwap_pct}%)
+            </span>`;
+        }
+
+        // フィボナッチ
+        if (data.fibonacci) {
+          const fib = data.fibonacci;
+          const currentLevel = fib.nearest_level;
+          const levelsHtml = Object.entries(fib.levels).map(([pct, price]) => {
+            const isNearest = pct === currentLevel;
+            return `<span style="margin-right:0.75rem;${isNearest ? 'color:var(--text-primary);font-weight:700' : ''}">${pct}%: $${price}</span>`;
+          }).join('');
+          document.getElementById('fib-levels').innerHTML = levelsHtml;
+        }
+
+      } catch (e) {
+        document.getElementById('analyst-info').innerHTML =
+          `<span style="color:var(--negative);font-size:0.85rem">取得エラー: ${escHtml(e.message)}</span>`;
+      }
+    }
+
     // ---- Main analysis runner ----
     async function runAnalysis() {
       const ticker = tickerInput.value.trim().toUpperCase();
@@ -2137,6 +2217,7 @@
         loadDivergence(ticker),
         loadDividend(ticker),
         loadShortInsider(ticker),
+        loadAdvancedAnalysis(ticker),
       ]);
 
       startRefreshTimer();

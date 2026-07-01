@@ -523,6 +523,24 @@ def calc_momentum_score(close: pd.Series) -> dict:
     }
 
 
+def calc_fibonacci_levels(high: float, low: float) -> dict:
+    """
+    フィボナッチリトレースメントレベル
+    上昇トレンドの押し目候補を返す
+    """
+    diff = high - low
+    levels = {
+        "0.0":   round(high, 2),
+        "23.6":  round(high - diff * 0.236, 2),
+        "38.2":  round(high - diff * 0.382, 2),
+        "50.0":  round(high - diff * 0.500, 2),
+        "61.8":  round(high - diff * 0.618, 2),
+        "78.6":  round(high - diff * 0.786, 2),
+        "100.0": round(low, 2),
+    }
+    return {"levels": levels, "high": round(high, 2), "low": round(low, 2), "range": round(diff, 2)}
+
+
 def calc_fibonacci_retracements(high: float, low: float) -> dict:
     """
     直近の高値・安値からフィボナッチレベルを計算
