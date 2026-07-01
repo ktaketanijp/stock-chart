@@ -2794,5 +2794,204 @@ def sector_rotation_api():
     })
 
 
+# ---------------------------------------------------------------------------
+# AIシグナル（3層強化版）
+# ---------------------------------------------------------------------------
+
+@app.route("/api/ai-signal/<ticker>")
+def ai_signal(ticker):
+    """
+    3層AIシグナル（強化版）
+    - テクニカル (20%): RSI/MACD/BB/ATR/ADX複合評価
+    - ファンダメンタル (40%): PER/EPS成長/配当/ROE
+    - センチメント (40%): VIX/空売り比率/インサイダー買い/モメンタム
+    """
+    ticker = ticker.upper()
+    t = yf.Ticker(ticker)
+
+    sig = {"ticker": ticker, "layers": {}, "reasons": []}
+
+    try:
+        hist = t.history(period="6mo", interval="1d")
+        info = t.info
+        close = hist["Close"]
+        high  = hist["High"]
+        low_s = hist["Low"]
+        current_price = float(close.iloc[-1])
+
+        # ====== テクニカル層 (20%) ======
+        tech_score = 0
+        tech_reasons = []
+
+        # RSI — app.py ローカルの calc_rsi を使用（{x, y} リスト形式）
+        rsi_list = calc_rsi(close)
+        rsi = float(rsi_list[-1]["y"]) if rsi_list else 50.0
+        if rsi < 30:
+            tech_score += 30
+            tech_reasons.append(f"RSI={rsi:.0f} 売られすぎ（買いシグナル）")
+        elif rsi < 50:
+            tech_score += 15
+        elif rsi > 70:
+            tech_score -= 15
+            tech_reasons.append(f"RSI={rsi:.0f} 買われすぎ（注意）")
+
+        # MACD — app.py ローカルの calc_macd を使用
+        try:
+            macd_list, sig_list, _ = calc_macd(close)
+            macd_val = float(macd_list[-1]["y"]) if macd_list else 0
+            sigv     = float(sig_list[-1]["y"])  if sig_list  else 0
+            if macd_val > sigv:
+                tech_score += 25
+                tech_reasons.append("MACD上抜け（強気）")
+            else:
+                tech_score -= 10
+        except Exception:
+            pass
+
+        # ボリンジャーバンド
+        try:
+            bb = calc_bollinger_bands(close)
+            bb_lower = float(bb["lower"][-1]["y"])
+            bb_upper = float(bb["upper"][-1]["y"])
+            if current_price <= bb_lower:
+                tech_score += 20
+                tech_reasons.append("BB下限タッチ（リバウンド期待）")
+            elif current_price >= bb_upper:
+                tech_score -= 20
+                tech_reasons.append("BB上限タッチ（過熱注意）")
+        except Exception:
+            pass
+
+        # MAトレンド
+        ma20 = float(close.rolling(20).mean().iloc[-1])
+        ma50 = float(close.rolling(50).mean().iloc[-1])
+        if current_price > ma20 > ma50:
+            tech_score += 25
+            tech_reasons.append("MA上昇トレンド（MA20>MA50）")
+        elif current_price < ma20 < ma50:
+            tech_score -= 25
+            tech_reasons.append("MA下降トレンド（MA20<MA50）")
+
+        tech_score = max(0, min(100, tech_score + 50))
+        sig["layers"]["technical"] = {
+            "score": round(tech_score),
+            "weight": 0.20,
+            "rsi": round(rsi, 1),
+            "reasons": tech_reasons[:3],
+        }
+
+        # ====== ファンダメンタル層 (40%) ======
+        fund_score = 50
+        fund_reasons = []
+
+        pe             = float(info.get("trailingPE", 0) or 0)
+        forward_pe     = float(info.get("forwardPE", 0) or 0)
+        roe            = float(info.get("returnOnEquity", 0) or 0) * 100
+        earnings_growth = float(info.get("earningsGrowth", 0) or 0) * 100
+
+        if 0 < pe <= 15:
+            fund_score += 20
+            fund_reasons.append(f"PER={pe:.1f} 割安水準")
+        elif pe > 50:
+            fund_score -= 15
+            fund_reasons.append(f"PER={pe:.1f} 割高水準")
+        elif 15 < pe <= 25:
+            fund_score += 5
+
+        if 0 < forward_pe < pe * 0.9:
+            fund_score += 10
+            fund_reasons.append(f"Forward PER改善 ({forward_pe:.1f})")
+
+        if earnings_growth > 20:
+            fund_score += 20
+            fund_reasons.append(f"EPS成長率 {earnings_growth:.0f}%（高成長）")
+        elif earnings_growth > 5:
+            fund_score += 10
+        elif earnings_growth < -10:
+            fund_score -= 15
+
+        if roe > 20:
+            fund_score += 10
+            fund_reasons.append(f"ROE={roe:.0f}%（高収益性）")
+
+        fund_score = max(0, min(100, fund_score))
+        sig["layers"]["fundamental"] = {
+            "score": round(fund_score),
+            "weight": 0.40,
+            "pe":  round(pe, 1)  if pe  else None,
+            "roe": round(roe, 1) if roe else None,
+            "reasons": fund_reasons[:3],
+        }
+
+        # ====== センチメント層 (40%) ======
+        sent_score = 50
+        sent_reasons = []
+        vix    = None
+        mom_1m = None
+
+        if len(close) >= 21:
+            mom_1m = (float(close.iloc[-1]) - float(close.iloc[-21])) / float(close.iloc[-21]) * 100
+            if mom_1m > 5:
+                sent_score += 15
+                sent_reasons.append(f"1ヶ月モメンタム +{mom_1m:.1f}%")
+            elif mom_1m < -5:
+                sent_score -= 15
+                sent_reasons.append(f"1ヶ月モメンタム {mom_1m:.1f}%（弱い）")
+
+        try:
+            vix = float(yf.Ticker("^VIX").fast_info.last_price or 20)
+            if vix < 15:
+                sent_score += 15
+                sent_reasons.append(f"VIX={vix:.0f} 低恐怖（リスクオン）")
+            elif vix > 25:
+                sent_score -= 15
+                sent_reasons.append(f"VIX={vix:.0f} 高恐怖（リスクオフ）")
+        except Exception:
+            pass
+
+        short_pct = float(info.get("shortPercentOfFloat", 0) or 0) * 100
+        if short_pct > 15:
+            sent_score -= 10
+            sent_reasons.append(f"空売り比率{short_pct:.0f}%（警戒）")
+        elif short_pct < 5:
+            sent_score += 10
+
+        sent_score = max(0, min(100, sent_score))
+        sig["layers"]["sentiment"] = {
+            "score": round(sent_score),
+            "weight": 0.40,
+            "vix":         round(vix, 1)    if vix    is not None else None,
+            "momentum_1m": round(mom_1m, 2) if mom_1m is not None else None,
+            "reasons": sent_reasons[:3],
+        }
+
+        # ====== 総合スコア ======
+        total = round(tech_score * 0.20 + fund_score * 0.40 + sent_score * 0.40)
+
+        if total >= 70:
+            verdict = "BUY";      verdict_ja = "強い買いシグナル"; verdict_color = "#16a34a"
+        elif total >= 55:
+            verdict = "WEAK_BUY"; verdict_ja = "弱い買い";         verdict_color = "#22c55e"
+        elif total >= 45:
+            verdict = "NEUTRAL";  verdict_ja = "中立";             verdict_color = "#eab308"
+        elif total >= 30:
+            verdict = "WEAK_SELL"; verdict_ja = "弱い売り";        verdict_color = "#f97316"
+        else:
+            verdict = "SELL";     verdict_ja = "売りシグナル";     verdict_color = "#dc2626"
+
+        sig.update({
+            "total_score":   total,
+            "verdict":       verdict,
+            "verdict_ja":    verdict_ja,
+            "verdict_color": verdict_color,
+            "current_price": round(current_price, 2),
+        })
+
+    except Exception as e:
+        sig["error"] = str(e)
+
+    return jsonify(sig)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

@@ -565,6 +565,29 @@
       .price { font-size: 24px; }
       .ind-btn { padding: 3px 7px; font-size: 11px; }
     }
+
+    /* === マーケットサマリーバー === */
+    .market-bar {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: nowrap;
+      padding: 0.45rem 1rem;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.78rem;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .market-bar::-webkit-scrollbar { display: none; }
+    .market-bar-item {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+      white-space: nowrap;
+      color: var(--text-secondary);
+    }
+    .market-bar-item span:first-child { font-weight: 600; }
+    .market-bar-item span:last-child  { color: var(--text-primary); font-weight: 500; }
   </style>
 </head>
 <body>
@@ -584,6 +607,16 @@
     <a href="/portfolio" class="g-nav-link">PF</a>
     <button id="theme-toggle" class="theme-btn" onclick="toggleTheme()" title="ダークモード切替">🌙</button>
   </nav>
+  <!-- マーケットサマリーバー -->
+  <div class="market-bar" id="market-bar">
+    <div class="market-bar-item"><span>S&amp;P500</span><span id="bar-sp500">--</span></div>
+    <div class="market-bar-item"><span>NASDAQ</span><span id="bar-nasdaq">--</span></div>
+    <div class="market-bar-item"><span>DOW</span><span id="bar-dow">--</span></div>
+    <div class="market-bar-item"><span>VIX</span><span id="bar-vix">--</span></div>
+    <div class="market-bar-item"><span>USD/JPY</span><span id="bar-usdjpy">--</span></div>
+    <div class="market-bar-item"><span>BTC</span><span id="bar-btc">--</span></div>
+  </div>
+
   <header>
     <div class="search-wrap">
       <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1408,6 +1441,48 @@
         document.getElementById('search-input').value = last;
       }
     });
+
+    // ---- マーケットサマリーバー ----
+    async function loadMarketBar() {
+      // 主要指数・VIX
+      try {
+        const resp = await fetch('/api/market/overview');
+        const data = await resp.json();
+        const indices = data.indices || {};
+
+        const sp = indices["S&P 500"];
+        const nq = indices["NASDAQ"];
+        const dw = indices["Dow Jones"];
+        const vx = indices["VIX"];
+
+        if (sp && sp.price) document.getElementById('bar-sp500').textContent = sp.price.toLocaleString();
+        if (nq && nq.price) document.getElementById('bar-nasdaq').textContent = nq.price.toLocaleString();
+        if (dw && dw.price) document.getElementById('bar-dow').textContent = dw.price.toLocaleString();
+        if (vx && vx.price) {
+          const el = document.getElementById('bar-vix');
+          el.textContent = vx.price.toFixed(1);
+          el.style.color = vx.price > 25 ? 'var(--negative)' : vx.price < 15 ? 'var(--positive)' : '';
+        }
+      } catch(e) {}
+
+      // USD/JPY
+      try {
+        const fxResp = await fetch('/api/market/forex');
+        const fxData = await fxResp.json();
+        const usdjpy = (fxData.forex || {})["USD/JPY"];
+        if (usdjpy && usdjpy.rate) document.getElementById('bar-usdjpy').textContent = usdjpy.rate.toFixed(1);
+      } catch(e) {}
+
+      // BTC
+      try {
+        const cryptoResp = await fetch('/api/market/crypto');
+        const cData = await cryptoResp.json();
+        const btc = (cData.crypto || {})["Bitcoin"];
+        if (btc && btc.price) document.getElementById('bar-btc').textContent = '$' + btc.price.toLocaleString();
+      } catch(e) {}
+    }
+
+    loadMarketBar();
   </script>
 </body>
 </html>
