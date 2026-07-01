@@ -1738,6 +1738,59 @@ def analysis_patterns(ticker):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/analysis/relative-strength/<ticker>")
+def relative_strength(ticker):
+    """
+    S&P500に対する相対強度
+    RS = 銘柄リターン / S&P500リターン
+    RS > 1: 市場アウトパフォーム
+    """
+    periods = {"1w": 5, "1m": 21, "3m": 63, "6m": 126, "1y": 252}
+    result = {"ticker": ticker.upper(), "vs": "S&P500", "periods": {}}
+
+    try:
+        hist_stock = yf.Ticker(ticker.upper()).history(period="1y", interval="1d")["Close"]
+        hist_sp = yf.Ticker("^GSPC").history(period="1y", interval="1d")["Close"]
+
+        for label, days in periods.items():
+            if len(hist_stock) < days or len(hist_sp) < days:
+                continue
+
+            stock_ret = (float(hist_stock.iloc[-1]) - float(hist_stock.iloc[-days])) / float(hist_stock.iloc[-days]) * 100
+            sp_ret = (float(hist_sp.iloc[-1]) - float(hist_sp.iloc[-days])) / float(hist_sp.iloc[-days]) * 100
+
+            rs = round(stock_ret / sp_ret, 2) if sp_ret else None
+
+            result["periods"][label] = {
+                "stock_return": round(stock_ret, 2),
+                "sp500_return": round(sp_ret, 2),
+                "relative_strength": rs,
+                "outperforming": stock_ret > sp_ret,
+            }
+
+        # 52週高値・安値
+        high_52w = round(float(hist_stock.max()), 2)
+        low_52w = round(float(hist_stock.min()), 2)
+        current = round(float(hist_stock.iloc[-1]), 2)
+        pct_from_high = round((current - high_52w) / high_52w * 100, 1)
+        pct_from_low = round((current - low_52w) / low_52w * 100, 1)
+
+        result["week52"] = {
+            "high": high_52w,
+            "low": low_52w,
+            "current": current,
+            "pct_from_high": pct_from_high,
+            "pct_from_low": pct_from_low,
+            "near_high": pct_from_high > -5,  # 高値5%以内
+            "near_low": pct_from_low < 10,    # 安値10%以内
+        }
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    return jsonify(result)
+
+
 @app.route("/compare")
 def compare_page():
     return render_template("compare.html")

@@ -776,6 +776,22 @@
         <div class="error-box" id="risk-error" style="display:none"></div>
       </div>
 
+      <!-- 相対強度 + 52週高値/安値セクション -->
+      <div class="section-card" id="rs-section">
+        <h3>相対強度 vs S&P500 / 52週高値・安値</h3>
+
+        <!-- 52週高値/安値バッジ -->
+        <div id="week52-bar" style="margin-bottom:1rem;padding:0.5rem;border-radius:0.375rem;background:var(--input-bg)"></div>
+
+        <!-- 相対強度テーブル -->
+        <table class="data-table" style="font-size:0.85rem" id="rs-table">
+          <thead>
+            <tr><th>期間</th><th>銘柄</th><th>S&amp;P500</th><th>相対強度</th><th>判定</th></tr>
+          </thead>
+          <tbody id="rs-tbody"></tbody>
+        </table>
+      </div>
+
       <!-- オプションチェーン -->
       <div class="section-card" id="options-section">
         <h3>オプションチェーン</h3>
@@ -2249,6 +2265,69 @@
       canvas.addEventListener('mousemove', canvas._mouseMoveHandler);
     }
 
+    // ---- 相対強度 vs S&P500 + 52週高値/安値 ----
+    async function loadRelativeStrength(ticker) {
+      document.getElementById('week52-bar').innerHTML = '<span class="inline-spinner"></span> 取得中...';
+      document.getElementById('rs-tbody').innerHTML = '';
+
+      try {
+        const resp = await fetch(`/api/analysis/relative-strength/${encodeURIComponent(ticker)}`);
+        const data = await resp.json();
+
+        // 52週高値/安値バー
+        if (data.week52) {
+          const w = data.week52;
+          const pct = ((w.current - w.low) / (w.high - w.low) * 100).toFixed(0);
+          const badge = w.near_high ? '高値圏' : w.near_low ? '安値圏' : '';
+          const badgeColor = w.near_high ? 'var(--positive)' : w.near_low ? 'var(--negative)' : '';
+
+          document.getElementById('week52-bar').innerHTML = `
+            <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+              <div style="font-size:0.8rem;color:var(--text-secondary)">52週安値 $${w.low}</div>
+              <div style="flex:1;height:8px;background:var(--border-color);border-radius:4px;min-width:100px">
+                <div style="width:${pct}%;height:100%;background:linear-gradient(to right,#ef4444,#22c55e);border-radius:4px"></div>
+              </div>
+              <div style="font-size:0.8rem;color:var(--text-secondary)">52週高値 $${w.high}</div>
+              <div style="font-size:0.85rem">現在 <strong>$${w.current}</strong></div>
+              ${badge ? `<span style="padding:0.15rem 0.5rem;border-radius:0.25rem;background:var(--border-color);color:${badgeColor};font-size:0.8rem;font-weight:600">${badge}</span>` : ''}
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem">
+              高値から ${w.pct_from_high}% / 安値から +${w.pct_from_low}%
+            </div>
+          `;
+        } else {
+          document.getElementById('week52-bar').innerHTML = '<span style="color:var(--text-secondary);font-size:0.85rem">データなし</span>';
+        }
+
+        // 相対強度テーブル
+        if (data.periods) {
+          const LABELS = {"1w": "1週間", "1m": "1ヶ月", "3m": "3ヶ月", "6m": "6ヶ月", "1y": "1年"};
+          const rows = Object.entries(data.periods).map(([period, v]) => `
+            <tr>
+              <td>${LABELS[period] || period}</td>
+              <td style="color:${v.stock_return >= 0 ? 'var(--positive)' : 'var(--negative)'}">
+                ${v.stock_return >= 0 ? '+' : ''}${v.stock_return}%
+              </td>
+              <td style="color:${v.sp500_return >= 0 ? 'var(--positive)' : 'var(--negative)'}">
+                ${v.sp500_return >= 0 ? '+' : ''}${v.sp500_return}%
+              </td>
+              <td>${v.relative_strength != null ? v.relative_strength : '--'}</td>
+              <td style="color:${v.outperforming ? 'var(--positive)' : 'var(--negative)'}">
+                ${v.outperforming ? '↑ アウトパフォーム' : '↓ アンダーパフォーム'}
+              </td>
+            </tr>
+          `).join('');
+          document.getElementById('rs-tbody').innerHTML = rows || '<tr><td colspan="5" style="color:var(--text-secondary)">データなし</td></tr>';
+        }
+
+        if (data.error) {
+          document.getElementById('week52-bar').innerHTML = `<span style="color:var(--negative);font-size:0.85rem">エラー: ${escHtml(data.error)}</span>`;
+        }
+      } catch (e) {
+        document.getElementById('week52-bar').innerHTML = `<span style="color:var(--negative);font-size:0.85rem">取得エラー: ${escHtml(e.message)}</span>`;
+      }
+    }
+
     // ---- 高度分析: アナリスト評価 / VWAP / フィボナッチ ----
     async function loadAdvancedAnalysis(ticker) {
       // 初期化
@@ -2342,6 +2421,7 @@
         loadDividend(ticker),
         loadShortInsider(ticker),
         loadAdvancedAnalysis(ticker),
+        loadRelativeStrength(ticker),
       ]);
 
       startRefreshTimer();
