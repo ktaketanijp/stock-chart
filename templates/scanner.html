@@ -543,6 +543,10 @@
         RSI過売・過買
       </button>
       <span id="scan-time"></span>
+      <button onclick="exportScannerToCSV(window.currentScanResults, 'scan_results.csv')"
+              class="btn-sm" id="export-scan-btn" style="display:none">
+        &#x1F4E5; CSV出力
+      </button>
     </div>
 
     <!-- Sector Rotation -->
@@ -641,6 +645,10 @@
         スクリーニング実行
       </button>
 
+      <button onclick="exportScannerToCSV(window.currentScreenResults, 'screen_results.csv')"
+              class="btn-sm" id="export-screen-btn" style="display:none;margin-top:10px">
+        &#x1F4E5; CSV出力
+      </button>
       <div id="screen-results"></div>
     </div>
 
@@ -685,11 +693,44 @@
         スクリーニング実行
       </button>
 
+      <button onclick="exportScannerToCSV(window.currentFundaResults, 'fundamental_results.csv')"
+              class="btn-sm" id="export-funda-btn" style="display:none;margin-top:10px">
+        &#x1F4E5; CSV出力
+      </button>
       <div id="fundamental-results" style="margin-top:1rem"></div>
     </div>
   </main>
 
   <script>
+    // ---- CSV Export ----
+    window.currentScanResults   = [];
+    window.currentScreenResults = [];
+    window.currentFundaResults  = [];
+
+    function exportScannerToCSV(data, filename) {
+      if (!data || !data.length) { alert('エクスポートするデータがありません'); return; }
+
+      const headers = Object.keys(data[0]);
+      const csvRows = [
+        headers.join(','),
+        ...data.map(row => headers.map(h => {
+          const val = row[h] !== null && row[h] !== undefined ? row[h] : '';
+          const str = String(val);
+          return (str.includes(',') || str.includes('"') || str.includes('\n'))
+            ? `"${str.replace(/"/g, '""')}"` : str;
+        }).join(','))
+      ];
+
+      const bom  = '﻿'; // UTF-8 BOM (Excel対応)
+      const blob = new Blob([bom + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = filename || 'scan_results.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
     // ---- Utility ----
     function escHtml(str) {
       return String(str)
@@ -839,7 +880,10 @@
         const res  = await fetch("/api/scan/momentum", { signal: AbortSignal.timeout(90000) });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        renderMomentumTable(Array.isArray(data) ? data : (data.results || []));
+        const rows = Array.isArray(data) ? data : (data.results || []);
+        window.currentScanResults = rows;
+        document.getElementById('export-scan-btn').style.display = 'inline-flex';
+        renderMomentumTable(rows);
         const now = new Date();
         document.getElementById("scan-time").textContent =
           `最終スキャン: ${now.toLocaleTimeString("ja-JP")}`;
@@ -926,6 +970,8 @@
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         const rows = Array.isArray(data) ? data : (data.results || []);
+        window.currentScanResults = rows;
+        document.getElementById('export-scan-btn').style.display = 'inline-flex';
         renderMomentumTable(rows, true);
         const now = new Date();
         document.getElementById("scan-time").textContent =
@@ -956,6 +1002,8 @@
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         const list = Array.isArray(data) ? data : (data.results || data.premarket || []);
+        window.currentScanResults = list;
+        document.getElementById('export-scan-btn').style.display = 'inline-flex';
         renderPremarketTable(list);
       } catch (e) {
         showError(`プレマーケットスキャンエラー: ${e.message}`);
@@ -1040,6 +1088,8 @@
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         const list = Array.isArray(data) ? data : (data.opportunities || data.results || []);
+        window.currentScanResults = list;
+        document.getElementById('export-scan-btn').style.display = 'inline-flex';
         renderOpportunities(list);
       } catch (e) {
         showError(`機会スキャンエラー: ${e.message}`);
@@ -1111,7 +1161,10 @@
         const res  = await fetch("/api/scan/52w-breakout", { signal: AbortSignal.timeout(90000) });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        render52wTable(data.results || []);
+        const rows52 = data.results || [];
+        window.currentScanResults = rows52;
+        document.getElementById('export-scan-btn').style.display = 'inline-flex';
+        render52wTable(rows52);
         document.getElementById("scan-time").textContent =
           `最終スキャン: ${new Date().toLocaleTimeString("ja-JP")} (52週高値)`;
       } catch (e) {
@@ -1183,7 +1236,10 @@
         const res  = await fetch("/api/scan/volume-surge", { signal: AbortSignal.timeout(90000) });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        renderVolumeSurgeTable(data.results || []);
+        const rowsVol = data.results || [];
+        window.currentScanResults = rowsVol;
+        document.getElementById('export-scan-btn').style.display = 'inline-flex';
+        renderVolumeSurgeTable(rowsVol);
         document.getElementById("scan-time").textContent =
           `最終スキャン: ${new Date().toLocaleTimeString("ja-JP")} (出来高急増)`;
       } catch (e) {
@@ -1253,7 +1309,10 @@
         const res  = await fetch("/api/scan/rsi-extreme", { signal: AbortSignal.timeout(90000) });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        renderRsiTable(data.results || []);
+        const rowsRsi = data.results || [];
+        window.currentScanResults = rowsRsi;
+        document.getElementById('export-scan-btn').style.display = 'inline-flex';
+        renderRsiTable(rowsRsi);
         document.getElementById("scan-time").textContent =
           `最終スキャン: ${new Date().toLocaleTimeString("ja-JP")} (RSI)`;
       } catch (e) {
@@ -1377,7 +1436,10 @@
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        renderScreenResults(data.results || [], data.count || 0, filters);
+        const screenRows = data.results || [];
+        window.currentScreenResults = screenRows;
+        document.getElementById('export-screen-btn').style.display = 'inline-flex';
+        renderScreenResults(screenRows, data.count || 0, filters);
       } catch (e) {
         showError(`スクリーナーエラー: ${e.message}`);
         resultsDiv.innerHTML =
@@ -1509,7 +1571,10 @@
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        renderFundaResults(data.results || [], data.count || 0);
+        const fundaRows = data.results || [];
+        window.currentFundaResults = fundaRows;
+        document.getElementById('export-funda-btn').style.display = 'inline-flex';
+        renderFundaResults(fundaRows, data.count || 0);
       } catch (e) {
         showError(`ファンダメンタルスクリーナーエラー: ${e.message}`);
         resultsDiv.innerHTML =
