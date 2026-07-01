@@ -753,6 +753,24 @@
           <button id="opt-tab-call" class="btn-sm active" onclick="switchOptTab('calls')">コール (買い権利)</button>
           <button id="opt-tab-put" class="btn-sm" onclick="switchOptTab('puts')">プット (売り権利)</button>
         </div>
+        <!-- PCRサマリーカード -->
+        <div id="options-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem">
+          <div class="metric-card">
+            <div class="metric-label">プット/コール比率</div>
+            <div id="opt-pcr" class="metric-value">--</div>
+            <div id="opt-pcr-signal" style="font-size:0.75rem"></div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">ATM IV Skew</div>
+            <div id="opt-iv-skew" class="metric-value">--</div>
+            <div style="font-size:0.75rem;color:var(--text-secondary)">プットIV - コールIV</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">OI合計</div>
+            <div id="opt-oi-total" class="metric-value" style="font-size:1rem">--</div>
+            <div id="opt-oi-detail" style="font-size:0.75rem;color:var(--text-secondary)"></div>
+          </div>
+        </div>
         <div id="options-expiry" style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:0.5rem">読み込み中...</div>
         <div id="options-table-wrap" style="overflow-x:auto">
           <table id="options-table" class="data-table">
@@ -1891,6 +1909,25 @@
         _optionsTab = 'calls';
         document.getElementById('opt-tab-call').classList.add('active');
         document.getElementById('opt-tab-put').classList.remove('active');
+
+        // PCRサマリー表示
+        if (data.summary) {
+          const pcr = data.summary.put_call_ratio;
+          document.getElementById('opt-pcr').textContent = pcr;
+          const signal = data.summary.pcr_signal;
+          const sigEl = document.getElementById('opt-pcr-signal');
+          sigEl.textContent = signal === 'BULLISH' ? '↑ コール優勢' : signal === 'BEARISH' ? '↓ プット優勢' : '→ 中立';
+          sigEl.style.color = signal === 'BULLISH' ? 'var(--positive)' : signal === 'BEARISH' ? 'var(--negative)' : 'var(--text-secondary)';
+
+          document.getElementById('opt-iv-skew').textContent = `${data.summary.iv_skew}%`;
+
+          const first = data.expirations && data.expirations[0];
+          if (first) {
+            document.getElementById('opt-oi-total').textContent = `${(first.total_put_oi + first.total_call_oi).toLocaleString()}`;
+            document.getElementById('opt-oi-detail').textContent = `C: ${first.total_call_oi.toLocaleString()} / P: ${first.total_put_oi.toLocaleString()}`;
+          }
+        }
+
         renderOptionsTable();
       } catch (e) {
         document.getElementById('options-expiry').textContent = `取得エラー: ${escHtml(e.message)}`;

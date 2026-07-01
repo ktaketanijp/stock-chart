@@ -1640,6 +1640,63 @@ def earnings_calendar_api():
     return jsonify({"earnings": results, "as_of": today_str})
 
 
+@app.route("/api/calendar/earnings/watchlist")
+def earnings_calendar_watchlist():
+    """ウォッチリスト銘柄の決算日をyfinanceから取得（EPS予想・社名付き）"""
+    with _watchlist_lock:
+        wl = _load_watchlist()
+    tickers = wl.get("tickers", [])
+
+    if not tickers:
+        tickers = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA"]
+
+    earnings = []
+    for ticker in tickers[:15]:
+        try:
+            t = yf.Ticker(ticker)
+            info = t.info
+
+            next_earnings = info.get("earningsDate") or info.get("earningsTimestamp")
+            date_str = None
+            if next_earnings:
+                if isinstance(next_earnings, (int, float)):
+                    import datetime as _dt
+                    dt = _dt.datetime.fromtimestamp(next_earnings)
+                    date_str = dt.strftime("%Y-%m-%d")
+                elif isinstance(next_earnings, str):
+                    date_str = next_earnings[:10]
+                else:
+                    date_str = str(next_earnings)[:10]
+
+            # info で取れない場合は calendar から試みる
+            if not date_str:
+                try:
+                    cal = t.calendar
+                    if cal is not None and not cal.empty:
+                        for col in ["Earnings Date", "earnings_date"]:
+                            if col in cal.columns:
+                                val = cal[col].iloc[0]
+                                date_str = pd.Timestamp(val).strftime("%Y-%m-%d")
+                                break
+                except Exception:
+                    pass
+
+            if date_str:
+                eps_est = info.get("forwardEps")
+                earnings.append({
+                    "ticker": ticker,
+                    "date": date_str,
+                    "company": info.get("shortName", ticker),
+                    "eps_estimate": round(float(eps_est), 2) if eps_est else None,
+                    "time": info.get("earningsCallType", "TBD"),
+                })
+        except Exception:
+            continue
+
+    earnings.sort(key=lambda x: x.get("date") or "9999")
+    return jsonify({"earnings": earnings, "count": len(earnings)})
+
+
 @app.route("/api/analysis/patterns/<ticker>")
 def analysis_patterns(ticker):
     """ローソク足パターン検出"""
@@ -2392,13 +2449,58 @@ def options_chain(ticker):
                         "itm": strike > current_price,
                     })
 
+            # プット/コール比率
+            total_put_oi = sum(p["openInterest"] for p in puts)
+            total_call_oi = sum(c["openInterest"] for c in calls)
+            pcr = round(total_put_oi / total_call_oi, 2) if total_call_oi > 0 else 0
+
+            # IV Skew（ATMのプットIV - コールIV）
+            if puts and calls:
+                atm_put = min(puts, key=lambda p: abs(p["strike"] - current_price))
+                atm_call = min(calls, key=lambda c: abs(c["strike"] - current_price))
+                iv_skew = round(atm_put["iv_pct"] - atm_call["iv_pct"], 1)
+                atm_put_iv = atm_put["iv_pct"]
+                atm_call_iv = atm_call["iv_pct"]
+            else:
+                iv_skew = 0
+                atm_put_iv = 0
+                atm_call_iv = 0
+
+            # 市場センチメント解釈
+            if pcr > 1.3:
+                pcr_signal = "BEARISH"
+                pcr_desc = f"PCR={pcr} — プット買い優勢（下落ヘッジ増加）"
+            elif pcr < 0.7:
+                pcr_signal = "BULLISH"
+                pcr_desc = f"PCR={pcr} — コール買い優勢（上昇期待強い）"
+            else:
+                pcr_signal = "NEUTRAL"
+                pcr_desc = f"PCR={pcr} — 中立"
+
             result["expirations"].append({
                 "date": exp,
                 "calls": sorted(calls, key=lambda x: x["strike"]),
                 "puts": sorted(puts, key=lambda x: x["strike"]),
                 "call_count": len(calls),
                 "put_count": len(puts),
+                "put_call_ratio": pcr,
+                "pcr_signal": pcr_signal,
+                "pcr_description": pcr_desc,
+                "iv_skew": iv_skew,
+                "atm_put_iv": atm_put_iv,
+                "atm_call_iv": atm_call_iv,
+                "total_put_oi": total_put_oi,
+                "total_call_oi": total_call_oi,
             })
+
+        # 最初の満期のサマリーをトップレベルに追加
+        if result["expirations"]:
+            first = result["expirations"][0]
+            result["summary"] = {
+                "put_call_ratio": first.get("put_call_ratio", 0),
+                "pcr_signal": first.get("pcr_signal", "NEUTRAL"),
+                "iv_skew": first.get("iv_skew", 0),
+            }
 
         result["current_price"] = round(current_price, 2)
         return jsonify(result)
