@@ -390,6 +390,16 @@ def check_alerts_api():
     triggered = _alerts_mod.check_alerts()
     return jsonify({"triggered": triggered, "alerts": _alerts_mod.get_alerts()})
 
+@app.route("/api/alerts/technical", methods=["POST"])
+def create_technical_alert_api():
+    """{"ticker": "AAPL", "condition": "golden_cross"}"""
+    data = request.get_json() or {}
+    result = _alerts_mod.create_technical_alert(
+        ticker=data.get("ticker", ""),
+        condition=data.get("condition", ""),
+    )
+    return jsonify(result), 201
+
 @app.route("/api/alerts/<alert_id>", methods=["DELETE"])
 def delete_alert_api(alert_id):
     ok = _alerts_mod.delete_alert(alert_id)
@@ -1775,6 +1785,303 @@ def custom_screen():
             continue
 
     return jsonify({"results": results, "count": len(results), "filters_applied": filters})
+
+
+# ---------------------------------------------------------------------------
+# 配当情報
+# ---------------------------------------------------------------------------
+
+@app.route("/api/analysis/dividend/<ticker>")
+def dividend_info(ticker):
+    """配当情報（配当利回り・配当金・権利落ち日）"""
+    t = yf.Ticker(ticker.upper())
+
+    try:
+        info = t.info
+        # yfinance の dividendYield はバージョンによって返し方が異なる
+        # fast_info.last_price を使って実測値を計算する
+        div_rate = float(info.get("dividendRate", 0) or 0)
+        try:
+            price = float(t.fast_info.last_price or 0)
+            div_yield = round(div_rate / price * 100, 2) if price > 0 and div_rate > 0 else 0
+        except Exception:
+            raw_yield = float(info.get("dividendYield", 0) or 0)
+            # 0.005 形式（小数）なら *100、0.5 形式（%）ならそのまま
+            div_yield = round(raw_yield * 100 if raw_yield < 0.1 else raw_yield, 2)
+
+        # 権利落ち日: Unix タイムスタンプ → 日付文字列
+        ex_div_ts = info.get("exDividendDate")
+        if ex_div_ts:
+            try:
+                ex_div_str = datetime.fromtimestamp(int(ex_div_ts)).strftime("%Y-%m-%d")
+            except Exception:
+                ex_div_str = str(ex_div_ts)
+        else:
+            ex_div_str = None
+
+        result = {
+            "ticker": ticker.upper(),
+            "dividend_yield": div_yield,
+            "dividend_rate": round(div_rate, 2),
+            "ex_dividend_date": ex_div_str,
+            "payout_ratio": round(float(info.get("payoutRatio", 0) or 0) * 100, 1),
+            "five_year_avg_yield": round(float(info.get("fiveYearAvgDividendYield", 0) or 0), 2),
+        }
+    except Exception as e:
+        result = {"error": str(e), "ticker": ticker.upper()}
+
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# FX・暗号通貨
+# ---------------------------------------------------------------------------
+
+@app.route("/api/market/forex")
+def market_forex():
+    """主要FXレート"""
+    PAIRS = {
+        "USD/JPY": "JPY=X",
+        "EUR/JPY": "EURJPY=X",
+        "EUR/USD": "EURUSD=X",
+        "GBP/USD": "GBPUSD=X",
+        "USD/CNY": "CNY=X",
+    }
+    result = {}
+    for name, symbol in PAIRS.items():
+        try:
+            ticker = yf.Ticker(symbol)
+            price = float(ticker.fast_info.last_price or 0)
+            hist = ticker.history(period="2d", interval="1d")
+            change_pct = 0
+            if len(hist) >= 2:
+                prev = float(hist["Close"].iloc[-2])
+                change_pct = round((price - prev) / prev * 100, 3) if prev else 0
+            result[name] = {"rate": round(price, 4), "change_pct": change_pct}
+        except Exception:
+            result[name] = {"rate": None}
+    return jsonify({"forex": result})
+
+
+@app.route("/api/market/crypto")
+def market_crypto():
+    """主要暗号通貨"""
+    CRYPTOS = {
+        "Bitcoin":  "BTC-USD",
+        "Ethereum": "ETH-USD",
+        "Solana":   "SOL-USD",
+        "XRP":      "XRP-USD",
+    }
+    result = {}
+    for name, symbol in CRYPTOS.items():
+        try:
+            ticker = yf.Ticker(symbol)
+            price = float(ticker.fast_info.last_price or 0)
+            hist = ticker.history(period="2d", interval="1d")
+            change_pct = 0
+            if len(hist) >= 2:
+                prev = float(hist["Close"].iloc[-2])
+                change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+            result[name] = {"price": round(price, 2), "change_pct": change_pct, "symbol": symbol}
+        except Exception:
+            result[name] = {"price": None, "symbol": symbol}
+    return jsonify({"crypto": result})
+
+
+@app.route("/news")
+def news_page():
+    return render_template("news.html")
+
+
+@app.route("/api/news/feed")
+def news_feed():
+    """
+    ウォッチリスト全銘柄のニュースを集約
+    最新20件を日時降順で返す
+    """
+    watchlist_data = _load_watchlist()
+    tickers = watchlist_data.get("tickers", [])
+
+    # デフォルト銘柄（ウォッチリストが空の場合）
+    if not tickers:
+        tickers = ["AAPL", "NVDA", "MSFT", "TSLA"]
+
+    all_news = []
+
+    for ticker in tickers[:6]:  # 最大6銘柄（API負荷軽減）
+        try:
+            t = yf.Ticker(ticker)
+            news = t.news or []
+            for article in news[:5]:  # 各銘柄5件
+                # タイムスタンプを日時に変換
+                content = article.get("content", {})
+                timestamp = (
+                    article.get("providerPublishTime")
+                    or content.get("pubDate")
+                    or 0
+                )
+                # pubDate が文字列の場合は数値に変換（ISO 8601 / RFC 2822 両対応）
+                if isinstance(timestamp, str):
+                    try:
+                        # ISO 8601: "2026-07-01T13:50:00Z"
+                        from datetime import timezone
+                        ts_str = timestamp.replace("Z", "+00:00")
+                        dt_parsed = datetime.fromisoformat(ts_str)
+                        timestamp = int(dt_parsed.timestamp())
+                    except Exception:
+                        try:
+                            from email.utils import parsedate_to_datetime
+                            timestamp = int(parsedate_to_datetime(timestamp).timestamp())
+                        except Exception:
+                            timestamp = 0
+
+                if timestamp:
+                    dt = datetime.fromtimestamp(int(timestamp))
+                    date_str = dt.strftime("%Y-%m-%d %H:%M")
+                else:
+                    date_str = "不明"
+
+                title = (
+                    article.get("title")
+                    or content.get("title", "")
+                )
+                publisher = (
+                    article.get("publisher")
+                    or content.get("provider", {}).get("displayName", "")
+                )
+                link = (
+                    article.get("link")
+                    or content.get("canonicalUrl", {}).get("url", "")
+                    or content.get("clickThroughUrl", {}).get("url", "")
+                )
+
+                if not title:
+                    continue
+
+                all_news.append({
+                    "ticker": ticker,
+                    "title": title,
+                    "publisher": publisher,
+                    "link": link,
+                    "date": date_str,
+                    "timestamp": int(timestamp) if timestamp else 0,
+                })
+        except Exception:
+            continue
+
+    # 日時降順でソート
+    all_news.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+
+    return jsonify({"news": all_news[:20], "count": len(all_news[:20]),
+                    "tickers": tickers})
+
+
+@app.route("/portfolio")
+def portfolio_page():
+    return render_template("portfolio.html")
+
+
+@app.route("/api/portfolio/backtest", methods=["POST"])
+def portfolio_backtest():
+    """
+    ポートフォリオバックテスト
+    POST: {
+        "holdings": {"AAPL": 25, "NVDA": 25, "MSFT": 25, "AMZN": 25},
+        "period": "1y",
+        "initial_amount": 1000000
+    }
+    """
+    import math
+
+    data = request.get_json() or {}
+    holdings = data.get("holdings", {})
+    period = data.get("period", "1y")
+    initial_jpy = float(data.get("initial_amount", 1000000))
+
+    if not holdings:
+        return jsonify({"error": "ポートフォリオが空です"})
+
+    # 比率を正規化（合計100%に）
+    total_weight = sum(holdings.values())
+    weights = {k: v / total_weight for k, v in holdings.items()}
+
+    # 各銘柄の日次リターンを取得
+    returns_data = {}
+    for ticker in holdings:
+        try:
+            hist = yf.Ticker(ticker.upper()).history(period=period, interval="1d")
+            if hist.empty:
+                continue
+            closes = hist["Close"].tolist()
+            daily_returns = [(closes[i] - closes[i-1]) / closes[i-1]
+                             for i in range(1, len(closes))]
+            returns_data[ticker] = {
+                "closes": closes,
+                "dates": [str(d.date()) for d in hist.index],
+                "daily_returns": daily_returns,
+                "total_return": (closes[-1] - closes[0]) / closes[0] * 100,
+            }
+        except Exception:
+            continue
+
+    if not returns_data:
+        return jsonify({"error": "データ取得失敗"})
+
+    # ポートフォリオの日次リターンを計算（加重平均）
+    min_len = min(len(r["daily_returns"]) for r in returns_data.values())
+    dates = list(returns_data.values())[0]["dates"][1:min_len+1]
+
+    portfolio_returns = []
+    for i in range(min_len):
+        daily_ret = sum(
+            weights.get(ticker, 0) * returns_data[ticker]["daily_returns"][i]
+            for ticker in returns_data
+        )
+        portfolio_returns.append(daily_ret)
+
+    # 累積リターン
+    cumulative = [1.0]
+    for r in portfolio_returns:
+        cumulative.append(cumulative[-1] * (1 + r))
+
+    # パフォーマンス指標計算
+    total_return_pct = (cumulative[-1] - 1) * 100
+
+    # 最大ドローダウン
+    peak = cumulative[0]
+    max_drawdown = 0
+    for val in cumulative:
+        if val > peak:
+            peak = val
+        dd = (peak - val) / peak * 100
+        if dd > max_drawdown:
+            max_drawdown = dd
+
+    # シャープレシオ（年率、リスクフリーレート4.5%と仮定）
+    avg_daily_return = sum(portfolio_returns) / len(portfolio_returns) if portfolio_returns else 0
+    std_daily = (sum((r - avg_daily_return)**2 for r in portfolio_returns) / len(portfolio_returns))**0.5 if portfolio_returns else 0
+    annual_return = avg_daily_return * 252
+    annual_std = std_daily * (252**0.5)
+    risk_free = 0.045 / 252
+    sharpe = (avg_daily_return - risk_free) / std_daily * (252**0.5) if std_daily > 0 else 0
+
+    # 最終資産額（JPY換算）
+    final_jpy = round(initial_jpy * cumulative[-1])
+
+    return jsonify({
+        "portfolio": weights,
+        "period": period,
+        "initial_jpy": initial_jpy,
+        "final_jpy": final_jpy,
+        "total_return_pct": round(total_return_pct, 2),
+        "max_drawdown_pct": round(max_drawdown, 2),
+        "sharpe_ratio": round(sharpe, 2),
+        "annual_return_pct": round(annual_return * 100, 2),
+        "annual_volatility_pct": round(annual_std * 100, 2),
+        "dates": dates,
+        "cumulative_returns": [round((v - 1) * 100, 2) for v in cumulative[1:]],
+        "individual_returns": {t: round(r["total_return"], 2) for t, r in returns_data.items()},
+    })
 
 
 if __name__ == "__main__":

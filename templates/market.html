@@ -336,6 +336,56 @@
     .bar-left  { display: flex; justify-content: flex-end; }
     .bar-right { display: flex; justify-content: flex-start; }
     .bar-divider { background: #30363d; height: 14px; width: 1px; }
+
+    /* === FX・暗号通貨セクション === */
+    .fx-section, .crypto-section {
+      margin-bottom: 28px;
+    }
+    .fx-grid, .crypto-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+    .crypto-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (max-width: 1100px) {
+      .fx-grid { grid-template-columns: repeat(3, 1fr); }
+      .crypto-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .fx-grid, .crypto-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .fx-card, .crypto-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px;
+      transition: border-color 0.2s;
+    }
+    .fx-card:hover, .crypto-card:hover { border-color: #58a6ff; }
+    .fx-name, .crypto-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fx-rate, .crypto-price {
+      font-size: 20px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-bottom: 6px;
+      line-height: 1;
+    }
+    .fx-change, .crypto-change {
+      font-size: 13px;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -351,6 +401,7 @@
     <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
     <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
     <a href="/compare" class="g-nav-link">📉 比較</a>
+    <a href="/news" class="g-nav-link">📰 ニュース</a>
   </nav>
 
   <main>
@@ -390,6 +441,29 @@
     <div class="watchlist-wrap">
       <div class="watchlist-grid" id="watchlist-grid">
         <div class="wl-empty"><span class="spinner"></span></div>
+      </div>
+    </div>
+
+    <!-- ④ 為替レート -->
+    <div class="section-title">為替レート（FX）</div>
+    <div class="fx-section">
+      <div class="fx-grid" id="fx-grid">
+        <div class="fx-card"><div class="fx-name">USD/JPY</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+        <div class="fx-card"><div class="fx-name">EUR/JPY</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+        <div class="fx-card"><div class="fx-name">EUR/USD</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+        <div class="fx-card"><div class="fx-name">GBP/USD</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+        <div class="fx-card"><div class="fx-name">USD/CNY</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+      </div>
+    </div>
+
+    <!-- ⑤ 暗号通貨 -->
+    <div class="section-title">暗号通貨</div>
+    <div class="crypto-section">
+      <div class="crypto-grid" id="crypto-grid">
+        <div class="crypto-card"><div class="crypto-name">Bitcoin</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+        <div class="crypto-card"><div class="crypto-name">Ethereum</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+        <div class="crypto-card"><div class="crypto-name">Solana</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+        <div class="crypto-card"><div class="crypto-name">XRP</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
       </div>
     </div>
   </main>
@@ -529,10 +603,86 @@
       }).join('');
     }
 
+    // ---- FXレート ----
+    async function loadForex() {
+      try {
+        const res = await fetch('/api/market/forex');
+        const data = await res.json();
+        renderForex(data.forex);
+      } catch (e) {
+        document.getElementById('fx-grid').innerHTML =
+          '<div style="color:#f85149;grid-column:1/-1;padding:16px">取得エラー: ' + e.message + '</div>';
+      }
+    }
+
+    function renderForex(forex) {
+      const ORDER = ['USD/JPY', 'EUR/JPY', 'EUR/USD', 'GBP/USD', 'USD/CNY'];
+      const grid = document.getElementById('fx-grid');
+      grid.innerHTML = ORDER.map(name => {
+        const d = forex[name];
+        if (!d || d.rate === null) {
+          return `<div class="fx-card">
+            <div class="fx-name">${name}</div>
+            <div class="fx-rate" style="font-size:14px;color:#8b949e">N/A</div>
+            <div class="fx-change change-flat">—</div>
+          </div>`;
+        }
+        const pct = d.change_pct;
+        const cls = pct > 0 ? 'change-up' : pct < 0 ? 'change-down' : 'change-flat';
+        const sign = pct > 0 ? '+' : '';
+        // JPY系は小数2桁、その他は小数4桁
+        const decimals = name.includes('JPY') ? 2 : 4;
+        const rateStr = d.rate.toFixed(decimals);
+        return `<div class="fx-card">
+          <div class="fx-name">${name}</div>
+          <div class="fx-rate">${rateStr}</div>
+          <div class="fx-change ${cls}">${sign}${pct.toFixed(3)}%</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ---- 暗号通貨 ----
+    async function loadCrypto() {
+      try {
+        const res = await fetch('/api/market/crypto');
+        const data = await res.json();
+        renderCrypto(data.crypto);
+      } catch (e) {
+        document.getElementById('crypto-grid').innerHTML =
+          '<div style="color:#f85149;grid-column:1/-1;padding:16px">取得エラー: ' + e.message + '</div>';
+      }
+    }
+
+    function renderCrypto(crypto) {
+      const ORDER = ['Bitcoin', 'Ethereum', 'Solana', 'XRP'];
+      const grid = document.getElementById('crypto-grid');
+      grid.innerHTML = ORDER.map(name => {
+        const d = crypto[name];
+        if (!d || d.price === null) {
+          return `<div class="crypto-card">
+            <div class="crypto-name">${name}</div>
+            <div class="crypto-price" style="font-size:14px;color:#8b949e">N/A</div>
+            <div class="crypto-change change-flat">—</div>
+          </div>`;
+        }
+        const pct = d.change_pct;
+        const cls = pct > 0 ? 'change-up' : pct < 0 ? 'change-down' : 'change-flat';
+        const sign = pct > 0 ? '+' : '';
+        const priceStr = d.price >= 1000
+          ? d.price.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})
+          : d.price.toFixed(4);
+        return `<div class="crypto-card">
+          <div class="crypto-name">${name}</div>
+          <div class="crypto-price">$${priceStr}</div>
+          <div class="crypto-change ${cls}">${sign}${pct.toFixed(2)}%</div>
+        </div>`;
+      }).join('');
+    }
+
     // ---- 全更新 ----
     async function refreshAll() {
       document.getElementById('last-updated').textContent = '更新中...';
-      await Promise.all([loadIndices(), loadSectors(), loadWatchlist()]);
+      await Promise.all([loadIndices(), loadSectors(), loadWatchlist(), loadForex(), loadCrypto()]);
       document.getElementById('last-updated').textContent =
         '最終更新: ' + new Date().toLocaleTimeString('ja-JP');
     }

@@ -367,6 +367,42 @@
       margin-top: 10px;
       min-height: 18px;
     }
+
+    /* === モーダルタブ === */
+    .modal-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 10px;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: #8b949e;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: color .15s, background .15s;
+    }
+    .tab-btn:hover { color: #e6edf3; background: #21262d; }
+    .tab-btn.active { color: #58a6ff; background: rgba(31,111,235,0.12); }
+
+    /* テクニカルタブの select */
+    #tech-tab select {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #e6edf3;
+      font-size: 14px;
+      padding: 9px 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    #tech-tab select:focus { border-color: #58a6ff; }
   </style>
 </head>
 <body>
@@ -383,6 +419,7 @@
     <a href="/watchlist" class="g-nav-link active">⭐ ウォッチリスト</a>
     <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
     <a href="/compare" class="g-nav-link">📉 比較</a>
+    <a href="/news" class="g-nav-link">📰 ニュース</a>
   </nav>
 
   <div class="container">
@@ -451,17 +488,41 @@
   <div class="modal-overlay" id="alert-modal">
     <div class="modal">
       <h3>🔔 アラート設定 — <span id="modal-ticker"></span></h3>
-      <div class="modal-field">
-        <label>条件</label>
-        <select id="modal-condition">
-          <option value="above">以上になったら (価格が設定値を上回る)</option>
-          <option value="below">以下になったら (価格が設定値を下回る)</option>
-        </select>
+
+      <!-- タブ切替 -->
+      <div class="modal-tabs">
+        <button class="tab-btn active" id="tab-price-btn" onclick="switchTab('price')">価格アラート</button>
+        <button class="tab-btn" id="tab-tech-btn" onclick="switchTab('technical')">テクニカル</button>
       </div>
-      <div class="modal-field">
-        <label>価格</label>
-        <input type="number" id="modal-price" step="0.01" min="0.01" placeholder="例: 200.00">
+
+      <!-- 価格アラートタブ -->
+      <div id="price-tab">
+        <div class="modal-field">
+          <label>条件</label>
+          <select id="modal-condition">
+            <option value="above">以上になったら (価格が設定値を上回る)</option>
+            <option value="below">以下になったら (価格が設定値を下回る)</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>価格</label>
+          <input type="number" id="modal-price" step="0.01" min="0.01" placeholder="例: 200.00">
+        </div>
       </div>
+
+      <!-- テクニカルアラートタブ -->
+      <div id="tech-tab" style="display:none">
+        <div class="modal-field">
+          <label>条件</label>
+          <select id="tech-condition">
+            <option value="golden_cross">ゴールデンクロス (MA20 > MA50)</option>
+            <option value="dead_cross">デッドクロス (MA20 < MA50)</option>
+            <option value="rsi_oversold">RSI 30以下 (売られすぎ)</option>
+            <option value="rsi_overbought">RSI 70以上 (買われすぎ)</option>
+          </select>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button class="btn" onclick="createAlert()">設定</button>
         <button class="btn btn-cancel" onclick="closeAlertModal()">キャンセル</button>
@@ -474,6 +535,7 @@
     let autoRefreshTimer = null;
     const AUTO_REFRESH_SEC = 30;
     let currentAlertTicker = null;
+    let currentAlertTab = 'price';
 
     // =====================
     // ウォッチリスト
@@ -628,11 +690,22 @@
     // アラートモーダル
     // =====================
 
+    function switchTab(tab) {
+      currentAlertTab = tab;
+      document.getElementById('price-tab').style.display = tab === 'price' ? '' : 'none';
+      document.getElementById('tech-tab').style.display = tab === 'technical' ? '' : 'none';
+      document.getElementById('tab-price-btn').classList.toggle('active', tab === 'price');
+      document.getElementById('tab-tech-btn').classList.toggle('active', tab === 'technical');
+      document.getElementById('modal-msg').textContent = '';
+    }
+
     function openAlertModal(ticker) {
       currentAlertTicker = ticker;
+      currentAlertTab = 'price';
       document.getElementById('modal-ticker').textContent = ticker;
       document.getElementById('modal-price').value = '';
       document.getElementById('modal-msg').textContent = '';
+      switchTab('price');
       document.getElementById('alert-modal').classList.add('open');
       setTimeout(() => document.getElementById('modal-price').focus(), 100);
     }
@@ -644,33 +717,57 @@
 
     async function createAlert() {
       if (!currentAlertTicker) return;
-      const condition = document.getElementById('modal-condition').value;
-      const priceVal = document.getElementById('modal-price').value;
-      const price = parseFloat(priceVal);
       const msgEl = document.getElementById('modal-msg');
-
-      if (!priceVal || isNaN(price) || price <= 0) {
-        msgEl.textContent = '有効な価格を入力してください';
-        return;
-      }
       msgEl.textContent = '';
 
-      try {
-        const res = await fetch('/api/alerts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticker: currentAlertTicker, condition, price }),
-        });
-        const data = await res.json();
-        if (data.error) {
-          msgEl.textContent = 'エラー: ' + data.error;
-        } else {
-          closeAlertModal();
-          loadAlerts();
-          setStatus(currentAlertTicker + ' のアラートを設定しました', false);
+      if (currentAlertTab === 'technical') {
+        // テクニカルアラート
+        const condition = document.getElementById('tech-condition').value;
+        try {
+          const res = await fetch('/api/alerts/technical', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker: currentAlertTicker, condition }),
+          });
+          const data = await res.json();
+          if (data.error) {
+            msgEl.textContent = 'エラー: ' + data.error;
+          } else {
+            closeAlertModal();
+            loadAlerts();
+            setStatus(currentAlertTicker + ' のテクニカルアラートを設定しました', false);
+          }
+        } catch (err) {
+          msgEl.textContent = '設定に失敗しました: ' + err.message;
         }
-      } catch (err) {
-        msgEl.textContent = '設定に失敗しました: ' + err.message;
+      } else {
+        // 価格アラート
+        const condition = document.getElementById('modal-condition').value;
+        const priceVal = document.getElementById('modal-price').value;
+        const price = parseFloat(priceVal);
+
+        if (!priceVal || isNaN(price) || price <= 0) {
+          msgEl.textContent = '有効な価格を入力してください';
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker: currentAlertTicker, condition, price }),
+          });
+          const data = await res.json();
+          if (data.error) {
+            msgEl.textContent = 'エラー: ' + data.error;
+          } else {
+            closeAlertModal();
+            loadAlerts();
+            setStatus(currentAlertTicker + ' のアラートを設定しました', false);
+          }
+        } catch (err) {
+          msgEl.textContent = '設定に失敗しました: ' + err.message;
+        }
       }
     }
 
@@ -715,21 +812,38 @@
         return;
       }
       tbody.innerHTML = alerts.map(a => {
-        const condLabel = a.condition === 'above' ? '以上になったら' : '以下になったら';
+        const isTech = a.type === 'technical';
+        let condLabel, priceCell;
+        if (isTech) {
+          condLabel = escHtml(a.description || a.condition);
+          priceCell = '<span style="color:#8b949e;font-size:12px">テクニカル</span>';
+        } else {
+          condLabel = a.condition === 'above' ? '以上になったら' : '以下になったら';
+          priceCell = (a.price !== null && a.price !== undefined)
+            ? '<span style="font-weight:600">$' + Number(a.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span>'
+            : '—';
+        }
         const statusBadge = a.triggered
           ? '<span class="status-badge status-triggered">トリガー済</span>'
           : '<span class="status-badge status-active">監視中</span>';
         const triggeredAt = a.triggered_at || '—';
-        const triggeredPrice = (a.triggered_price !== null && a.triggered_price !== undefined)
-          ? Number(a.triggered_price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-          : '—';
+        let triggeredVal;
+        if (isTech) {
+          triggeredVal = (a.triggered_value !== null && a.triggered_value !== undefined)
+            ? 'RSI: ' + a.triggered_value
+            : (a.triggered ? '発動' : '—');
+        } else {
+          triggeredVal = (a.triggered_price !== null && a.triggered_price !== undefined)
+            ? '$' + Number(a.triggered_price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : '—';
+        }
         return '<tr>' +
           '<td class="ticker-cell">' + escHtml(a.ticker) + '</td>' +
           '<td style="color:#c9d1d9">' + condLabel + '</td>' +
-          '<td style="font-weight:600">' + Number(a.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+          '<td>' + priceCell + '</td>' +
           '<td>' + statusBadge + '</td>' +
           '<td style="color:#8b949e;font-size:13px">' + escHtml(triggeredAt) + '</td>' +
-          '<td style="color:#8b949e;font-size:13px">' + triggeredPrice + '</td>' +
+          '<td style="color:#8b949e;font-size:13px">' + escHtml(triggeredVal) + '</td>' +
           '<td><button class="del-btn" onclick="deleteAlertItem(\'' + escHtml(String(a.id)) + '\')">削除</button></td>' +
           '</tr>';
       }).join('');

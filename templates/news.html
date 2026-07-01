@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ニュース集約 - StockChart</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* === CSS変数（テーマ） === */
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --border-color: #e0e0e0;
+      --card-bg: #f8f8f8;
+      --nav-bg: #ffffff;
+      --nav-border: #e0e0e0;
+      --positive: #16a34a;
+      --negative: #dc2626;
+      --accent: #2563eb;
+      --accent-bg: rgba(37,99,235,0.12);
+      --hover-bg: #f0f0f0;
+      --input-bg: #ffffff;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #0d1117;
+      --bg-secondary: #21262d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --border-color: #30363d;
+      --card-bg: #161b22;
+      --nav-bg: #161b22;
+      --nav-border: #30363d;
+      --positive: #3fb950;
+      --negative: #f85149;
+      --accent: #58a6ff;
+      --accent-bg: rgba(31,111,235,0.12);
+      --hover-bg: #21262d;
+      --input-bg: #0d1117;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-wrap: wrap;
+      min-height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--accent);
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid var(--border-color);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: var(--text-primary); background: var(--hover-bg); }
+    .g-nav-link.active { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      color: var(--text-primary);
+      margin-left: auto;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .theme-btn:hover { background: var(--hover-bg); }
+
+    /* === メインコンテンツ === */
+    .main-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .status-bar {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* === フィルターバッジ === */
+    #ticker-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+    }
+
+    .filter-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      transition: background 0.15s, color 0.15s, transform 0.1s;
+    }
+    .filter-badge:hover { transform: translateY(-1px); opacity: 0.85; }
+    .filter-badge.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .filter-badge.ticker-badge {
+      color: #fff;
+    }
+    .filter-badge.ticker-badge.active {
+      outline: 2px solid var(--text-primary);
+      outline-offset: 1px;
+    }
+
+    /* === ニュースカード === */
+    #news-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .news-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 14px 16px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .news-card:hover {
+      border-color: var(--accent);
+      background: var(--hover-bg);
+    }
+
+    .news-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .news-ticker-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
+    }
+
+    .sentiment-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .sentiment-badge.positive { background: rgba(22,163,74,0.15); color: var(--positive); }
+    .sentiment-badge.negative { background: rgba(220,38,38,0.15); color: var(--negative); }
+    .sentiment-badge.neutral { background: var(--bg-secondary); color: var(--text-secondary); }
+
+    .news-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.45;
+      margin-bottom: 8px;
+    }
+    .news-title a {
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .news-title a:hover { color: var(--accent); text-decoration: underline; }
+
+    .news-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* === ローディング/エラー === */
+    .loading-msg, .error-msg, .empty-msg {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .error-msg { color: var(--negative); }
+
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* === 更新ボタン === */
+    .refresh-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .refresh-btn:hover { opacity: 0.85; }
+    .refresh-btn:disabled { opacity: 0.5; cursor: default; }
+
+    @media (max-width: 600px) {
+      .g-nav { padding: 0 10px; }
+      .main-container { padding: 16px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link">📊 分析</a>
+    <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/market" class="g-nav-link">🌐 市場</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
+    <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
+    <a href="/compare" class="g-nav-link">📉 比較</a>
+    <a href="/news" class="g-nav-link active">📰 ニュース</a>
+    <button class="theme-btn" onclick="toggleTheme()" title="ダーク/ライト切替">🌙</button>
+  </nav>
+
+  <div class="main-container">
+    <div class="page-header">
+      <h1 class="page-title">📰 ニュース集約</h1>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span class="status-bar" id="status-bar">読み込み中...</span>
+        <button class="refresh-btn" id="refresh-btn" onclick="loadNews()">更新</button>
+      </div>
+    </div>
+
+    <!-- 銘柄フィルター -->
+    <div id="ticker-filters">
+      <button class="filter-badge active" onclick="filterNews('ALL')" data-ticker="ALL">すべて</button>
+    </div>
+
+    <!-- ニュースフィード -->
+    <div id="news-feed">
+      <div class="loading-msg"><span class="spinner"></span>ニュースを取得中...</div>
+    </div>
+  </div>
+
+  <script>
+    // ========== テーマ ==========
+    (function() {
+      const saved = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', saved);
+    })();
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+    }
+
+    // ========== データ状態 ==========
+    let allNews = [];
+    let currentFilter = 'ALL';
+    let autoRefreshTimer = null;
+
+    // ========== 銘柄ごとの色 ==========
+    function tickerColor(ticker) {
+      let hash = 0;
+      for (let c of ticker) hash = hash * 31 + c.charCodeAt(0);
+      const hue = Math.abs(hash) % 360;
+      return `hsl(${hue}, 60%, 40%)`;
+    }
+
+    // ========== 簡易センチメント判定 ==========
+    function quickSentiment(title) {
+      const pos = ['surge', 'gain', 'rise', 'beat', 'record', 'soar', 'profit', 'growth',
+                   'rally', 'jump', 'boost', 'strong', 'buy', 'upgrade', 'approval'];
+      const neg = ['fall', 'drop', 'miss', 'loss', 'cut', 'decline', 'concern', 'risk',
+                   'crash', 'plunge', 'warn', 'sell', 'downgrade', 'lawsuit', 'layoff'];
+      const t = title.toLowerCase();
+      if (pos.some(w => t.includes(w))) return 'positive';
+      if (neg.some(w => t.includes(w))) return 'negative';
+      return 'neutral';
+    }
+
+    function sentimentLabel(s) {
+      if (s === 'positive') return '上昇';
+      if (s === 'negative') return '下落';
+      return 'ニュートラル';
+    }
+
+    // ========== ニュースカード描画 ==========
+    function renderCard(item) {
+      const color = tickerColor(item.ticker);
+      const sentiment = quickSentiment(item.title);
+      const sentLabel = sentimentLabel(sentiment);
+      const title = item.title ? item.title.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '（タイトルなし）';
+      const publisher = item.publisher ? item.publisher.replace(/</g, '&lt;') : '';
+      const link = item.link || '#';
+      return `
+        <article class="news-card" data-ticker="${item.ticker}">
+          <div class="news-card-header">
+            <span class="news-ticker-badge" style="background:${color}">${item.ticker}</span>
+            <span class="sentiment-badge ${sentiment}">${sentLabel}</span>
+          </div>
+          <h3 class="news-title">
+            <a href="${link}" target="_blank" rel="noopener noreferrer">${title}</a>
+          </h3>
+          <div class="news-meta">
+            <span>${publisher}</span>
+            <span>${item.date}</span>
+          </div>
+        </article>`;
+    }
+
+    // ========== フィルター適用 ==========
+    function filterNews(ticker) {
+      currentFilter = ticker;
+
+      // バッジのアクティブ切替
+      document.querySelectorAll('.filter-badge').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.ticker === ticker);
+      });
+
+      const feed = document.getElementById('news-feed');
+      const filtered = ticker === 'ALL' ? allNews : allNews.filter(n => n.ticker === ticker);
+      if (filtered.length === 0) {
+        feed.innerHTML = '<div class="empty-msg">この銘柄のニュースはありません</div>';
+        return;
+      }
+      feed.innerHTML = filtered.map(renderCard).join('');
+    }
+
+    // ========== フィルターバッジ構築 ==========
+    function buildFilters(tickers) {
+      const container = document.getElementById('ticker-filters');
+      container.innerHTML = '<button class="filter-badge active" onclick="filterNews(\'ALL\')" data-ticker="ALL">すべて</button>';
+      tickers.forEach(ticker => {
+        const color = tickerColor(ticker);
+        const btn = document.createElement('button');
+        btn.className = 'filter-badge ticker-badge';
+        btn.dataset.ticker = ticker;
+        btn.style.background = color;
+        btn.textContent = ticker;
+        btn.onclick = () => filterNews(ticker);
+        container.appendChild(btn);
+      });
+    }
+
+    // ========== ニュース取得 ==========
+    async function loadNews() {
+      const btn = document.getElementById('refresh-btn');
+      const statusBar = document.getElementById('status-bar');
+      const feed = document.getElementById('news-feed');
+
+      btn.disabled = true;
+      btn.textContent = '取得中...';
+      feed.innerHTML = '<div class="loading-msg"><span class="spinner"></span>ニュースを取得中...</div>';
+
+      try {
+        const res = await fetch('/api/news/feed');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        allNews = data.news || [];
+        const tickers = data.tickers || [];
+
+        buildFilters(tickers);
+
+        const now = new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+        statusBar.textContent = `${allNews.length}件 · 最終更新: ${now}`;
+
+        // 現在のフィルターを維持して再描画
+        filterNews(currentFilter);
+
+      } catch (e) {
+        feed.innerHTML = `<div class="error-msg">ニュースの取得に失敗しました: ${e.message}</div>`;
+        statusBar.textContent = '取得失敗';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '更新';
+      }
+    }
+
+    // ========== 自動更新（5分） ==========
+    function startAutoRefresh() {
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(loadNews, 5 * 60 * 1000);
+    }
+
+    // ========== 初期化 ==========
+    loadNews();
+    startAutoRefresh();
+  </script>
+</body>
+</html>

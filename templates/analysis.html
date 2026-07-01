@@ -420,6 +420,27 @@
     .qb-bad     { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
     .metric-sub { font-size: 10px; color: var(--text-secondary); margin-top: 3px; }
 
+    /* ---- 配当カード ---- */
+    .metric-card {
+      background: var(--item-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 4px;
+    }
+    .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--positive);
+    }
+
     /* === モバイルレスポンシブ === */
     @media (max-width: 900px) {
       .signal-layout { grid-template-columns: 1fr; }
@@ -459,6 +480,7 @@
     <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
     <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
     <a href="/compare" class="g-nav-link">📉 比較</a>
+    <a href="/news" class="g-nav-link">📰 ニュース</a>
     <div class="ticker-search">
       <input id="ticker-input" type="text" placeholder="AAPL" value="AAPL">
       <button class="btn-analyze" onclick="runAnalysis()">分析</button>
@@ -531,6 +553,14 @@
             <!-- Left -->
             <div>
               <div class="metrics-grid" id="metrics-grid"></div>
+
+              <!-- 配当情報カード -->
+              <div class="metric-card" id="dividend-card" style="display:none">
+                <div class="metric-label">配当利回り</div>
+                <div id="dividend-yield" class="metric-value"></div>
+                <div id="dividend-detail" style="font-size:0.8rem;color:var(--text-secondary)"></div>
+              </div>
+
               <div class="sepa-box" id="sepa-box"></div>
               <div class="news-grid" id="news-grid"></div>
             </div>
@@ -1433,6 +1463,32 @@
       }
     }
 
+    // ---- 配当情報 ----
+    async function loadDividend(ticker) {
+      try {
+        const resp = await fetch(`/api/analysis/dividend/${encodeURIComponent(ticker)}`);
+        const data = await resp.json();
+        if (data.error) return;
+        if (data.dividend_yield > 0) {
+          document.getElementById('dividend-card').style.display = 'block';
+          document.getElementById('dividend-yield').textContent = `${data.dividend_yield}%`;
+          let detail = `配当金: $${data.dividend_rate}/年<br>`;
+          if (data.ex_dividend_date) {
+            detail += `権利落ち日: ${data.ex_dividend_date}<br>`;
+          }
+          detail += `配当性向: ${data.payout_ratio}%`;
+          if (data.five_year_avg_yield > 0) {
+            detail += `<br>5年平均利回り: ${data.five_year_avg_yield}%`;
+          }
+          document.getElementById('dividend-detail').innerHTML = detail;
+        } else {
+          document.getElementById('dividend-card').style.display = 'none';
+        }
+      } catch (e) {
+        // 取得失敗時は非表示のまま
+      }
+    }
+
     // ---- Section 6: Earnings History ----
     async function loadEarningsHistory(ticker) {
       const section = document.getElementById('earnings-history-section');
@@ -1534,6 +1590,7 @@
         loadMTF(ticker),
         loadPatterns(ticker),
         loadDivergence(ticker),
+        loadDividend(ticker),
       ]);
 
       startRefreshTimer();

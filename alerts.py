@@ -105,3 +105,98 @@ def check_alerts() -> list:
             _save(data)
 
     return triggered
+
+
+def create_technical_alert(ticker: str, condition: str, description: str = "") -> dict:
+    """
+    テクニカルアラート作成
+    condition:
+    - "golden_cross"   : MA20がMA50を上抜け（ゴールデンクロス）
+    - "dead_cross"     : MA20がMA50を下抜け（デッドクロス）
+    - "rsi_oversold"   : RSIが30以下（売られすぎ）
+    - "rsi_overbought" : RSIが70以上（買われすぎ）
+    """
+    with _lock:
+        data = _load()
+        alert = {
+            "id": str(uuid.uuid4()),
+            "type": "technical",
+            "ticker": ticker.upper(),
+            "condition": condition,
+            "description": description or _default_tech_description(condition),
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "triggered": False,
+            "triggered_at": None,
+        }
+        data["alerts"].append(alert)
+        _save(data)
+    return alert
+
+
+def _default_tech_description(condition: str) -> str:
+    return {
+        "golden_cross": "ゴールデンクロス (MA20 > MA50)",
+        "dead_cross": "デッドクロス (MA20 < MA50)",
+        "rsi_oversold": "RSI 30以下（売られすぎ）",
+        "rsi_overbought": "RSI 70以上（買われすぎ）",
+    }.get(condition, condition)
+
+
+def check_technical_alerts() -> list:
+    """テクニカルアラートをチェック（スケジューラーから呼ぶ）"""
+    triggered = []
+
+    with _lock:
+        data = _load()
+
+    tech_alerts = [a for a in data["alerts"]
+                   if a.get("type") == "technical" and not a.get("triggered")]
+    if not tech_alerts:
+        return []
+
+    for alert in tech_alerts:
+        try:
+            ticker = alert["ticker"]
+            hist = yf.Ticker(ticker).history(period="60d", interval="1d")
+            if len(hist) < 55:
+                continue
+
+            close = hist["Close"]
+            ma20 = close.rolling(20).mean()
+            ma50 = close.rolling(50).mean()
+
+            # RSI計算（簡易版）
+            deltas = close.diff()
+            gains = deltas.where(deltas > 0, 0).rolling(14).mean()
+            losses = (-deltas.where(deltas < 0, 0)).rolling(14).mean()
+            rsi = 100 - 100 / (1 + gains / losses)
+            current_rsi = float(rsi.iloc[-1])
+
+            condition = alert["condition"]
+            hit = False
+
+            if condition == "golden_cross":
+                hit = (float(ma20.iloc[-2]) < float(ma50.iloc[-2]) and
+                       float(ma20.iloc[-1]) >= float(ma50.iloc[-1]))
+            elif condition == "dead_cross":
+                hit = (float(ma20.iloc[-2]) > float(ma50.iloc[-2]) and
+                       float(ma20.iloc[-1]) <= float(ma50.iloc[-1]))
+            elif condition == "rsi_oversold":
+                hit = current_rsi <= 30
+            elif condition == "rsi_overbought":
+                hit = current_rsi >= 70
+
+            if hit:
+                with _lock:
+                    d2 = _load()
+                    for a in d2["alerts"]:
+                        if a["id"] == alert["id"]:
+                            a["triggered"] = True
+                            a["triggered_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            a["triggered_value"] = round(current_rsi, 1) if "rsi" in condition else None
+                    _save(d2)
+                triggered.append(alert)
+        except Exception:
+            continue
+
+    return triggered

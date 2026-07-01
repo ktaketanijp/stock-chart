@@ -162,6 +162,23 @@ def check_price_alerts():
         print(f"  アラートチェックエラー: {e}")
 
 
+def check_technical_alert_job():
+    """30分ごと: テクニカルアラートチェック"""
+    try:
+        import sys
+        sys.path.insert(0, "/home/ec2-user/stock-chart")
+        from alerts import check_technical_alerts
+        triggered = check_technical_alerts()
+        if triggered:
+            print(f"[{jst_now().strftime('%H:%M JST')}] テクニカルアラート発動: {len(triggered)}件")
+            for a in triggered:
+                print(f"  {a['ticker']} — {a.get('description', a['condition'])}")
+        else:
+            print(f"[{jst_now().strftime('%H:%M JST')}] テクニカルアラートチェック完了（発動なし）")
+    except Exception as e:
+        print(f"  テクニカルアラートチェックエラー: {e}")
+
+
 def save_report(name: str, data: dict):
     path = f"/home/ec2-user/stock-chart/data/reports/{name}_{jst_now().strftime('%Y%m%d')}.json"
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -172,6 +189,7 @@ def save_report(name: str, data: dict):
 if __name__ == "__main__":
     # スケジュール登録
     schedule.every(5).minutes.do(check_price_alerts)
+    schedule.every(30).minutes.do(check_technical_alert_job)
     schedule.every(1).hours.do(hourly_update)
     schedule.every().day.at("07:30").do(morning_scan)
     schedule.every().day.at("08:00").do(morning_research)
