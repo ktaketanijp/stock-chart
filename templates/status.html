@@ -153,6 +153,7 @@
     <a href="/journal" class="g-nav-link">📒 日誌</a>
     <a href="/guide" class="g-nav-link">📖 ガイド</a>
     <a href="/status" class="g-nav-link active">⚙️ 状況</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
   </nav>
 
   <main>
@@ -210,6 +211,14 @@
             <h3>✅ 完了</h3>
             <div id="tasks-completed"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- System Health -->
+      <div class="section" id="health-section">
+        <div class="section-title">🩺 システムヘルス</div>
+        <div id="health-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
+          <div style="color:#8b949e;font-size:13px">読み込み中...</div>
         </div>
       </div>
 
@@ -329,6 +338,39 @@
 
       // Countdown
       startCountdown();
+
+      // ヘルスチェックも非同期ロード
+      loadHealth();
+    }
+
+    async function loadHealth() {
+      const grid = document.getElementById("health-grid");
+      try {
+        const r = await fetch("/api/status/health");
+        const d = await r.json();
+        const checks = d.checks || {};
+        const labels = {
+          "yfinance":         "yfinance 疎通",
+          "service":          "systemd サービス",
+          "paper_trades.json":"paper_trades.json",
+          "watchlist.json":   "watchlist.json",
+          "last_update":      "最終データ更新",
+        };
+        grid.innerHTML = Object.entries(checks).map(([key, val]) => {
+          const ok  = val.ok;
+          const lbl = labels[key] || key;
+          const sub = val.value || val.error || "";
+          return `<div style="display:flex;align-items:center;gap:10px;background:#0d1117;border:1px solid ${ok ? "rgba(63,185,80,.4)" : "rgba(248,81,73,.4)"};border-radius:8px;padding:10px 14px;">
+            <span style="font-size:16px">${ok ? "✅" : "❌"}</span>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:${ok ? "#3fb950" : "#f85149"}">${lbl}</div>
+              ${sub ? `<div style="font-size:11px;color:#8b949e;margin-top:2px">${sub}</div>` : ""}
+            </div>
+          </div>`;
+        }).join("") + `<div style="font-size:11px;color:#8b949e;grid-column:1/-1;text-align:right;margin-top:4px">確認時刻: ${d.timestamp || ""}</div>`;
+      } catch (e) {
+        grid.innerHTML = `<div style="color:#f85149;font-size:13px">ヘルスチェック取得失敗: ${e.message}</div>`;
+      }
     }
 
     function startCountdown() {

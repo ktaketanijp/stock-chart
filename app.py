@@ -95,6 +95,10 @@ def calc_macd(series, fast=12, slow=26, signal=9):
 ALERTS_FILE = os.path.join(os.path.dirname(__file__), "alerts.json")
 _alerts_lock = threading.Lock()
 
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+WATCHLIST_FILE = os.path.join(DATA_DIR, "watchlist.json")
+_watchlist_lock = threading.Lock()
+
 def load_alerts():
     if not os.path.exists(ALERTS_FILE):
         return []
@@ -104,6 +108,16 @@ def load_alerts():
 def save_alerts(alerts):
     with open(ALERTS_FILE, "w") as f:
         json.dump(alerts, f, ensure_ascii=False, indent=2)
+
+def _load_watchlist():
+    if not os.path.exists(WATCHLIST_FILE):
+        return {"tickers": []}
+    with open(WATCHLIST_FILE) as f:
+        return json.load(f)
+
+def _save_watchlist(data):
+    with open(WATCHLIST_FILE, "w") as f:
+        json.dump(data, f)
 
 
 def run_backtest(ticker, strategy, period, params):
@@ -434,18 +448,27 @@ def check_alerts():
 @app.route("/api/sentiment")
 def sentiment():
     ticker = request.args.get("ticker", "AAPL").upper().strip()
-    data = get_twitter_sentiment(ticker)
-    return jsonify(data)
+    try:
+        data = get_twitter_sentiment(ticker)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e), "ticker": ticker}), 500
 
 @app.route("/api/news/breaking")
 def breaking_news():
-    data = scan_breaking_catalysts()
-    return jsonify(data)
+    try:
+        data = scan_breaking_catalysts()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/trending")
 def trending():
-    data = get_trending_stocks()
-    return jsonify(data)
+    try:
+        data = get_trending_stocks()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -455,36 +478,101 @@ def trending():
 @app.route("/api/fundamentals")
 def fundamentals_api():
     ticker = request.args.get("ticker", "AAPL").upper()
-    return jsonify(get_fundamentals(ticker))
+    try:
+        return jsonify(get_fundamentals(ticker))
+    except Exception as e:
+        return jsonify({"error": str(e), "ticker": ticker}), 500
 
 @app.route("/api/canslim")
 def canslim_api():
     ticker = request.args.get("ticker", "AAPL").upper()
-    return jsonify(get_canslim_score(ticker))
+    try:
+        return jsonify(get_canslim_score(ticker))
+    except Exception as e:
+        return jsonify({"error": str(e), "ticker": ticker}), 500
 
 @app.route("/api/sepa")
 def sepa_api():
     ticker = request.args.get("ticker", "AAPL").upper()
-    return jsonify(get_sepa_score(ticker))
+    try:
+        return jsonify(get_sepa_score(ticker))
+    except Exception as e:
+        return jsonify({"error": str(e), "ticker": ticker}), 500
 
 @app.route("/api/earnings/calendar")
 def earnings_calendar():
-    days = int(request.args.get("days", 30))
-    return jsonify(get_earnings_calendar(days))
+    try:
+        days = int(request.args.get("days", 30))
+        return jsonify(get_earnings_calendar(days))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/news")
 def news_api():
     ticker = request.args.get("ticker", "AAPL").upper()
-    return jsonify(get_news_with_summary(ticker))
+    try:
+        return jsonify(get_news_with_summary(ticker))
+    except Exception as e:
+        return jsonify({"error": str(e), "ticker": ticker}), 500
 
 @app.route("/api/sector/rotation")
 def sector_rotation():
-    return jsonify(get_sector_rotation())
+    try:
+        return jsonify(get_sector_rotation())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/status")
 def status_page():
     return render_template("status.html")
+
+@app.route("/api/status/health")
+def health_check():
+    """システムヘルスチェック"""
+    import subprocess
+    checks = {}
+
+    # yfinance疎通確認
+    try:
+        info = yf.Ticker("AAPL").fast_info
+        price = float(getattr(info, "last_price", None) or 0)
+        checks["yfinance"] = {"ok": price > 0, "value": f"AAPL ${price:.2f}"}
+    except Exception as e:
+        checks["yfinance"] = {"ok": False, "error": str(e)}
+
+    # systemd サービス状態
+    try:
+        out = subprocess.check_output(
+            ["systemctl", "is-active", "stock-chart.service"],
+            text=True, timeout=5
+        ).strip()
+        checks["service"] = {"ok": out == "active", "value": out}
+    except Exception as e:
+        checks["service"] = {"ok": False, "error": str(e)}
+
+    # データファイル確認
+    for fname in ["paper_trades.json", "watchlist.json"]:
+        fpath = os.path.join(DATA_DIR, fname)
+        checks[fname] = {"ok": os.path.exists(fpath)}
+
+    # 最終データ更新時刻（status.json）
+    status_path = os.path.join(DATA_DIR, "status.json")
+    if os.path.exists(status_path):
+        mtime = os.path.getmtime(status_path)
+        checks["last_update"] = {
+            "ok": True,
+            "value": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+        }
+    else:
+        checks["last_update"] = {"ok": False, "value": "status.json なし"}
+
+    all_ok = all(v.get("ok", False) for v in checks.values())
+    return jsonify({
+        "status": "ok" if all_ok else "degraded",
+        "checks": checks,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    })
 
 @app.route("/api/status")
 def status_api():
@@ -608,15 +696,25 @@ def signal():
 
 
 from signal_engine import generate_signal, scan_opportunities
-from scanner import scan_momentum, scan_premarket, scan_top_movers
+from scanner import (
+    scan_momentum, scan_premarket, scan_top_movers,
+    scan_52w_breakout, scan_volume_surge, scan_rsi_extreme,
+)
 
 @app.route("/api/signal/advanced")
 def signal_advanced_api():
     ticker = request.args.get("ticker", "AAPL").upper()
     try:
-        return jsonify(generate_signal(ticker))
+        cache_key = f"signal_advanced_{ticker}"
+        cached = _app_cache_get(cache_key, ttl=300)  # 5分キャッシュ
+        if cached is not None:
+            return jsonify(cached)
+        result = generate_signal(ticker)
+        if not result.get("error"):
+            _app_cache_set(cache_key, result)
+        return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "ticker": ticker}), 500
 
 @app.route("/api/scan/opportunities")
 def opportunities_api():
@@ -651,8 +749,36 @@ def top_movers_api():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/scan/52w-breakout")
+def scan_52w_breakout_api():
+    try:
+        results = scan_52w_breakout()
+        return jsonify({"results": results, "count": len(results)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-from paper_trading import get_portfolio, open_trade, close_trade, get_performance, calc_position_size, check_stop_losses, update_daily_pnl
+@app.route("/api/scan/volume-surge")
+def scan_volume_surge_api():
+    try:
+        results = scan_volume_surge()
+        return jsonify({"results": results, "count": len(results)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/scan/rsi-extreme")
+def scan_rsi_extreme_api():
+    try:
+        results = scan_rsi_extreme()
+        return jsonify({"results": results, "count": len(results)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+from paper_trading import (
+    get_portfolio, open_trade, close_trade, get_performance,
+    calc_position_size, check_stop_losses, update_daily_pnl,
+    update_position, reset_paper_trading,
+)
 
 @app.route("/journal")
 def journal_page():
@@ -719,6 +845,34 @@ def journal_close():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/journal/performance")
+def get_performance_api():
+    try:
+        return jsonify(get_performance())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/journal/position/<position_id>", methods=["PATCH"])
+def update_position_api(position_id):
+    try:
+        data = request.get_json()
+        result = update_position(
+            position_id,
+            stop_loss=float(data["stop_loss"]) if data.get("stop_loss") is not None else None,
+            target=float(data["target"]) if data.get("target") is not None else None,
+            memo=data.get("memo"),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/journal/reset", methods=["POST"])
+def reset_journal():
+    try:
+        return jsonify(reset_paper_trading())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/scanner")
 def scanner_page():
@@ -728,6 +882,85 @@ def scanner_page():
 @app.route("/ptcg")
 def ptcg():
     return render_template("ptcg.html")
+
+
+# ---------------------------------------------------------------------------
+# ウォッチリスト
+# ---------------------------------------------------------------------------
+
+@app.route("/watchlist")
+def watchlist_page():
+    return render_template("watchlist.html")
+
+
+@app.route("/api/watchlist", methods=["GET"])
+def get_watchlist():
+    """ウォッチリスト取得（各銘柄の現在価格・変動率・AIシグナルも含む）"""
+    with _watchlist_lock:
+        wl = _load_watchlist()
+    tickers = wl.get("tickers", [])
+
+    result = []
+    for ticker in tickers:
+        entry = {"ticker": ticker, "price": None, "change_pct": None,
+                 "signal": None, "score": None, "updated": None, "error": None}
+        try:
+            info = yf.Ticker(ticker).fast_info
+            price = float(getattr(info, "last_price", None) or 0)
+            prev = float(getattr(info, "previous_close", None) or 0)
+            if price > 0:
+                entry["price"] = round(price, 2)
+            if price > 0 and prev > 0:
+                entry["change_pct"] = round((price - prev) / prev * 100, 2)
+        except Exception as e:
+            entry["error"] = str(e)
+
+        # シグナルはキャッシュ優先（TTL 5分）
+        cache_key = f"watchlist_signal_{ticker}"
+        sig_cached = _app_cache_get(cache_key, ttl=300)
+        if sig_cached is not None:
+            entry["signal"] = sig_cached.get("signal")
+            entry["score"] = sig_cached.get("score")
+        else:
+            try:
+                from signal_engine import generate_signal as _gen_sig
+                sig = _gen_sig(ticker)
+                entry["signal"] = sig.get("signal")
+                entry["score"] = sig.get("total_score")
+                _app_cache_set(cache_key, {"signal": entry["signal"], "score": entry["score"]})
+            except Exception:
+                pass
+
+        entry["updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        result.append(entry)
+
+    return jsonify({"tickers": result})
+
+
+@app.route("/api/watchlist", methods=["POST"])
+def add_to_watchlist():
+    """銘柄追加 {"ticker": "AAPL"}"""
+    data = request.get_json() or {}
+    ticker = data.get("ticker", "").upper().strip()
+    if not ticker:
+        return jsonify({"error": "ticker is required"}), 400
+    with _watchlist_lock:
+        wl = _load_watchlist()
+        if ticker not in wl["tickers"]:
+            wl["tickers"].append(ticker)
+            _save_watchlist(wl)
+    return jsonify({"ok": True, "tickers": wl["tickers"]})
+
+
+@app.route("/api/watchlist/<ticker>", methods=["DELETE"])
+def remove_from_watchlist(ticker):
+    """銘柄削除"""
+    ticker = ticker.upper().strip()
+    with _watchlist_lock:
+        wl = _load_watchlist()
+        wl["tickers"] = [t for t in wl["tickers"] if t != ticker]
+        _save_watchlist(wl)
+    return jsonify({"ok": True, "tickers": wl["tickers"]})
 
 
 if __name__ == "__main__":

@@ -399,6 +399,7 @@
     <a href="/journal" class="g-nav-link">📒 日誌</a>
     <a href="/guide" class="g-nav-link">📖 ガイド</a>
     <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
     <div class="ticker-search">
       <input id="ticker-input" type="text" placeholder="AAPL" value="AAPL">
       <button class="btn-analyze" onclick="runAnalysis()">分析</button>
@@ -702,7 +703,7 @@
       } catch (e) {
         loadEl.style.display = "none";
         errEl.style.display  = "block";
-        errEl.textContent    = `センチメント取得エラー: ${e.message}`;
+        errEl.textContent    = `データを取得できませんでした。再試行してください。（センチメント: ${e.message}）`;
       }
     }
 
@@ -802,7 +803,7 @@
       } catch (e) {
         loadEl.style.display = "none";
         errEl.style.display  = "block";
-        errEl.textContent    = `ファンダメンタルズ取得エラー: ${e.message}`;
+        errEl.textContent    = `データを取得できませんでした。再試行してください。（ファンダメンタルズ: ${e.message}）`;
       }
     }
 
@@ -834,7 +835,7 @@
       } catch (e) {
         loadEl.style.display = "none";
         errEl.style.display  = "block";
-        errEl.textContent    = `チャート取得エラー: ${e.message}`;
+        errEl.textContent    = `データを取得できませんでした。再試行してください。（チャート: ${e.message}）`;
       }
     }
 
@@ -988,7 +989,7 @@
       } catch (e) {
         loadEl.style.display = "none";
         errEl.style.display  = "block";
-        errEl.textContent    = `決算データ取得エラー: ${e.message}`;
+        errEl.textContent    = `データを取得できませんでした。再試行してください。（決算: ${e.message}）`;
       }
     }
 

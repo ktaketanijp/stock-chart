@@ -265,17 +265,31 @@ def _score_to_signal(total_score: float):
 # ---------------------------------------------------------------------------
 
 def generate_signal(ticker: str) -> dict:
-    """3層を統合して総合シグナルを返す。"""
+    """3層を統合して総合シグナルを返す。テクニカル・ファンダメンタル・センチメントを並列実行。"""
     ticker = ticker.upper().strip()
 
     technical_weight = 0.20
     fundamental_weight = 0.40
     sentiment_weight = 0.40
 
-    # 各スコア取得
-    tech = get_technical_score(ticker)
-    fund = get_fundamental_score(ticker)
-    sent = get_sentiment_score_for_signal(ticker)
+    # 各スコアを並列取得（ThreadPoolExecutor で同時実行）
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_tech  = executor.submit(get_technical_score, ticker)
+        future_fund  = executor.submit(get_fundamental_score, ticker)
+        future_sent  = executor.submit(get_sentiment_score_for_signal, ticker)
+        try:
+            tech = future_tech.result(timeout=30)
+        except Exception as e:
+            tech = {"score": 0, "error": str(e), "details": {}, "reasons": []}
+        try:
+            fund = future_fund.result(timeout=30)
+        except Exception as e:
+            fund = {"score": 50, "canslim_score": 50, "sepa_score": 50,
+                    "reasons": [f"ファンダメンタルズ取得失敗: {str(e)[:80]}"], "error": str(e)}
+        try:
+            sent = future_sent.result(timeout=30)
+        except Exception as e:
+            sent = {"score": 0, "reasons": [f"センチメント取得失敗: {str(e)[:80]}"], "error": str(e)}
 
     tech_score = _safe_float(tech.get("score"), 0)
     # fundamental は 0〜100 → -100〜+100 に変換

@@ -486,6 +486,7 @@
     <a href="/journal" class="g-nav-link">📒 日誌</a>
     <a href="/guide" class="g-nav-link">📖 ガイド</a>
     <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
   </nav>
   <header>
     <div class="search-wrap">
@@ -1028,7 +1029,7 @@
 
     function showError(msg) {
       const el = document.getElementById("error-msg");
-      el.textContent = `エラー: ${msg}`;
+      el.textContent = `データを取得できませんでした。再試行してください。（${msg}）`;
       el.style.display = "block";
       document.getElementById("placeholder").style.display = "none";
     }

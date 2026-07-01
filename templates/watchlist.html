@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ウォッチリスト — StockChart</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid #30363d;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: #8b949e;
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
+    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+
+    /* === ページ本体 === */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-bottom: 20px;
+    }
+
+    /* === 追加フォーム === */
+    .add-form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .add-form input {
+      flex: 1;
+      min-width: 180px;
+      max-width: 280px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #e6edf3;
+      font-size: 14px;
+      padding: 9px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      text-transform: uppercase;
+    }
+    .add-form input:focus { border-color: #58a6ff; }
+    .add-form input::placeholder { text-transform: none; color: #8b949e; }
+    .btn {
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #2ea043; }
+    .btn:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+    .btn-refresh {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+    }
+    .btn-refresh:hover { background: #30363d; }
+
+    /* === メッセージ === */
+    .msg { font-size: 13px; color: #8b949e; margin-bottom: 16px; }
+    .msg.error { color: #f85149; }
+
+    /* === テーブル === */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    thead th {
+      background: #161b22;
+      color: #8b949e;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid #30363d;
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid #21262d;
+      transition: background .1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #161b22; }
+    td {
+      padding: 13px 16px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .ticker-cell {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+    }
+
+    .price-cell { font-weight: 600; font-size: 15px; }
+
+    .change-cell { font-weight: 600; }
+    .change-pos { color: #3fb950; }
+    .change-neg { color: #f85149; }
+    .change-zero { color: #8b949e; }
+
+    /* シグナルバッジ */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .03em;
+    }
+    .badge-STRONG_BUY  { background: #0a4429; color: #3fb950; border: 1px solid #238636; }
+    .badge-BUY         { background: rgba(63,185,80,0.12); color: #3fb950; border: 1px solid rgba(63,185,80,0.3); }
+    .badge-NEUTRAL     { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+    .badge-SELL        { background: rgba(248,81,73,0.12); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .badge-STRONG_SELL { background: #3d0e0a; color: #f85149; border: 1px solid #6e1b18; }
+    .badge-null        { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+
+    .score-cell { color: #c9d1d9; font-size: 13px; }
+
+    .link-cell a {
+      color: #58a6ff;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .link-cell a:hover { text-decoration: underline; }
+
+    .del-btn {
+      background: none;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .del-btn:hover { border-color: #f85149; color: #f85149; }
+
+    .empty-row td {
+      text-align: center;
+      color: #8b949e;
+      padding: 40px;
+      font-size: 14px;
+    }
+
+    /* ローディングスケルトン */
+    .skeleton {
+      display: inline-block;
+      background: #21262d;
+      border-radius: 4px;
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+      0%  { opacity: .5; }
+      50% { opacity: 1;  }
+      100%{ opacity: .5; }
+    }
+
+    .updated-info {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 14px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link">📊 分析</a>
+    <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/watchlist" class="g-nav-link active">⭐ ウォッチリスト</a>
+  </nav>
+
+  <div class="container">
+    <h1>⭐ ウォッチリスト</h1>
+
+    <div class="add-form">
+      <input type="text" id="ticker-input" placeholder="銘柄コードを入力 (例: AAPL)" maxlength="20">
+      <button class="btn" id="add-btn" onclick="addTicker()">追加</button>
+      <button class="btn btn-refresh" id="refresh-btn" onclick="loadWatchlist(true)">更新</button>
+    </div>
+
+    <div class="msg" id="status-msg"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>銘柄</th>
+            <th>現在値</th>
+            <th>変動率</th>
+            <th>AIシグナル</th>
+            <th>スコア</th>
+            <th>分析</th>
+            <th>削除</th>
+          </tr>
+        </thead>
+        <tbody id="watchlist-body">
+          <tr class="empty-row"><td colspan="7">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="updated-info" id="updated-info"></div>
+  </div>
+
+  <script>
+    let autoRefreshTimer = null;
+    const AUTO_REFRESH_SEC = 30;
+
+    function signalLabel(sig) {
+      const map = {
+        STRONG_BUY:  '強買',
+        BUY:         '買い',
+        NEUTRAL:     '中立',
+        SELL:        '売り',
+        STRONG_SELL: '強売',
+      };
+      return map[sig] || (sig || '—');
+    }
+
+    function badgeClass(sig) {
+      if (!sig) return 'badge-null';
+      return 'badge-' + sig;
+    }
+
+    function changeCellClass(pct) {
+      if (pct === null || pct === undefined) return 'change-zero';
+      if (pct > 0) return 'change-pos';
+      if (pct < 0) return 'change-neg';
+      return 'change-zero';
+    }
+
+    function formatChange(pct) {
+      if (pct === null || pct === undefined) return '—';
+      const sign = pct >= 0 ? '+' : '';
+      return sign + pct.toFixed(2) + '%';
+    }
+
+    function formatPrice(price) {
+      if (price === null || price === undefined) return '—';
+      return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function renderRow(item) {
+      const changeClass = changeCellClass(item.change_pct);
+      const bClass = badgeClass(item.signal);
+      const scoreText = item.score !== null && item.score !== undefined ? item.score : '—';
+      return `
+        <tr>
+          <td class="ticker-cell">${escHtml(item.ticker)}</td>
+          <td class="price-cell">${formatPrice(item.price)}</td>
+          <td class="change-cell ${changeClass}">${formatChange(item.change_pct)}</td>
+          <td><span class="badge ${bClass}">${signalLabel(item.signal)}</span></td>
+          <td class="score-cell">${scoreText}</td>
+          <td class="link-cell"><a href="/?ticker=${encodeURIComponent(item.ticker)}" target="_blank">チャート</a>
+            &nbsp;|&nbsp;
+            <a href="/analysis?ticker=${encodeURIComponent(item.ticker)}" target="_blank">分析</a>
+          </td>
+          <td><button class="del-btn" onclick="removeTicker('${escHtml(item.ticker)}')">削除</button></td>
+        </tr>
+      `;
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function setStatus(msg, isError) {
+      const el = document.getElementById('status-msg');
+      el.textContent = msg;
+      el.className = 'msg' + (isError ? ' error' : '');
+    }
+
+    async function loadWatchlist(showRefreshing) {
+      if (showRefreshing) setStatus('更新中...', false);
+      clearTimeout(autoRefreshTimer);
+
+      try {
+        const res = await fetch('/api/watchlist');
+        const data = await res.json();
+        const tbody = document.getElementById('watchlist-body');
+
+        if (!data.tickers || data.tickers.length === 0) {
+          tbody.innerHTML = '<tr class="empty-row"><td colspan="7">ウォッチリストは空です。銘柄コードを入力して追加してください。</td></tr>';
+        } else {
+          tbody.innerHTML = data.tickers.map(renderRow).join('');
+        }
+
+        // 更新時刻
+        const lastUpdated = data.tickers.length > 0 ? data.tickers[0].updated : null;
+        document.getElementById('updated-info').textContent = lastUpdated
+          ? '最終更新: ' + lastUpdated + '　(30秒ごとに自動更新)'
+          : '';
+        if (showRefreshing) setStatus('', false);
+      } catch (err) {
+        setStatus('データ取得に失敗しました: ' + err.message, true);
+      }
+
+      // 30秒後に自動更新
+      autoRefreshTimer = setTimeout(() => loadWatchlist(false), AUTO_REFRESH_SEC * 1000);
+    }
+
+    async function addTicker() {
+      const input = document.getElementById('ticker-input');
+      const ticker = input.value.trim().toUpperCase();
+      if (!ticker) { setStatus('銘柄コードを入力してください', true); return; }
+
+      const btn = document.getElementById('add-btn');
+      btn.disabled = true;
+      setStatus('追加中...', false);
+
+      try {
+        const res = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          setStatus('エラー: ' + data.error, true);
+        } else {
+          input.value = '';
+          setStatus(ticker + ' を追加しました', false);
+          loadWatchlist(false);
+        }
+      } catch (err) {
+        setStatus('追加に失敗しました: ' + err.message, true);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function removeTicker(ticker) {
+      if (!confirm(ticker + ' をウォッチリストから削除しますか？')) return;
+
+      try {
+        const res = await fetch('/api/watchlist/' + encodeURIComponent(ticker), { method: 'DELETE' });
+        const data = await res.json();
+        if (data.error) {
+          setStatus('削除エラー: ' + data.error, true);
+        } else {
+          setStatus(ticker + ' を削除しました', false);
+          loadWatchlist(false);
+        }
+      } catch (err) {
+        setStatus('削除に失敗しました: ' + err.message, true);
+      }
+    }
+
+    // Enterキーで追加
+    document.getElementById('ticker-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') addTicker();
+    });
+
+    // 初回ロード
+    loadWatchlist(false);
+  </script>
+</body>
+</html>
