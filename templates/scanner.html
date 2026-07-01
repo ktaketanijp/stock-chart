@@ -652,6 +652,32 @@
       <div id="screen-results"></div>
     </div>
 
+    <!-- ウォッチリスト モメンタムランキング -->
+    <div class="card" id="momentum-rank-section">
+      <div class="card-title">ウォッチリスト モメンタムランキング</div>
+      <p style="font-size:0.8rem;color:#8b949e;margin-bottom:0.75rem">ウォッチリスト銘柄を総合スコアで順位付け</p>
+      <button class="btn btn-primary" onclick="loadMomentumRank()">
+        <div class="spinner" id="momentum-rank-spinner"></div>
+        ランキング更新
+      </button>
+
+      <div id="momentum-rank-result" style="margin-top:0.75rem;display:none">
+        <div class="table-wrap">
+          <table class="data-table" style="font-size:0.83rem">
+            <thead>
+              <tr>
+                <th>#</th><th>銘柄</th><th>価格</th>
+                <th>1週</th><th>1ヶ月</th><th>3ヶ月</th>
+                <th>RSI</th><th>スコア</th><th>シグナル</th>
+              </tr>
+            </thead>
+            <tbody id="momentum-rank-tbody"></tbody>
+          </table>
+        </div>
+        <button onclick="exportMomentumRank()" class="btn-sm" style="margin-top:0.5rem">&#x1F4E5; CSV出力</button>
+      </div>
+    </div>
+
     <!-- ファンダメンタルスクリーナー -->
     <div class="card" id="fundamental-screen-section">
       <div class="card-title">&#x1F3E2; ファンダメンタルスクリーナー</div>
@@ -1632,6 +1658,62 @@
           </table>
         </div>`;
       resultsDiv.innerHTML = html;
+    }
+
+    // ---- ウォッチリスト モメンタムランキング ----
+    let _momentumRankData = [];
+
+    async function loadMomentumRank() {
+      const spinner = document.getElementById('momentum-rank-spinner');
+      spinner.style.display = 'block';
+      document.getElementById('momentum-rank-result').style.display = 'none';
+
+      try {
+        const resp = await fetch('/api/watchlist/momentum-rank', { signal: AbortSignal.timeout(90000) });
+        const data = await resp.json();
+        if (data.error) {
+          alert('ウォッチリストを追加してください');
+          return;
+        }
+
+        _momentumRankData = data.rankings;
+        const tbody = document.getElementById('momentum-rank-tbody');
+        tbody.innerHTML = data.rankings.map((r, i) => `
+          <tr onclick="goToAnalysis('${escHtml(r.ticker)}')">
+            <td>${i + 1}</td>
+            <td><a href="/analysis?ticker=${encodeURIComponent(r.ticker)}" onclick="event.stopPropagation()" style="color:#58a6ff;text-decoration:none">${escHtml(r.ticker)}</a></td>
+            <td>$${r.price}</td>
+            <td style="color:${r.momentum_1w >= 0 ? '#3fb950' : '#f85149'}">
+              ${r.momentum_1w >= 0 ? '+' : ''}${r.momentum_1w}%
+            </td>
+            <td style="color:${r.momentum_1m >= 0 ? '#3fb950' : '#f85149'}">
+              ${r.momentum_1m >= 0 ? '+' : ''}${r.momentum_1m}%
+            </td>
+            <td style="color:${r.momentum_3m >= 0 ? '#3fb950' : '#f85149'}">
+              ${r.momentum_3m >= 0 ? '+' : ''}${r.momentum_3m}%
+            </td>
+            <td style="color:${r.rsi < 30 ? '#3fb950' : r.rsi > 70 ? '#f85149' : ''}">
+              ${r.rsi}
+            </td>
+            <td style="font-weight:600">${r.score}</td>
+            <td>
+              <span style="padding:0.1rem 0.4rem;border-radius:0.25rem;font-size:0.75rem;
+                background:${r.signal === 'BUY' ? '#15803d' : r.signal === 'WATCH' ? '#1d4ed8' : '#7c3aed'};
+                color:white">${r.signal === 'BUY' ? '買い' : r.signal === 'WATCH' ? '監視' : '注意'}</span>
+            </td>
+          </tr>
+        `).join('');
+
+        document.getElementById('momentum-rank-result').style.display = 'block';
+      } catch (e) {
+        showError(`モメンタムランキングエラー: ${e.message}`);
+      } finally {
+        spinner.style.display = 'none';
+      }
+    }
+
+    function exportMomentumRank() {
+      exportScannerToCSV(_momentumRankData, 'momentum_ranking.csv');
     }
 
     // ---- Init ----

@@ -1514,6 +1514,77 @@ def watchlist_performance():
     })
 
 
+@app.route("/api/watchlist/momentum-rank")
+def watchlist_momentum_rank():
+    """
+    ウォッチリスト銘柄をモメンタムスコアでランキング
+    買いシグナル順に並べる
+    """
+    watchlist = _load_watchlist()
+    tickers = watchlist.get("tickers", []) if isinstance(watchlist, dict) else watchlist
+
+    if not tickers:
+        return jsonify({"error": "ウォッチリストが空です"})
+
+    results = []
+    for ticker in tickers[:15]:
+        try:
+            hist = yf.Ticker(ticker).history(period="1y", interval="1d")
+            close = hist["Close"]
+
+            if len(close) < 50:
+                continue
+
+            price = float(close.iloc[-1])
+
+            # モメンタム（1週/1ヶ月/3ヶ月）
+            m1w = (price - float(close.iloc[-5])) / float(close.iloc[-5]) * 100 if len(close) >= 5 else 0
+            m1m = (price - float(close.iloc[-21])) / float(close.iloc[-21]) * 100 if len(close) >= 21 else 0
+            m3m = (price - float(close.iloc[-63])) / float(close.iloc[-63]) * 100 if len(close) >= 63 else 0
+
+            # RSI（インライン計算）
+            delta = close.diff()
+            gain = delta.clip(lower=0).ewm(com=13, min_periods=14).mean()
+            loss = (-delta.clip(upper=0)).ewm(com=13, min_periods=14).mean()
+            rsi_series = 100 - (100 / (1 + gain / loss))
+            rsi = float(rsi_series.iloc[-1]) if pd.notna(rsi_series.iloc[-1]) else 50
+
+            # MA配置
+            ma20 = float(close.rolling(20).mean().iloc[-1])
+            ma50 = float(close.rolling(50).mean().iloc[-1])
+            above_ma = bool(price > ma20 > ma50)
+
+            # 総合スコア（-100〜+100）
+            score = 0
+            score += m1w * 2
+            score += m1m * 1.5
+            score += m3m * 0.5
+            if rsi < 40:
+                score += 15  # 売られすぎ（反発期待）
+            elif rsi > 70:
+                score -= 15  # 買われすぎ
+            if above_ma:
+                score += 10  # トレンド良好
+
+            results.append({
+                "ticker": ticker,
+                "price": round(price, 2),
+                "momentum_1w": round(m1w, 2),
+                "momentum_1m": round(m1m, 2),
+                "momentum_3m": round(m3m, 2),
+                "rsi": round(rsi, 1),
+                "above_ma": above_ma,
+                "score": round(score, 1),
+                "signal": "BUY" if score > 20 else "WATCH" if score > 0 else "CAUTION",
+            })
+        except Exception:
+            continue
+
+    results.sort(key=lambda x: -x["score"])
+
+    return jsonify({"rankings": results, "count": len(results)})
+
+
 # ---------------------------------------------------------------------------
 # 経済カレンダー
 # ---------------------------------------------------------------------------

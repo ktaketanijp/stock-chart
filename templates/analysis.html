@@ -837,6 +837,7 @@
           </table>
         </div>
         <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">※ ITM=イン・ザ・マネー（現在価格より有利な行使価格）</p>
+        <div id="options-strategy" style="margin-top:0.75rem"></div>
       </div>
 
       <!-- アナリスト目標・VWAP・フィボナッチ -->
@@ -904,6 +905,10 @@
     let refreshTimer = null;
     let refreshCountdown = 300;
     let currentTicker = "AAPL";
+
+    // オプション戦略アドバイス用グローバル変数
+    let _lastRsi = 50;
+    let _lastMomentum = 0;
 
     const tickerInput = document.getElementById("ticker-input");
     tickerInput.addEventListener("keydown", (e) => {
@@ -1273,6 +1278,12 @@
 
         renderAnalysisChart(data);
         renderAnalysisVolume(data);
+
+        // RSI最終値をグローバル変数に保存（オプション戦略で使用）
+        const rsiArr = data.rsi || [];
+        if (rsiArr.length > 0) {
+          _lastRsi = rsiArr[rsiArr.length - 1].y;
+        }
 
         const atrVal  = data.atr || 0;
         const price   = data.current_price || 0;
@@ -1741,6 +1752,7 @@
         // モメンタム
         const mom = data.momentum || {};
         const momScore = mom.score ?? 0;
+        _lastMomentum = momScore;  // オプション戦略で使用
         const momEl = document.getElementById('risk-momentum');
         momEl.textContent = momScore;
         momEl.style.color = momScore > 5 ? 'var(--positive)' : momScore < -5 ? 'var(--negative)' : 'var(--text-secondary)';
@@ -1969,6 +1981,47 @@
       }
     }
 
+    // ---- オプション戦略アドバイス ----
+    function generateOptionsStrategy(optData, rsiValue, momentumScore) {
+      const pcr = optData.summary?.put_call_ratio || 0;
+      const strategies = [];
+
+      if (rsiValue < 35 && momentumScore < 0) {
+        strategies.push({
+          name: 'Covered Put',
+          desc: 'RSI売られすぎ水準。反発を待って買いポジション',
+          risk: '低',
+          bg: '#15803d',
+        });
+      }
+      if (pcr > 1.2) {
+        strategies.push({
+          name: 'Bull Put Spread',
+          desc: `PCR=${pcr}（プット優勢）。市場の下落懸念が過剰かも`,
+          risk: '中',
+          bg: '#1d4ed8',
+        });
+      }
+      if (rsiValue > 65 && momentumScore > 10) {
+        strategies.push({
+          name: 'Protective Put',
+          desc: '高騰後の保険。下落ヘッジにプット購入を検討',
+          risk: '低',
+          bg: '#7c3aed',
+        });
+      }
+      if (!strategies.length) {
+        strategies.push({
+          name: '様子見',
+          desc: '現在は明確な戦略シグナルなし',
+          risk: '—',
+          bg: '#374151',
+        });
+      }
+
+      return strategies;
+    }
+
     // ---- オプションチェーン ----
     let _optionsData = null;
     let _optionsTab = 'calls';
@@ -2012,6 +2065,20 @@
         }
 
         renderOptionsTable();
+
+        // オプション戦略アドバイスを生成
+        const strategies = generateOptionsStrategy(data, _lastRsi, _lastMomentum);
+        document.getElementById('options-strategy').innerHTML = `
+          <h4 style="font-size:0.85rem;margin-bottom:0.4rem;color:var(--text-secondary)">推奨戦略</h4>
+          ${strategies.map(s => `
+            <div style="display:inline-block;padding:0.3rem 0.6rem;border-radius:0.25rem;
+                        background:${s.bg};color:white;font-size:0.8rem;margin:0.15rem">
+              <strong>${escHtml(s.name)}</strong>
+              <span style="opacity:0.85"> — ${escHtml(s.desc)}</span>
+              <span style="opacity:0.7"> [リスク: ${escHtml(s.risk)}]</span>
+            </div>
+          `).join('')}
+        `;
       } catch (e) {
         document.getElementById('options-expiry').textContent = `取得エラー: ${escHtml(e.message)}`;
         document.getElementById('options-tbody').innerHTML = '';
