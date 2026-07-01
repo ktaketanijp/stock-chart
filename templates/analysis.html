@@ -473,6 +473,21 @@
       color: var(--accent);
       font-weight: 600;
     }
+    .btn-xs {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 3px 8px;
+      transition: all 0.15s;
+    }
+    .btn-xs:hover {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
     .data-table {
       width: 100%;
       border-collapse: collapse;
@@ -638,8 +653,23 @@
         <div class="card-title">Section 4 — テクニカルチャート</div>
         <div id="chart-loading"><span class="inline-spinner"></span> チャートデータ取得中...</div>
         <div id="chart-content" style="display:none">
-          <div class="chart-container"><canvas id="analysisCandle"></canvas></div>
-          <div class="volume-container"><canvas id="analysisVolume"></canvas></div>
+          <!-- チャートタイプ切替ボタン -->
+          <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;flex-wrap:wrap">
+            <button class="btn-sm active" id="chart-type-line" onclick="setChartType('line')">折れ線</button>
+            <button class="btn-sm" id="chart-type-candle" onclick="setChartType('candle')">ローソク足</button>
+            <div style="margin-left:auto;display:flex;gap:0.25rem">
+              <button class="btn-xs" onclick="setPeriod('1mo')">1ヶ月</button>
+              <button class="btn-xs" onclick="setPeriod('3mo')">3ヶ月</button>
+              <button class="btn-xs" onclick="setPeriod('1y')">1年</button>
+            </div>
+          </div>
+          <!-- 既存の折れ線チャート -->
+          <div id="line-chart-section">
+            <div class="chart-container"><canvas id="analysisCandle"></canvas></div>
+            <div class="volume-container"><canvas id="analysisVolume"></canvas></div>
+          </div>
+          <!-- ローソク足チャート（Canvas API） -->
+          <canvas id="candleChart" style="display:none;max-height:350px"></canvas>
           <div class="atr-info" id="atr-info"></div>
         </div>
         <div class="error-box" id="chart-error" style="display:none"></div>
@@ -1976,11 +2006,114 @@
       }).join('');
     }
 
+    // ---- ローソク足チャート（Canvas API）----
+    let _currentTicker = null;
+    let _chartType = 'line';
+    let _chartPeriod = '3mo';
+
+    function setChartType(type) {
+      _chartType = type;
+      document.getElementById('chart-type-line').classList.toggle('active', type === 'line');
+      document.getElementById('chart-type-candle').classList.toggle('active', type === 'candle');
+      document.getElementById('line-chart-section').style.display = type === 'line' ? 'block' : 'none';
+      document.getElementById('candleChart').style.display = type === 'candle' ? 'block' : 'none';
+      if (type === 'candle' && _currentTicker) loadCandleChart(_currentTicker);
+    }
+
+    function setPeriod(period) {
+      _chartPeriod = period;
+      if (_currentTicker) {
+        if (_chartType === 'candle') loadCandleChart(_currentTicker);
+        if (_chartType === 'line') loadChart(_currentTicker);
+      }
+    }
+
+    async function loadCandleChart(ticker) {
+      const canvas = document.getElementById('candleChart');
+      const ctx = canvas.getContext('2d');
+
+      const resp = await fetch(`/api/chart/candles/${ticker}?period=${_chartPeriod}`);
+      const data = await resp.json();
+      if (!data.candles || data.candles.length === 0) return;
+
+      const candles = data.candles;
+      const W = canvas.parentElement.offsetWidth || 800;
+      const H = 350;
+      canvas.width = W;
+      canvas.height = H;
+
+      // 価格範囲
+      const prices = candles.flatMap(c => [c.h, c.l]);
+      const pMin = Math.min(...prices) * 0.995;
+      const pMax = Math.max(...prices) * 1.005;
+      const pRange = pMax - pMin;
+
+      // パディング
+      const padL = 10, padR = 10, padT = 20, padB = 30;
+      const chartW = W - padL - padR;
+      const chartH = H - padT - padB;
+
+      const candleW = Math.max(2, Math.floor(chartW / candles.length) - 1);
+
+      // 背景
+      const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--card-bg').trim() || '#1f2937';
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, W, H);
+
+      // グリッド線（水平）
+      ctx.strokeStyle = 'rgba(128,128,128,0.2)';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= 4; i++) {
+        const y = padT + chartH * (i / 4);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        const price = pMax - pRange * (i / 4);
+        ctx.fillStyle = 'rgba(156,163,175,0.8)';
+        ctx.font = '10px monospace';
+        ctx.fillText('$' + price.toFixed(0), padL + 2, y - 2);
+      }
+
+      // ローソク描画
+      candles.forEach((c, i) => {
+        const x = padL + (i / candles.length) * chartW + candleW / 2;
+        const yO = padT + (1 - (c.o - pMin) / pRange) * chartH;
+        const yC = padT + (1 - (c.c - pMin) / pRange) * chartH;
+        const yH = padT + (1 - (c.h - pMin) / pRange) * chartH;
+        const yL = padT + (1 - (c.l - pMin) / pRange) * chartH;
+
+        const isUp = c.c >= c.o;
+        const color = isUp ? '#22c55e' : '#ef4444';
+
+        // ヒゲ（高値-安値）
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, yH); ctx.lineTo(x, yL); ctx.stroke();
+
+        // 実体
+        ctx.fillStyle = color;
+        const bodyY = Math.min(yO, yC);
+        const bodyH = Math.max(2, Math.abs(yC - yO));
+        ctx.fillRect(x - candleW / 2, bodyY, candleW, bodyH);
+      });
+
+      // 最新価格ライン
+      const lastClose = candles[candles.length - 1].c;
+      const yLast = padT + (1 - (lastClose - pMin) / pRange) * chartH;
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(padL, yLast); ctx.lineTo(W - padR, yLast); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText('$' + lastClose.toFixed(2), W - padR - 60, yLast - 3);
+    }
+
     // ---- Main analysis runner ----
     async function runAnalysis() {
       const ticker = tickerInput.value.trim().toUpperCase();
       if (!ticker) return;
       currentTicker = ticker;
+      _currentTicker = ticker;
       localStorage.setItem('lastTicker', ticker);
 
       document.getElementById("global-loading").style.display = "block";

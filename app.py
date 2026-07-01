@@ -2993,5 +2993,61 @@ def ai_signal(ticker):
     return jsonify(sig)
 
 
+@app.route("/api/chart/candles/<ticker>")
+def candlestick_data(ticker):
+    """
+    ローソク足データ (OHLCV) を返す
+    ?period=3mo&interval=1d (デフォルト)
+    """
+    period = request.args.get("period", "3mo")
+    interval = request.args.get("interval", "1d")
+
+    hist = yf.Ticker(ticker.upper()).history(period=period, interval=interval)
+
+    if hist.empty:
+        return jsonify({"error": "データなし"})
+
+    candles = []
+    for dt, row in hist.iterrows():
+        candles.append({
+            "t": str(dt.date()),
+            "o": round(float(row["Open"]), 2),
+            "h": round(float(row["High"]), 2),
+            "l": round(float(row["Low"]), 2),
+            "c": round(float(row["Close"]), 2),
+            "v": int(row["Volume"]),
+        })
+
+    return jsonify({"ticker": ticker.upper(), "candles": candles, "period": period})
+
+
+@app.route("/api/market/movers")
+def market_movers():
+    """主要銘柄の当日騰落ランキング（上昇・下落トップ5）"""
+    MOVERS_TICKERS = [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+        "JPM", "BAC", "JNJ", "XOM", "WMT", "V", "MA", "AMD",
+        "PLTR", "SOFI", "MSTR", "COIN", "SMCI",
+    ]
+
+    data = []
+    for ticker in MOVERS_TICKERS:
+        try:
+            info = yf.Ticker(ticker).fast_info
+            price = float(info.last_price or 0)
+            prev = float(info.previous_close or info.last_price or 0)
+            change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+            data.append({"ticker": ticker, "price": round(price, 2), "change_pct": change_pct})
+        except Exception:
+            continue
+
+    data.sort(key=lambda x: -x["change_pct"])
+
+    return jsonify({
+        "gainers": data[:5],
+        "losers": list(reversed(data))[:5],
+    })
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

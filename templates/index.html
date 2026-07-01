@@ -617,6 +617,18 @@
     <div class="market-bar-item"><span>BTC</span><span id="bar-btc">--</span></div>
   </div>
 
+  <!-- トップムーバーセクション -->
+  <div id="movers-section" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:0.75rem 1rem;max-width:900px;margin:0 auto">
+    <div>
+      <h3 style="font-size:0.85rem;color:var(--positive);margin-bottom:0.4rem">上昇トップ5</h3>
+      <div id="gainers-list"></div>
+    </div>
+    <div>
+      <h3 style="font-size:0.85rem;color:var(--negative);margin-bottom:0.4rem">下落トップ5</h3>
+      <div id="losers-list"></div>
+    </div>
+  </div>
+
   <header>
     <div class="search-wrap">
       <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1483,6 +1495,40 @@
     }
 
     loadMarketBar();
+
+    // ---- トップムーバー ----
+    async function loadMovers() {
+      try {
+        const resp = await fetch('/api/market/movers');
+        const data = await resp.json();
+
+        function renderList(items, elId, isGainer) {
+          const el = document.getElementById(elId);
+          if (!items || items.length === 0) {
+            el.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary)">データなし</div>';
+            return;
+          }
+          el.innerHTML = items.map(item => `
+            <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border-color);font-size:0.82rem">
+              <a href="/analysis?ticker=${item.ticker}" style="font-weight:600;color:var(--accent);text-decoration:none">${item.ticker}</a>
+              <span style="color:var(--text-secondary)">$${item.price}</span>
+              <span style="color:${isGainer ? 'var(--positive)' : 'var(--negative)'};font-weight:600">
+                ${item.change_pct >= 0 ? '+' : ''}${item.change_pct}%
+              </span>
+            </div>
+          `).join('');
+        }
+
+        renderList(data.gainers, 'gainers-list', true);
+        renderList(data.losers, 'losers-list', false);
+      } catch(e) {
+        // 取得失敗時はセクションを非表示
+        const el = document.getElementById('movers-section');
+        if (el) el.style.display = 'none';
+      }
+    }
+
+    loadMovers();
   </script>
 </body>
 </html>
