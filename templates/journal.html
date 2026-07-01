@@ -271,6 +271,7 @@
   <a href="/journal" class="g-nav-link active">📒 日誌</a>
   <a href="/guide" class="g-nav-link">📖 ガイド</a>
   <a href="/status" class="g-nav-link">⚙️ 状況</a>
+  <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
 </nav>
 
 <!-- メイン -->
@@ -283,9 +284,12 @@
   </div>
 
   <!-- バナー -->
-  <div class="banner">
-    <h1>デモトレード日誌</h1>
-    <p>元手: <span class="highlight">¥100,000</span> &nbsp;→&nbsp; 目標: <span class="highlight">¥110,000（+10%）</span>&nbsp; 目標損益: <span class="highlight">¥10,000</span></p>
+  <div class="banner" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1>デモトレード日誌</h1>
+      <p>元手: <span class="highlight">¥100,000</span> &nbsp;→&nbsp; 目標: <span class="highlight">¥110,000（+10%）</span>&nbsp; 目標損益: <span class="highlight">¥10,000</span></p>
+    </div>
+    <button class="btn btn-danger" onclick="confirmReset()" style="white-space:nowrap;flex-shrink:0;">リセット</button>
   </div>
 
   <!-- パフォーマンスカード -->
@@ -358,6 +362,7 @@
   <div class="section">
     <div class="section-header">
       <span class="section-title">取引履歴</span>
+      <button class="btn btn-secondary" onclick="exportCSV()" style="font-size:12px;padding:5px 12px">CSVエクスポート</button>
     </div>
     <div class="table-wrap">
       <table id="trades-table">
@@ -368,14 +373,16 @@
             <th>売買</th>
             <th>エントリー</th>
             <th>出口</th>
+            <th>レート</th>
             <th>株数</th>
             <th>損益</th>
             <th>損益率</th>
+            <th>累計損益</th>
             <th>メモ</th>
           </tr>
         </thead>
         <tbody id="trades-tbody">
-          <tr class="empty-row"><td colspan="8">履歴なし</td></tr>
+          <tr class="empty-row"><td colspan="11">履歴なし</td></tr>
         </tbody>
       </table>
     </div>
@@ -454,6 +461,31 @@
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('close-modal')">キャンセル</button>
       <button class="btn btn-danger" onclick="submitClose()">クローズ</button>
+    </div>
+  </div>
+</div>
+
+<!-- === ポジション編集 モーダル === -->
+<div class="modal-backdrop" id="edit-modal">
+  <div class="modal">
+    <h2 id="edit-modal-title">ポジション編集</h2>
+    <input type="hidden" id="edit-position-id" />
+    <div class="form-group">
+      <label>損切ライン (USD)</label>
+      <input type="number" id="edit-stop-loss" placeholder="140.00" step="0.01" />
+    </div>
+    <div class="form-group">
+      <label>利確目標 (USD)</label>
+      <input type="number" id="edit-target" placeholder="165.00" step="0.01" />
+    </div>
+    <div class="form-group">
+      <label>メモ</label>
+      <textarea id="edit-memo" placeholder="例: SLを損益分岐点に移動。"></textarea>
+    </div>
+    <div class="error-msg" id="edit-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('edit-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitEdit()">更新</button>
     </div>
   </div>
 </div>
@@ -540,38 +572,56 @@ function renderPositions(positions) {
       <td class="neg">$${fmt(p.stop_loss)}</td>
       <td class="pos">$${fmt(p.target)}</td>
       <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:12px">${esc(p.reason || '—')}</td>
-      <td><button class="btn btn-danger" onclick="showCloseModal('${esc(p.id)}', '${esc(p.ticker)}', ${p.current_price || p.entry_price})">クローズ</button></td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-secondary" style="font-size:12px;padding:5px 10px;" onclick="showEditModal('${esc(p.id)}','${esc(p.ticker)}',${p.stop_loss||0},${p.target||0},'${esc(p.memo||'')}')">編集</button>
+        <button class="btn btn-danger" onclick="showCloseModal('${esc(p.id)}', '${esc(p.ticker)}', ${p.current_price || p.entry_price})">クローズ</button>
+      </td>
     </tr>`;
   }).join('');
 }
 
+// グローバルにトレードデータを保持（CSVエクスポート用）
+let _tradesCache = [];
+
 function renderTrades(trades) {
+  _tradesCache = trades;
   const tbody = document.getElementById('trades-tbody');
   if (!trades.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">取引履歴なし</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="11">取引履歴なし</td></tr>';
     return;
   }
-  const sorted = [...trades].reverse();
+  // 累計損益を古い順で計算してから新しい順で表示
+  let cumPnl = 0;
+  const withCum = trades.map(t => {
+    cumPnl += (t.realized_pnl || 0);
+    return { ...t, cumulative_pnl: cumPnl };
+  });
+  const sorted = [...withCum].reverse();
   tbody.innerHTML = sorted.map(t => {
     const pnl    = t.realized_pnl;
     const pnlPct = t.realized_pnl_pct ?? null;
+    const cum    = t.cumulative_pnl;
     const pnlStr = `<span class="${pnlClass(pnl)}">${fmtYen(pnl)}</span>`;
     const pctStr = pnlPct != null
       ? `<span class="${pnlClass(pnlPct)}">${pnlPct >= 0 ? '+' : ''}${fmt(pnlPct, 2)}%</span>`
       : '—';
+    const cumStr = `<span class="${pnlClass(cum)}">${fmtYen(cum)}</span>`;
     const rowStyle = t.win ? 'background:rgba(63,185,80,.04)' : 'background:rgba(248,81,73,.04)';
     const entryJpy = t.entry_price_jpy ? `<br><small style="color:#8b949e">¥${t.entry_price_jpy.toLocaleString()}</small>` : '';
     const exitJpy  = t.exit_price_jpy  ? `<br><small style="color:#8b949e">¥${t.exit_price_jpy.toLocaleString()}</small>` : '';
+    const exitRate = t.usd_jpy_rate_exit ? `¥${t.usd_jpy_rate_exit}` : '—';
     return `<tr style="${rowStyle}">
       <td>${esc(t.exit_date || '—')}</td>
       <td><span class="ticker-badge">${esc(t.ticker)}</span></td>
       <td>${t.win ? '<span class="pos">利確</span>' : '<span class="neg">損切</span>'}</td>
       <td>$${fmt(t.entry_price)}${entryJpy}</td>
       <td>$${fmt(t.exit_price)}${exitJpy}</td>
+      <td style="font-size:12px;color:#8b949e;">${esc(exitRate)}</td>
       <td>${t.shares.toLocaleString()}</td>
       <td>${pnlStr}</td>
       <td>${pctStr}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(t.memo || '—')}</td>
+      <td>${cumStr}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;">${esc(t.memo || '—')}</td>
     </tr>`;
   }).join('');
 }
@@ -766,6 +816,85 @@ async function submitClose() {
     closeModal('close-modal');
     await loadData();
   } catch(e) { showError('close-error', '送信エラー: ' + e.message); }
+}
+
+// ---- 編集モーダル ----
+function showEditModal(posId, ticker, stopLoss, target, memo) {
+  document.getElementById('edit-position-id').value = posId;
+  document.getElementById('edit-modal-title').textContent = `ポジション編集: ${ticker}`;
+  document.getElementById('edit-stop-loss').value = stopLoss || '';
+  document.getElementById('edit-target').value = target || '';
+  document.getElementById('edit-memo').value = memo || '';
+  showError('edit-error', '');
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+async function submitEdit() {
+  const position_id = document.getElementById('edit-position-id').value;
+  const stop_loss   = parseFloat(document.getElementById('edit-stop-loss').value) || null;
+  const target      = parseFloat(document.getElementById('edit-target').value) || null;
+  const memo        = document.getElementById('edit-memo').value.trim();
+
+  try {
+    const body = {};
+    if (stop_loss != null) body.stop_loss = stop_loss;
+    if (target != null)    body.target    = target;
+    body.memo = memo;
+    const res = await fetch(`/api/journal/position/${encodeURIComponent(position_id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const json = await res.json();
+    if (json.error) { showError('edit-error', json.error); return; }
+    closeModal('edit-modal');
+    await loadData();
+  } catch(e) { showError('edit-error', '送信エラー: ' + e.message); }
+}
+
+// ---- リセット ----
+async function confirmReset() {
+  if (!confirm('デモ口座を初期状態（¥100,000）にリセットします。\nすべてのポジション・取引履歴・損益記録が削除されます。\n\n本当にリセットしますか？')) return;
+  try {
+    const res = await fetch('/api/journal/reset', { method: 'POST' });
+    const json = await res.json();
+    if (json.error) { alert('エラー: ' + json.error); return; }
+    alert('リセット完了。元手 ¥100,000 に戻しました。');
+    await loadData();
+  } catch(e) { alert('通信エラー: ' + e.message); }
+}
+
+// ---- CSVエクスポート ----
+function exportCSV() {
+  if (!_tradesCache.length) { alert('取引履歴がありません。'); return; }
+  const headers = ['日付','銘柄','売買','エントリー(USD)','エントリー(JPY)','出口(USD)','出口(JPY)','レート','株数','損益(JPY)','損益率(%)','累計損益(JPY)','メモ'];
+  let cumPnl = 0;
+  const rows = _tradesCache.map(t => {
+    cumPnl += (t.realized_pnl || 0);
+    return [
+      t.exit_date || '',
+      t.ticker,
+      t.win ? '利確' : '損切',
+      t.entry_price,
+      t.entry_price_jpy || '',
+      t.exit_price,
+      t.exit_price_jpy || '',
+      t.usd_jpy_rate_exit || '',
+      t.shares,
+      t.realized_pnl,
+      t.realized_pnl_pct ?? '',
+      cumPnl,
+      (t.memo || '').replace(/,/g, '、'),
+    ];
+  });
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `paper_trades_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---- XSS対策 ----

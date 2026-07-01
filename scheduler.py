@@ -144,6 +144,24 @@ def hourly_update():
         print(f"  ステータスエラー: {e}")
 
 
+def check_price_alerts():
+    """5分ごと: 価格アラートチェック"""
+    try:
+        import sys
+        sys.path.insert(0, "/home/ec2-user/stock-chart")
+        from alerts import check_alerts
+        triggered = check_alerts()
+        if triggered:
+            print(f"[{jst_now().strftime('%H:%M JST')}] アラート発動: {len(triggered)}件")
+            for a in triggered:
+                cond = "以上" if a["condition"] == "above" else "以下"
+                print(f"  {a['ticker']} ${a['triggered_price']} (設定: ${a['price']} {cond})")
+        else:
+            print(f"[{jst_now().strftime('%H:%M JST')}] アラートチェック完了（発動なし）")
+    except Exception as e:
+        print(f"  アラートチェックエラー: {e}")
+
+
 def save_report(name: str, data: dict):
     path = f"/home/ec2-user/stock-chart/data/reports/{name}_{jst_now().strftime('%Y%m%d')}.json"
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -153,6 +171,7 @@ def save_report(name: str, data: dict):
 
 if __name__ == "__main__":
     # スケジュール登録
+    schedule.every(5).minutes.do(check_price_alerts)
     schedule.every(1).hours.do(hourly_update)
     schedule.every().day.at("07:30").do(morning_scan)
     schedule.every().day.at("08:00").do(morning_research)

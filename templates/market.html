@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>今日の市場 — StockChart</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: #58a6ff;
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid #30363d;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: #8b949e;
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
+    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+
+    /* === メインコンテンツ === */
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #e6edf3;
+    }
+    .page-subtitle {
+      font-size: 13px;
+      color: #8b949e;
+      margin-top: 4px;
+    }
+    .update-info {
+      font-size: 12px;
+      color: #8b949e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 4px 10px;
+      transition: all 0.15s;
+    }
+    .refresh-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
+    /* === セクションタイトル === */
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #8b949e;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #21262d;
+    }
+
+    /* === ① 主要指数グリッド === */
+    .indices-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 1100px) { .indices-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 600px)  { .indices-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .index-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px;
+      transition: border-color 0.2s;
+    }
+    .index-card:hover { border-color: #58a6ff; }
+    .index-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .index-price {
+      font-size: 20px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-bottom: 6px;
+      line-height: 1;
+    }
+    .index-change {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .change-up   { color: #3fb950; }
+    .change-down { color: #f85149; }
+    .change-flat { color: #8b949e; }
+
+    .vix-badge {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .vix-low    { background: rgba(63,185,80,0.15);  color: #3fb950; }
+    .vix-mid    { background: rgba(210,153,34,0.15); color: #d19a26; }
+    .vix-high   { background: rgba(248,81,73,0.15);  color: #f85149; }
+
+    /* スケルトン */
+    .skeleton {
+      background: linear-gradient(90deg, #21262d 25%, #30363d 50%, #21262d 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+      height: 1em;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* === ② セクターパフォーマンス === */
+    .sectors-wrap {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 28px;
+    }
+    .sector-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px solid #21262d;
+    }
+    .sector-row:last-child { border-bottom: none; }
+    .sector-name {
+      font-size: 13px;
+      color: #e6edf3;
+      min-width: 100px;
+      flex-shrink: 0;
+    }
+    .sector-bar-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      position: relative;
+    }
+    .sector-bar-center {
+      width: 1px;
+      height: 16px;
+      background: #30363d;
+      flex-shrink: 0;
+    }
+    .sector-bar {
+      height: 14px;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+      min-width: 2px;
+    }
+    .sector-bar.pos { background: #3fb950; }
+    .sector-bar.neg { background: #f85149; }
+    .sector-pct {
+      font-size: 13px;
+      font-weight: 600;
+      min-width: 60px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .sector-symbol {
+      font-size: 11px;
+      color: #8b949e;
+      min-width: 40px;
+      flex-shrink: 0;
+    }
+
+    .sector-bar-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      height: 20px;
+      position: relative;
+    }
+    .sector-bar-bg {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 14px;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+      min-width: 2px;
+    }
+    .sector-bar-bg.pos { background: #3fb950; transform: translateY(-50%); }
+    .sector-bar-bg.neg {
+      background: #f85149;
+      transform: translateY(-50%);
+      right: 50%;
+      left: auto;
+    }
+
+    /* === ③ ウォッチリスト速報 === */
+    .watchlist-wrap {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 28px;
+    }
+    .watchlist-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .wl-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.15s;
+    }
+    .wl-card:hover { border-color: #58a6ff; }
+    .wl-ticker {
+      font-size: 13px;
+      font-weight: 700;
+      color: #58a6ff;
+      margin-bottom: 4px;
+    }
+    .wl-price {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e6edf3;
+      margin-bottom: 4px;
+    }
+    .wl-change {
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .wl-signal {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      margin-top: 6px;
+      display: inline-block;
+    }
+    .sig-buy  { background: rgba(63,185,80,0.15);  color: #3fb950; }
+    .sig-sell { background: rgba(248,81,73,0.15);  color: #f85149; }
+    .sig-hold { background: rgba(88,166,255,0.1);  color: #58a6ff; }
+    .sig-none { background: rgba(139,148,158,0.1); color: #8b949e; }
+
+    .wl-empty {
+      color: #8b949e;
+      font-size: 13px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    /* === ローディング === */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid #30363d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* === セクターバーレイアウト補助 === */
+    .bar-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1px 1fr;
+      align-items: center;
+      height: 20px;
+      gap: 0;
+    }
+    .bar-left  { display: flex; justify-content: flex-end; }
+    .bar-right { display: flex; justify-content: flex-start; }
+    .bar-divider { background: #30363d; height: 14px; width: 1px; }
+  </style>
+</head>
+<body>
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link">📊 分析</a>
+    <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/market" class="g-nav-link active">🌐 市場</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
+  </nav>
+
+  <main>
+    <div class="page-header">
+      <div>
+        <div class="page-title">今日の市場</div>
+        <div class="page-subtitle">主要指数 / セクター / ウォッチリスト速報</div>
+      </div>
+      <div class="update-info">
+        <span id="last-updated">更新中...</span>
+        <button class="refresh-btn" onclick="refreshAll()">今すぐ更新</button>
+      </div>
+    </div>
+
+    <!-- ① 主要指数 -->
+    <div class="section-title">主要指数</div>
+    <div class="indices-grid" id="indices-grid">
+      <!-- JS で描画 -->
+      <div class="index-card"><div class="index-name">S&P 500</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+      <div class="index-card"><div class="index-name">NASDAQ</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+      <div class="index-card"><div class="index-name">Dow Jones</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+      <div class="index-card"><div class="index-name">Russell 2000</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+      <div class="index-card"><div class="index-name">VIX</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+      <div class="index-card"><div class="index-name">日経225</div><div class="skeleton" style="height:24px;margin-bottom:8px"></div><div class="skeleton" style="height:16px;width:60%"></div></div>
+    </div>
+
+    <!-- ② セクターパフォーマンス -->
+    <div class="section-title">セクターパフォーマンス（前日比）</div>
+    <div class="sectors-wrap">
+      <div id="sectors-list">
+        <div style="text-align:center;padding:20px;color:#8b949e"><span class="spinner"></span></div>
+      </div>
+    </div>
+
+    <!-- ③ ウォッチリスト速報 -->
+    <div class="section-title">ウォッチリスト速報</div>
+    <div class="watchlist-wrap">
+      <div class="watchlist-grid" id="watchlist-grid">
+        <div class="wl-empty"><span class="spinner"></span></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const REFRESH_INTERVAL = 60000; // 60秒
+
+    // ---- 主要指数 ----
+    async function loadIndices() {
+      try {
+        const res = await fetch('/api/market/overview');
+        const data = await res.json();
+        renderIndices(data.indices);
+      } catch (e) {
+        document.getElementById('indices-grid').innerHTML =
+          '<div style="color:#f85149;grid-column:1/-1;padding:16px">取得エラー: ' + e.message + '</div>';
+      }
+    }
+
+    function renderIndices(indices) {
+      const ORDER = ['S&P 500', 'NASDAQ', 'Dow Jones', 'Russell 2000', 'VIX', '日経225'];
+      const grid = document.getElementById('indices-grid');
+      grid.innerHTML = ORDER.map(name => {
+        const d = indices[name];
+        if (!d || d.price === null) {
+          return `<div class="index-card">
+            <div class="index-name">${name}</div>
+            <div class="index-price" style="font-size:14px;color:#8b949e">N/A</div>
+            <div class="index-change change-flat">—</div>
+          </div>`;
+        }
+
+        const pct = d.change_pct;
+        const cls = pct > 0 ? 'change-up' : pct < 0 ? 'change-down' : 'change-flat';
+        const sign = pct > 0 ? '+' : '';
+        const priceStr = name === '日経225'
+          ? d.price.toLocaleString('ja-JP', {minimumFractionDigits: 2})
+          : d.price.toLocaleString('en-US', {minimumFractionDigits: 2});
+
+        let extra = '';
+        if (name === 'VIX') {
+          const vixClass = d.price < 20 ? 'vix-low' : d.price < 30 ? 'vix-mid' : 'vix-high';
+          const vixLabel = d.price < 20 ? '低ボラ' : d.price < 30 ? '警戒' : '恐怖';
+          extra = `<span class="vix-badge ${vixClass}">${vixLabel}</span>`;
+        }
+
+        return `<div class="index-card">
+          <div class="index-name">${name}</div>
+          <div class="index-price">${priceStr}</div>
+          <div class="index-change ${cls}">
+            ${sign}${pct.toFixed(2)}% ${extra}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // ---- セクター ----
+    async function loadSectors() {
+      try {
+        const res = await fetch('/api/market/sectors');
+        const data = await res.json();
+        renderSectors(data.sectors);
+      } catch (e) {
+        document.getElementById('sectors-list').innerHTML =
+          '<div style="color:#f85149;padding:16px">取得エラー: ' + e.message + '</div>';
+      }
+    }
+
+    function renderSectors(sectors) {
+      // change_pct でソート（降順）
+      const entries = Object.entries(sectors).sort((a, b) => b[1].change_pct - a[1].change_pct);
+      const maxAbs = Math.max(...entries.map(([, v]) => Math.abs(v.change_pct)), 0.01);
+      const BAR_MAX_PX = 200; // 最大バー幅(px)
+
+      const list = document.getElementById('sectors-list');
+      list.innerHTML = entries.map(([name, d]) => {
+        const pct = d.change_pct;
+        const cls = pct > 0 ? 'change-up' : pct < 0 ? 'change-down' : 'change-flat';
+        const sign = pct > 0 ? '+' : '';
+        const barPx = Math.round(Math.abs(pct) / maxAbs * BAR_MAX_PX);
+        const isPos = pct >= 0;
+
+        // 左右均等レイアウト: 負はbar-left（右端に）、正はbar-right（左端から）
+        const leftBar  = isPos ? '' : `<div class="sector-bar neg" style="width:${barPx}px"></div>`;
+        const rightBar = isPos ? `<div class="sector-bar pos" style="width:${barPx}px"></div>` : '';
+
+        return `<div class="sector-row">
+          <span class="sector-name">${name}</span>
+          <div class="bar-layout">
+            <div class="bar-left">${leftBar}</div>
+            <div class="bar-divider"></div>
+            <div class="bar-right">${rightBar}</div>
+          </div>
+          <span class="sector-pct ${cls}">${sign}${pct.toFixed(2)}%</span>
+          <span class="sector-symbol">${d.symbol}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // ---- ウォッチリスト速報 ----
+    async function loadWatchlist() {
+      try {
+        const res = await fetch('/api/watchlist');
+        const data = await res.json();
+        renderWatchlist(data.tickers);
+      } catch (e) {
+        document.getElementById('watchlist-grid').innerHTML =
+          '<div class="wl-empty">取得エラー: ' + e.message + '</div>';
+      }
+    }
+
+    function renderWatchlist(tickers) {
+      const grid = document.getElementById('watchlist-grid');
+      if (!tickers || tickers.length === 0) {
+        grid.innerHTML = '<div class="wl-empty">ウォッチリストに銘柄がありません。<br><a href="/watchlist" style="color:#58a6ff">ウォッチリストを編集</a></div>';
+        return;
+      }
+
+      grid.innerHTML = tickers.map(t => {
+        const pct = t.change_pct;
+        const pctCls  = pct == null ? 'change-flat' : pct > 0 ? 'change-up' : pct < 0 ? 'change-down' : 'change-flat';
+        const pctText = pct == null ? '—' : (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+        const priceText = t.price != null ? t.price.toLocaleString(undefined, {minimumFractionDigits: 2}) : '—';
+
+        let sigClass = 'sig-none', sigLabel = '—';
+        if (t.signal === 'BUY')       { sigClass = 'sig-buy';  sigLabel = 'BUY'; }
+        else if (t.signal === 'SELL') { sigClass = 'sig-sell'; sigLabel = 'SELL'; }
+        else if (t.signal === 'HOLD') { sigClass = 'sig-hold'; sigLabel = 'HOLD'; }
+        else if (t.signal)            { sigClass = 'sig-hold'; sigLabel = t.signal; }
+
+        return `<a class="wl-card" href="/?ticker=${encodeURIComponent(t.ticker)}">
+          <div class="wl-ticker">${t.ticker}</div>
+          <div class="wl-price">${priceText}</div>
+          <div class="wl-change ${pctCls}">${pctText}</div>
+          <span class="wl-signal ${sigClass}">${sigLabel}</span>
+        </a>`;
+      }).join('');
+    }
+
+    // ---- 全更新 ----
+    async function refreshAll() {
+      document.getElementById('last-updated').textContent = '更新中...';
+      await Promise.all([loadIndices(), loadSectors(), loadWatchlist()]);
+      document.getElementById('last-updated').textContent =
+        '最終更新: ' + new Date().toLocaleTimeString('ja-JP');
+    }
+
+    // 初回ロード
+    refreshAll();
+
+    // 60秒ごと自動更新
+    setInterval(refreshAll, REFRESH_INTERVAL);
+  </script>
+</body>
+</html>

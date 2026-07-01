@@ -337,6 +337,31 @@ def calc_position_size(entry_price: float, stop_loss: float, risk_pct: float = 2
     }
 
 
+def update_position(position_id: str, stop_loss: float = None, target: float = None, memo: str = None) -> dict:
+    """オープンポジションのSL/TP/メモを更新"""
+    with _lock:
+        store = _load()
+        pos = next((p for p in store["positions"] if p["id"] == position_id), None)
+        if pos is None:
+            raise ValueError(f"ポジションが見つかりません: {position_id}")
+        if stop_loss is not None:
+            pos["stop_loss"] = stop_loss
+        if target is not None:
+            pos["target"] = target
+        if memo is not None:
+            pos["memo"] = memo
+        _save(store)
+    return pos
+
+
+def reset_paper_trading() -> dict:
+    """デモ口座を初期状態にリセット"""
+    with _lock:
+        store = _default_store()
+        _save(store)
+    return {"status": "reset", "capital": 100000}
+
+
 def update_daily_pnl() -> dict:
     """現在の総損益を記録（1日1回呼ぶ）"""
     portfolio = get_portfolio()

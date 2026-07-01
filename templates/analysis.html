@@ -382,11 +382,47 @@
       margin-top: 8px;
     }
 
+    /* ---- Section 6: Multi-Timeframe ---- */
+    .mtf-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .mtf-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .mtf-header {
+      background: #161b22;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #58a6ff;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .mtf-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 14px;
+      border-bottom: 1px solid #21262d;
+      font-size: 13px;
+    }
+    .mtf-row:last-child { border-bottom: none; }
+    .mtf-label { color: #8b949e; }
+    .mtf-value { font-weight: 700; }
+
     /* responsive */
     @media (max-width: 900px) {
       .signal-layout { grid-template-columns: 1fr; }
       .sentiment-layout { grid-template-columns: 1fr; }
       .fund-layout { grid-template-columns: 1fr; }
+      .mtf-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -399,6 +435,7 @@
     <a href="/journal" class="g-nav-link">📒 日誌</a>
     <a href="/guide" class="g-nav-link">📖 ガイド</a>
     <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/market" class="g-nav-link">🌐 市場</a>
     <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
     <div class="ticker-search">
       <input id="ticker-input" type="text" placeholder="AAPL" value="AAPL">
@@ -505,6 +542,54 @@
         <div id="earnings-loading"><span class="inline-spinner"></span> 決算データ取得中...</div>
         <div class="earnings-grid" id="earnings-grid" style="display:none"></div>
         <div class="error-box" id="earnings-error" style="display:none"></div>
+      </div>
+
+      <!-- Section 6: マルチタイムフレーム分析 -->
+      <div class="card">
+        <div class="card-title">Section 6 — マルチタイムフレーム分析</div>
+        <div id="mtf-loading"><span class="inline-spinner"></span> マルチタイムフレームデータ取得中...</div>
+        <div id="mtf-content" style="display:none">
+          <div id="mtf-grid" class="mtf-grid"></div>
+        </div>
+        <div class="error-box" id="mtf-error" style="display:none"></div>
+      </div>
+
+      <!-- Section 7: RSIダイバージェンス・MAクロス・サポレジ -->
+      <div class="card">
+        <div class="card-title">Section 7 — RSIダイバージェンス / MAクロス / サポート・レジスタンス</div>
+        <div id="div-loading"><span class="inline-spinner"></span> ダイバージェンスデータ取得中...</div>
+        <div id="div-content" style="display:none">
+          <!-- 上段: ダイバージェンス + MAクロス -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+            <!-- RSIダイバージェンス -->
+            <div style="background:#0d1117;border-radius:10px;padding:16px;border:1px solid #30363d">
+              <div style="font-size:12px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">RSIダイバージェンス</div>
+              <div id="divergence-signal" style="font-size:22px;font-weight:800;margin-bottom:8px">--</div>
+              <div id="divergence-desc" style="font-size:13px;color:#c9d1d9;line-height:1.5"></div>
+            </div>
+            <!-- MAクロス -->
+            <div style="background:#0d1117;border-radius:10px;padding:16px;border:1px solid #30363d">
+              <div style="font-size:12px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">移動平均クロス (MA20/50)</div>
+              <div id="ma-cross-signal" style="font-size:22px;font-weight:800;margin-bottom:8px">--</div>
+              <div id="ma-cross-desc" style="font-size:13px;color:#c9d1d9;line-height:1.5"></div>
+            </div>
+          </div>
+          <!-- 下段: サポート・レジスタンス -->
+          <div style="background:#0d1117;border-radius:10px;padding:16px;border:1px solid #30363d">
+            <div style="font-size:12px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px">サポート・レジスタンスレベル</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#3fb950;margin-bottom:8px">サポート</div>
+                <div id="support-levels" style="display:flex;flex-direction:column;gap:6px"></div>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#f85149;margin-bottom:8px">レジスタンス</div>
+                <div id="resistance-levels" style="display:flex;flex-direction:column;gap:6px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="error-box" id="div-error" style="display:none"></div>
       </div>
     </div>
   </main>
@@ -993,6 +1078,86 @@
       }
     }
 
+    // ---- Section 6: Multi-Timeframe Analysis ----
+    async function loadMTF(ticker) {
+      const loadEl = document.getElementById("mtf-loading");
+      const contEl = document.getElementById("mtf-content");
+      const errEl  = document.getElementById("mtf-error");
+      loadEl.style.display = "block";
+      contEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      try {
+        const res  = await fetch(`/api/analysis/multi-timeframe/${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const TF_LABELS    = { "1d": "日足", "1w": "週足", "1mo": "月足" };
+        const MACD_LABELS  = { "bullish": "強気", "bearish": "弱気", "neutral": "中立" };
+        const TREND_LABELS = { "uptrend": "上昇", "downtrend": "下降", "sideways": "横ばい" };
+
+        const gridEl = document.getElementById("mtf-grid");
+        gridEl.innerHTML = Object.entries(data.timeframes).map(([tf, v]) => {
+          const label = TF_LABELS[tf] || tf;
+          if (v.error) {
+            return `<div class="mtf-card">
+              <div class="mtf-header">${label}</div>
+              <div style="padding:14px;color:#8b949e;font-size:13px">エラー: ${escHtml(v.error)}</div>
+            </div>`;
+          }
+
+          // RSI 色分け: <30=緑, >70=赤, その他=白
+          const rsiColor = v.rsi != null
+            ? (v.rsi < 30 ? "#3fb950" : v.rsi > 70 ? "#f85149" : "#e6edf3")
+            : "#8b949e";
+
+          // MACD
+          const macdLabel = MACD_LABELS[v.macd_signal] || "中立";
+          const macdColor = v.macd_signal === "bullish" ? "#3fb950"
+                          : v.macd_signal === "bearish" ? "#f85149" : "#8b949e";
+
+          // ADX
+          const adxStr   = v.adx != null ? `${v.adx} (${v.adx >= 25 ? "強" : "弱"})` : "--";
+          const adxColor = v.adx != null ? (v.adx >= 25 ? "#3fb950" : "#8b949e") : "#8b949e";
+
+          // トレンド
+          const trendLabel = TREND_LABELS[v.trend] || v.trend;
+          const trendColor = v.trend === "uptrend"   ? "#3fb950"
+                           : v.trend === "downtrend" ? "#f85149" : "#8b949e";
+
+          return `<div class="mtf-card">
+            <div class="mtf-header">
+              <span>${label}</span>
+              <span style="font-size:12px;color:#8b949e;font-weight:400">$${v.close}</span>
+            </div>
+            <div class="mtf-row">
+              <span class="mtf-label">RSI</span>
+              <span class="mtf-value" style="color:${rsiColor}">${v.rsi ?? "--"}</span>
+            </div>
+            <div class="mtf-row">
+              <span class="mtf-label">MACD</span>
+              <span class="mtf-value" style="color:${macdColor}">${macdLabel}</span>
+            </div>
+            <div class="mtf-row">
+              <span class="mtf-label">ADX</span>
+              <span class="mtf-value" style="color:${adxColor}">${adxStr}</span>
+            </div>
+            <div class="mtf-row">
+              <span class="mtf-label">トレンド</span>
+              <span class="mtf-value" style="color:${trendColor}">${trendLabel}</span>
+            </div>
+          </div>`;
+        }).join("");
+
+        loadEl.style.display = "none";
+        contEl.style.display = "block";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `マルチタイムフレームデータ取得エラー: ${escHtml(e.message)}`;
+      }
+    }
+
     // ---- Main analysis runner ----
     async function runAnalysis() {
       const ticker = tickerInput.value.trim().toUpperCase();
@@ -1012,6 +1177,7 @@
         loadFundamentals(ticker),
         loadChart(ticker),
         loadEarnings(),
+        loadMTF(ticker),
       ]);
 
       startRefreshTimer();

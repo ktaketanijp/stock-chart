@@ -378,6 +378,8 @@
     <a href="/journal" class="g-nav-link">📒 日誌</a>
     <a href="/guide" class="g-nav-link">📖 ガイド</a>
     <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/market" class="g-nav-link">🌐 市場</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
   </nav>
 
   <main>
@@ -405,6 +407,18 @@
       <button class="btn btn-secondary" id="btn-topmovers" onclick="runTopMoversScan()" style="border-color:#d2a8ff;color:#d2a8ff">
         <div class="spinner" id="topmovers-spinner"></div>
         全銘柄ランキング
+      </button>
+      <button class="btn btn-secondary" id="btn-52w" onclick="run52wBreakoutScan()" style="border-color:#f0c040;color:#f0c040">
+        <div class="spinner" id="w52-spinner"></div>
+        52週高値ブレイク
+      </button>
+      <button class="btn btn-secondary" id="btn-volsurge" onclick="runVolumeSurgeScan()" style="border-color:#79c0ff;color:#79c0ff">
+        <div class="spinner" id="volsurge-spinner"></div>
+        出来高急増
+      </button>
+      <button class="btn btn-secondary" id="btn-rsi" onclick="runRsiExtremeScan()" style="border-color:#ffa657;color:#ffa657">
+        <div class="spinner" id="rsi-spinner"></div>
+        RSI過売・過買
       </button>
       <span id="scan-time"></span>
     </div>
@@ -441,6 +455,24 @@
     <div class="card" id="premarket-section" style="display:none">
       <div class="card-title">プレマーケット変動ランキング</div>
       <div id="premarket-content"></div>
+    </div>
+
+    <!-- 52週高値ブレイクアウト -->
+    <div class="card" id="w52-section" style="display:none">
+      <div class="card-title">52週高値ブレイクアウト</div>
+      <div id="w52-content"></div>
+    </div>
+
+    <!-- 出来高急増 -->
+    <div class="card" id="volsurge-section" style="display:none">
+      <div class="card-title">出来高急増（平均の2倍以上）</div>
+      <div id="volsurge-content"></div>
+    </div>
+
+    <!-- RSI過売・過買 -->
+    <div class="card" id="rsi-section" style="display:none">
+      <div class="card-title">RSI極値スキャン（過売 / 過買）</div>
+      <div id="rsi-content"></div>
     </div>
   </main>
 
@@ -849,6 +881,223 @@
       }).join("");
 
       document.getElementById("opp-content").innerHTML = `<div class="opp-grid">${cards}</div>`;
+    }
+
+    // ---- 52週高値ブレイクアウト ----
+    async function run52wBreakoutScan() {
+      const btn     = document.getElementById("btn-52w");
+      const spinner = document.getElementById("w52-spinner");
+      const section = document.getElementById("w52-section");
+      btn.disabled  = true;
+      spinner.style.display = "block";
+      section.style.display = "block";
+      document.getElementById("w52-content").innerHTML =
+        `<div class="empty-state"><span class="inline-spinner"></span>&nbsp; 52週高値ブレイクアウトスキャン中...</div>`;
+
+      try {
+        const res  = await fetch("/api/scan/52w-breakout", { signal: AbortSignal.timeout(90000) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        render52wTable(data.results || []);
+        document.getElementById("scan-time").textContent =
+          `最終スキャン: ${new Date().toLocaleTimeString("ja-JP")} (52週高値)`;
+      } catch (e) {
+        showError(`52週高値スキャンエラー: ${e.message}`);
+        document.getElementById("w52-content").innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function render52wTable(rows) {
+      if (!rows || rows.length === 0) {
+        document.getElementById("w52-content").innerHTML =
+          `<div class="empty-state"><div class="empty-icon">&#x1F4C8;</div><p>52週高値付近（98%以内）の銘柄なし</p></div>`;
+        return;
+      }
+      const html = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>銘柄</th>
+                <th>現在値</th>
+                <th>52週高値</th>
+                <th>高値比率</th>
+                <th>出来高</th>
+                <th>分析</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r, i) => {
+                const ticker  = r.ticker || "—";
+                const bpct    = r.breakout_pct ?? null;
+                const bpctStr = bpct != null
+                  ? `<span style="color:${bpct >= 0 ? '#3fb950' : '#f0c040'};font-weight:700">${bpct >= 0 ? '+' : ''}${bpct.toFixed(2)}%</span>`
+                  : "—";
+                return `
+                  <tr onclick="goToAnalysis('${escHtml(ticker)}')">
+                    <td class="td-rank">${i + 1}</td>
+                    <td><div class="td-ticker">${escHtml(ticker)}</div></td>
+                    <td>$${r.price != null ? r.price.toFixed(2) : "—"}</td>
+                    <td>$${r.week52_high != null ? r.week52_high.toFixed(2) : "—"}</td>
+                    <td>${bpctStr}</td>
+                    <td>${r.volume != null ? Number(r.volume).toLocaleString() : "—"}</td>
+                    <td><a href="/analysis?ticker=${encodeURIComponent(ticker)}" style="color:#58a6ff;text-decoration:none" onclick="event.stopPropagation()">分析 →</a></td>
+                  </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`;
+      document.getElementById("w52-content").innerHTML = html;
+    }
+
+    // ---- 出来高急増 ----
+    async function runVolumeSurgeScan() {
+      const btn     = document.getElementById("btn-volsurge");
+      const spinner = document.getElementById("volsurge-spinner");
+      const section = document.getElementById("volsurge-section");
+      btn.disabled  = true;
+      spinner.style.display = "block";
+      section.style.display = "block";
+      document.getElementById("volsurge-content").innerHTML =
+        `<div class="empty-state"><span class="inline-spinner"></span>&nbsp; 出来高急増スキャン中...</div>`;
+
+      try {
+        const res  = await fetch("/api/scan/volume-surge", { signal: AbortSignal.timeout(90000) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderVolumeSurgeTable(data.results || []);
+        document.getElementById("scan-time").textContent =
+          `最終スキャン: ${new Date().toLocaleTimeString("ja-JP")} (出来高急増)`;
+      } catch (e) {
+        showError(`出来高急増スキャンエラー: ${e.message}`);
+        document.getElementById("volsurge-content").innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function renderVolumeSurgeTable(rows) {
+      if (!rows || rows.length === 0) {
+        document.getElementById("volsurge-content").innerHTML =
+          `<div class="empty-state"><div class="empty-icon">&#x1F4CA;</div><p>出来高急増（平均2倍以上）の銘柄なし</p></div>`;
+        return;
+      }
+      const html = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>銘柄</th>
+                <th>現在値</th>
+                <th>変動率</th>
+                <th>出来高</th>
+                <th>平均出来高</th>
+                <th>出来高倍率</th>
+                <th>分析</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r, i) => {
+                const ticker = r.ticker || "—";
+                return `
+                  <tr onclick="goToAnalysis('${escHtml(ticker)}')">
+                    <td class="td-rank">${i + 1}</td>
+                    <td><div class="td-ticker">${escHtml(ticker)}</div></td>
+                    <td>$${r.price != null ? r.price.toFixed(2) : "—"}</td>
+                    <td>${fmtChg(r.change_pct)}</td>
+                    <td>${r.volume != null ? Number(r.volume).toLocaleString() : "—"}</td>
+                    <td>${r.avg_volume != null ? Number(r.avg_volume).toLocaleString() : "—"}</td>
+                    <td>${fmtVolRatio(r.volume_ratio)}</td>
+                    <td><a href="/analysis?ticker=${encodeURIComponent(ticker)}" style="color:#58a6ff;text-decoration:none" onclick="event.stopPropagation()">分析 →</a></td>
+                  </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`;
+      document.getElementById("volsurge-content").innerHTML = html;
+    }
+
+    // ---- RSI過売・過買 ----
+    async function runRsiExtremeScan() {
+      const btn     = document.getElementById("btn-rsi");
+      const spinner = document.getElementById("rsi-spinner");
+      const section = document.getElementById("rsi-section");
+      btn.disabled  = true;
+      spinner.style.display = "block";
+      section.style.display = "block";
+      document.getElementById("rsi-content").innerHTML =
+        `<div class="empty-state"><span class="inline-spinner"></span>&nbsp; RSIスキャン中...</div>`;
+
+      try {
+        const res  = await fetch("/api/scan/rsi-extreme", { signal: AbortSignal.timeout(90000) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderRsiTable(data.results || []);
+        document.getElementById("scan-time").textContent =
+          `最終スキャン: ${new Date().toLocaleTimeString("ja-JP")} (RSI)`;
+      } catch (e) {
+        showError(`RSIスキャンエラー: ${e.message}`);
+        document.getElementById("rsi-content").innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function renderRsiTable(rows) {
+      if (!rows || rows.length === 0) {
+        document.getElementById("rsi-content").innerHTML =
+          `<div class="empty-state"><div class="empty-icon">&#x1F4C9;</div><p>RSI極値（30以下 / 70以上）の銘柄なし</p></div>`;
+        return;
+      }
+      const html = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>銘柄</th>
+                <th>現在値</th>
+                <th>変動率</th>
+                <th>RSI</th>
+                <th>シグナル</th>
+                <th>分析</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r, i) => {
+                const ticker = r.ticker || "—";
+                const sig    = r.signal || "";
+                const rsiVal = r.rsi != null ? r.rsi.toFixed(1) : "—";
+                const isOS   = sig === "oversold";
+                const sigBadge = sig
+                  ? `<span class="signal-badge ${isOS ? 'signal-buy' : 'signal-sell'}">${isOS ? '過売 (買い候補)' : '過買 (売り候補)'}</span>`
+                  : "—";
+                const rsiColor = isOS ? "#3fb950" : "#f85149";
+                return `
+                  <tr onclick="goToAnalysis('${escHtml(ticker)}')">
+                    <td class="td-rank">${i + 1}</td>
+                    <td><div class="td-ticker">${escHtml(ticker)}</div></td>
+                    <td>$${r.price != null ? r.price.toFixed(2) : "—"}</td>
+                    <td>${fmtChg(r.change_pct)}</td>
+                    <td><span style="color:${rsiColor};font-weight:700">${rsiVal}</span></td>
+                    <td>${sigBadge}</td>
+                    <td><a href="/analysis?ticker=${encodeURIComponent(ticker)}" style="color:#58a6ff;text-decoration:none" onclick="event.stopPropagation()">分析 →</a></td>
+                  </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`;
+      document.getElementById("rsi-content").innerHTML = html;
     }
 
     // ---- Init ----

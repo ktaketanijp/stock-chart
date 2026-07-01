@@ -67,6 +67,24 @@
       margin-bottom: 20px;
     }
 
+    /* === アラートバナー === */
+    .alert-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+    .alert-banner-triggered {
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.4);
+      color: #f85149;
+    }
+
     /* === 追加フォーム === */
     .add-form {
       display: flex;
@@ -200,6 +218,20 @@
     }
     .del-btn:hover { border-color: #f85149; color: #f85149; }
 
+    /* アラートボタン */
+    .alert-btn {
+      background: rgba(88, 166, 255, 0.08);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      color: #58a6ff;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .alert-btn:hover { background: rgba(88, 166, 255, 0.18); }
+
     .empty-row td {
       text-align: center;
       color: #8b949e;
@@ -226,6 +258,115 @@
       margin-top: 14px;
       text-align: right;
     }
+
+    /* === アラート一覧セクション === */
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin: 36px 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .check-now-btn {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 14px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .check-now-btn:hover { background: #30363d; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .status-active {
+      background: rgba(63,185,80,0.12);
+      color: #3fb950;
+      border: 1px solid rgba(63,185,80,0.3);
+    }
+    .status-triggered {
+      background: rgba(248,81,73,0.12);
+      color: #f85149;
+      border: 1px solid rgba(248,81,73,0.3);
+    }
+
+    /* === モーダル === */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 28px;
+      width: 380px;
+      max-width: 92vw;
+    }
+    .modal h3 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin-bottom: 22px;
+    }
+    .modal-field { margin-bottom: 16px; }
+    .modal-field label {
+      display: block;
+      font-size: 11px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .modal-field select,
+    .modal-field input[type="number"] {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #e6edf3;
+      font-size: 14px;
+      padding: 9px 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .modal-field select:focus,
+    .modal-field input[type="number"]:focus { border-color: #58a6ff; }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 22px;
+    }
+    .btn-cancel {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+    }
+    .btn-cancel:hover { background: #30363d; }
+    .modal-msg {
+      font-size: 13px;
+      color: #f85149;
+      margin-top: 10px;
+      min-height: 18px;
+    }
   </style>
 </head>
 <body>
@@ -244,6 +385,9 @@
   <div class="container">
     <h1>⭐ ウォッチリスト</h1>
 
+    <!-- トリガー済みアラート通知バナー -->
+    <div id="alert-banner"></div>
+
     <div class="add-form">
       <input type="text" id="ticker-input" placeholder="銘柄コードを入力 (例: AAPL)" maxlength="20">
       <button class="btn" id="add-btn" onclick="addTicker()">追加</button>
@@ -261,22 +405,76 @@
             <th>変動率</th>
             <th>AIシグナル</th>
             <th>スコア</th>
+            <th>アラート</th>
             <th>分析</th>
             <th>削除</th>
           </tr>
         </thead>
         <tbody id="watchlist-body">
-          <tr class="empty-row"><td colspan="7">読み込み中...</td></tr>
+          <tr class="empty-row"><td colspan="8">読み込み中...</td></tr>
         </tbody>
       </table>
     </div>
 
     <div class="updated-info" id="updated-info"></div>
+
+    <!-- アラート一覧 -->
+    <div class="section-title">
+      🔔 アラート一覧
+      <button class="check-now-btn" onclick="checkAlerts()">今すぐチェック</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>銘柄</th>
+            <th>条件</th>
+            <th>設定価格</th>
+            <th>ステータス</th>
+            <th>トリガー日時</th>
+            <th>トリガー価格</th>
+            <th>削除</th>
+          </tr>
+        </thead>
+        <tbody id="alerts-body">
+          <tr class="empty-row"><td colspan="7">アラートが設定されていません</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- アラート設定モーダル -->
+  <div class="modal-overlay" id="alert-modal">
+    <div class="modal">
+      <h3>🔔 アラート設定 — <span id="modal-ticker"></span></h3>
+      <div class="modal-field">
+        <label>条件</label>
+        <select id="modal-condition">
+          <option value="above">以上になったら (価格が設定値を上回る)</option>
+          <option value="below">以下になったら (価格が設定値を下回る)</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>価格</label>
+        <input type="number" id="modal-price" step="0.01" min="0.01" placeholder="例: 200.00">
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="createAlert()">設定</button>
+        <button class="btn btn-cancel" onclick="closeAlertModal()">キャンセル</button>
+      </div>
+      <div class="modal-msg" id="modal-msg"></div>
+    </div>
   </div>
 
   <script>
     let autoRefreshTimer = null;
     const AUTO_REFRESH_SEC = 30;
+    let currentAlertTicker = null;
+
+    // =====================
+    // ウォッチリスト
+    // =====================
 
     function signalLabel(sig) {
       const map = {
@@ -323,6 +521,7 @@
           <td class="change-cell ${changeClass}">${formatChange(item.change_pct)}</td>
           <td><span class="badge ${bClass}">${signalLabel(item.signal)}</span></td>
           <td class="score-cell">${scoreText}</td>
+          <td><button class="alert-btn" onclick="openAlertModal('${escHtml(item.ticker)}')">アラート設定</button></td>
           <td class="link-cell"><a href="/?ticker=${encodeURIComponent(item.ticker)}" target="_blank">チャート</a>
             &nbsp;|&nbsp;
             <a href="/analysis?ticker=${encodeURIComponent(item.ticker)}" target="_blank">分析</a>
@@ -356,7 +555,7 @@
         const tbody = document.getElementById('watchlist-body');
 
         if (!data.tickers || data.tickers.length === 0) {
-          tbody.innerHTML = '<tr class="empty-row"><td colspan="7">ウォッチリストは空です。銘柄コードを入力して追加してください。</td></tr>';
+          tbody.innerHTML = '<tr class="empty-row"><td colspan="8">ウォッチリストは空です。銘柄コードを入力して追加してください。</td></tr>';
         } else {
           tbody.innerHTML = data.tickers.map(renderRow).join('');
         }
@@ -422,13 +621,163 @@
       }
     }
 
+    // =====================
+    // アラートモーダル
+    // =====================
+
+    function openAlertModal(ticker) {
+      currentAlertTicker = ticker;
+      document.getElementById('modal-ticker').textContent = ticker;
+      document.getElementById('modal-price').value = '';
+      document.getElementById('modal-msg').textContent = '';
+      document.getElementById('alert-modal').classList.add('open');
+      setTimeout(() => document.getElementById('modal-price').focus(), 100);
+    }
+
+    function closeAlertModal() {
+      document.getElementById('alert-modal').classList.remove('open');
+      currentAlertTicker = null;
+    }
+
+    async function createAlert() {
+      if (!currentAlertTicker) return;
+      const condition = document.getElementById('modal-condition').value;
+      const priceVal = document.getElementById('modal-price').value;
+      const price = parseFloat(priceVal);
+      const msgEl = document.getElementById('modal-msg');
+
+      if (!priceVal || isNaN(price) || price <= 0) {
+        msgEl.textContent = '有効な価格を入力してください';
+        return;
+      }
+      msgEl.textContent = '';
+
+      try {
+        const res = await fetch('/api/alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker: currentAlertTicker, condition, price }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          msgEl.textContent = 'エラー: ' + data.error;
+        } else {
+          closeAlertModal();
+          loadAlerts();
+          setStatus(currentAlertTicker + ' のアラートを設定しました', false);
+        }
+      } catch (err) {
+        msgEl.textContent = '設定に失敗しました: ' + err.message;
+      }
+    }
+
+    // モーダル外クリックで閉じる
+    document.getElementById('alert-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeAlertModal();
+    });
+
+    // =====================
+    // アラート一覧
+    // =====================
+
+    async function loadAlerts() {
+      try {
+        const res = await fetch('/api/alerts');
+        const data = await res.json();
+        renderAlerts(data.alerts || []);
+        showTriggeredBanner(data.alerts || []);
+      } catch (err) {
+        console.error('アラート取得エラー:', err);
+      }
+    }
+
+    async function checkAlerts() {
+      setStatus('アラートをチェック中...', false);
+      try {
+        const res = await fetch('/api/alerts/check', { method: 'POST' });
+        const data = await res.json();
+        renderAlerts(data.alerts || []);
+        showTriggeredBanner(data.alerts || []);
+        const cnt = (data.triggered || []).length;
+        setStatus(cnt > 0 ? 'アラート ' + cnt + ' 件が発動しました' : 'チェック完了（発動なし）', false);
+      } catch (err) {
+        setStatus('チェックに失敗しました: ' + err.message, true);
+      }
+    }
+
+    function renderAlerts(alerts) {
+      const tbody = document.getElementById('alerts-body');
+      if (!alerts.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">アラートが設定されていません</td></tr>';
+        return;
+      }
+      tbody.innerHTML = alerts.map(a => {
+        const condLabel = a.condition === 'above' ? '以上になったら' : '以下になったら';
+        const statusBadge = a.triggered
+          ? '<span class="status-badge status-triggered">トリガー済</span>'
+          : '<span class="status-badge status-active">監視中</span>';
+        const triggeredAt = a.triggered_at || '—';
+        const triggeredPrice = (a.triggered_price !== null && a.triggered_price !== undefined)
+          ? Number(a.triggered_price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '—';
+        return '<tr>' +
+          '<td class="ticker-cell">' + escHtml(a.ticker) + '</td>' +
+          '<td style="color:#c9d1d9">' + condLabel + '</td>' +
+          '<td style="font-weight:600">' + Number(a.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+          '<td>' + statusBadge + '</td>' +
+          '<td style="color:#8b949e;font-size:13px">' + escHtml(triggeredAt) + '</td>' +
+          '<td style="color:#8b949e;font-size:13px">' + triggeredPrice + '</td>' +
+          '<td><button class="del-btn" onclick="deleteAlertItem(\'' + escHtml(String(a.id)) + '\')">削除</button></td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    function showTriggeredBanner(alerts) {
+      const triggered = alerts.filter(a => a.triggered);
+      const banner = document.getElementById('alert-banner');
+      if (!triggered.length) {
+        banner.innerHTML = '';
+        return;
+      }
+      const items = triggered.map(a => {
+        const condLabel = a.condition === 'above' ? '以上' : '以下';
+        return '<strong>' + escHtml(a.ticker) + '</strong> が $' + a.triggered_price +
+          ' に到達（設定: $' + a.price + ' ' + condLabel + '、' + escHtml(a.triggered_at || '') + '）';
+      });
+      banner.innerHTML = '<div class="alert-banner alert-banner-triggered">🔔 アラート発動: ' + items.join(' / ') + '</div>';
+    }
+
+    async function deleteAlertItem(alertId) {
+      if (!confirm('このアラートを削除しますか？')) return;
+      try {
+        const res = await fetch('/api/alerts/' + encodeURIComponent(alertId), { method: 'DELETE' });
+        const data = await res.json();
+        if (data.error) {
+          setStatus('削除エラー: ' + data.error, true);
+        } else {
+          loadAlerts();
+        }
+      } catch (err) {
+        setStatus('削除に失敗しました: ' + err.message, true);
+      }
+    }
+
     // Enterキーで追加
     document.getElementById('ticker-input').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') addTicker();
     });
 
+    // モーダル内Enterで設定
+    document.getElementById('modal-price').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') createAlert();
+    });
+
     // 初回ロード
     loadWatchlist(false);
+    loadAlerts();
+
+    // 5分ごとにアラート状態を更新
+    setInterval(() => loadAlerts(), 5 * 60 * 1000);
   </script>
 </body>
 </html>

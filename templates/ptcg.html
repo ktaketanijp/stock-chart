@@ -670,6 +670,88 @@
       .card { padding: 1.2rem 1rem; }
       .countdown-block { min-width: 160px; padding: 0.8rem 1rem; }
     }
+
+    /* ===== BLOCKER BANNER ===== */
+    .blocker-banner {
+      background: rgba(230,57,70,0.12);
+      border-top: 1px solid rgba(230,57,70,0.4);
+      border-bottom: 1px solid rgba(230,57,70,0.4);
+      padding: .75rem 1.5rem;
+    }
+    .blocker-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .blocker-icon {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: #e63946;
+      color: #fff;
+      font-weight: 900;
+      font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .blocker-title { font-size: .8rem; font-weight: 800; color: #e63946; }
+    .blocker-desc  { font-size: .82rem; color: #d0d4e8; }
+
+    /* ===== AGENT GRID ===== */
+    .agent-grid { display: flex; flex-direction: column; gap: .5rem; }
+    .agent-row {
+      display: grid;
+      grid-template-columns: 12px 160px auto 1fr;
+      align-items: center;
+      gap: .75rem;
+      padding: .5rem .4rem;
+      border-radius: 8px;
+    }
+    .agent-row.done    { background: rgba(34,197,94,.06); }
+    .agent-row.partial { background: rgba(255,215,0,.05); }
+    .agent-row.waiting { background: rgba(255,255,255,.03); }
+    .agent-status-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .agent-row.done    .agent-status-dot { background: #22c55e; }
+    .agent-row.partial .agent-status-dot { background: #ffd700; }
+    .agent-row.waiting .agent-status-dot { background: #5a5e8a; }
+    .agent-name  { font-size: .85rem; font-weight: 700; color: #e8e8f0; }
+    .agent-badge {
+      font-size: .7rem; font-weight: 800; padding: .15rem .6rem;
+      border-radius: 999px; white-space: nowrap;
+    }
+    .badge-done    { background: rgba(34,197,94,.2);  color: #22c55e; }
+    .badge-partial { background: rgba(255,215,0,.15); color: #ffd700; }
+    .badge-waiting { background: rgba(255,255,255,.08); color: #7a7eaa; }
+    .agent-detail { font-size: .78rem; color: #7a7eaa; }
+    @media (max-width: 600px) {
+      .agent-row { grid-template-columns: 12px 1fr auto; }
+      .agent-detail { grid-column: 1/-1; padding-left: 1.3rem; }
+    }
+
+    /* ===== AGENT DOT (新形式) ===== */
+    .agent-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot-done    { background: #22c55e; }
+    .dot-partial { background: #ffd700; }
+    .badge { font-size: .7rem; font-weight: 800; padding: .15rem .6rem; border-radius: 999px; white-space: nowrap; }
+    .agent-status { font-size: .85rem; color: #aab0cc; }
+
+    /* ===== DATA TABLE ===== */
+    .data-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .data-table th, .data-table td { padding: 0.5rem 1rem; border: 1px solid rgba(255,255,255,0.12); text-align: left; }
+    .data-table th { background: rgba(255,255,255,0.07); font-weight: 600; color: #ffd700; font-size: 0.82rem; }
+    .data-table td { font-size: 0.82rem; color: #d0d4e8; }
+    .data-table tr:nth-child(even) td { background: rgba(255,255,255,0.03); }
+
+    /* ===== SECTION (ベンチマーク等) ===== */
+    .section { margin-bottom: 2rem; }
+    .section h2 {
+      font-size: 1.1rem; font-weight: 800; color: #ffd700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      border-left: 4px solid #e63946; padding-left: 0.75rem; margin-bottom: 1.2rem;
+    }
   </style>
 </head>
 <body>
@@ -700,6 +782,16 @@
   <div class="prize-bar">
     <span class="prize-item">ファイナリスト8チーム x $30,000</span>
     <span class="prize-item">優勝 $50,000（第2ラウンド）</span>
+  </div>
+</div>
+
+<div class="blocker-banner">
+  <div class="blocker-inner">
+    <div class="blocker-icon">!</div>
+    <div>
+      <div class="blocker-title">現在のブロッカー</div>
+      <div class="blocker-desc">Kaggleアカウント 認証待ち — 認証完了次第、cabt engineのインストール・初回提出へ即座に移行</div>
+    </div>
   </div>
 </div>
 
@@ -748,6 +840,142 @@
     </div>
   </div>
 
+  <!-- ===== SECTION 2.5: エージェント開発ステータス ===== -->
+  <div class="section-title">エージェント開発ステータス</div>
+  <div class="card" style="padding: 1rem 1.2rem;">
+    <div class="agent-grid">
+      <!-- bellibolt -->
+      <div class="agent-row done">
+        <div class="agent-status-dot"></div>
+        <div class="agent-name">bellibolt agent</div>
+        <div class="agent-badge badge-done">実装済み</div>
+        <div class="agent-detail">ルールベース4段階 / クラッシュ防止済み</div>
+      </div>
+      <!-- heuristic -->
+      <div class="agent-row done">
+        <div class="agent-status-dot"></div>
+        <div class="agent-name">heuristic agent</div>
+        <div class="agent-badge badge-done">実装済み</div>
+        <div class="agent-detail">KO判定・サイド差評価・最終進化ボーナス / 6テスト全パス</div>
+      </div>
+      <!-- mcts -->
+      <div class="agent-row partial">
+        <div class="agent-status-dot"></div>
+        <div class="agent-name">MCTS agent</div>
+        <div class="agent-badge badge-partial">基礎実装済み</div>
+        <div class="agent-detail">cabt engine入手後に本番稼働 / テスト全パス</div>
+      </div>
+      <!-- ppo -->
+      <div class="agent-row partial">
+        <div class="agent-status-dot"></div>
+        <div class="agent-name">PPO 学習環境</div>
+        <div class="agent-badge badge-partial">環境準備完了</div>
+        <div class="agent-detail">PyTorch 2.8 + SB3 2.1.0 / cabt engine待ち</div>
+      </div>
+      <!-- deck.csv -->
+      <div class="agent-row waiting">
+        <div class="agent-status-dot"></div>
+        <div class="agent-name">deck.csv</div>
+        <div class="agent-badge badge-waiting">待機中</div>
+        <div class="agent-detail">Kaggleカードデータ（参加登録後に入手）</div>
+      </div>
+      <!-- 初回提出 -->
+      <div class="agent-row waiting">
+        <div class="agent-status-dot"></div>
+        <div class="agent-name">初回提出</div>
+        <div class="agent-badge badge-waiting">待機中</div>
+        <div class="agent-detail">Kaggleアカウント認証待ち</div>
+      </div>
+
+      <!-- Dragapult ex エージェント -->
+      <div class="agent-row">
+        <div class="agent-dot dot-done"></div>
+        <div class="agent-name">Dragapult ex エージェント</div>
+        <div class="agent-status">実装済み <span class="badge badge-done">19テスト全通過</span></div>
+      </div>
+
+      <!-- メタカウンターエージェント -->
+      <div class="agent-row">
+        <div class="agent-dot dot-done"></div>
+        <div class="agent-name">メタカウンターエージェント</div>
+        <div class="agent-status">実装済み <span class="badge badge-done">Trevenant対策込み</span></div>
+      </div>
+
+      <!-- タイプ相性・エネルギー管理 -->
+      <div class="agent-row">
+        <div class="agent-dot dot-done"></div>
+        <div class="agent-name">コアモジュール (type_chart / energy_manager)</div>
+        <div class="agent-status">実装済み <span class="badge badge-done">弱点×2/耐性-30対応</span></div>
+      </div>
+
+      <!-- Trevenant対策モジュール -->
+      <div class="agent-row">
+        <div class="agent-dot dot-done"></div>
+        <div class="agent-name">Trevenant対策モジュール</div>
+        <div class="agent-status">実装済み <span class="badge badge-done">メタ42%対策</span></div>
+      </div>
+
+      <!-- セルフプレイシミュレーター -->
+      <div class="agent-row">
+        <div class="agent-dot dot-partial"></div>
+        <div class="agent-name">セルフプレイシミュレーター</div>
+        <div class="agent-status">基礎実装済み <span class="badge badge-partial">cabt engine統合待ち</span></div>
+      </div>
+
+      <!-- 提出パッケージ -->
+      <div class="agent-row">
+        <div class="agent-dot dot-partial"></div>
+        <div class="agent-name">提出パッケージ (submission.tar.gz)</div>
+        <div class="agent-status">準備中 <span class="badge badge-partial">Kaggleアカウント認証待ち</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 2.6: ベンチマーク結果 ===== -->
+  <div class="section card">
+    <h2>ベンチマーク結果</h2>
+    <table class="data-table">
+      <thead><tr>
+        <th>エージェント</th>
+        <th>テスト</th>
+        <th>シナリオスコア</th>
+        <th>実装状況</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>Bellibolt v2</td>
+          <td>16/16</td>
+          <td>100%</td>
+          <td>完成（7 SelectType対応）</td>
+        </tr>
+        <tr>
+          <td>Dragapult ex</td>
+          <td>19/19</td>
+          <td>100%</td>
+          <td>完成（フェーズ別戦略）</td>
+        </tr>
+        <tr>
+          <td>Heuristic</td>
+          <td>6/6</td>
+          <td>100%</td>
+          <td>完成（盤面評価関数）</td>
+        </tr>
+        <tr>
+          <td>MCTS</td>
+          <td>5/5</td>
+          <td>100%</td>
+          <td>基礎完成（cabt待ち）</td>
+        </tr>
+        <tr>
+          <td>メタカウンター</td>
+          <td>動作確認済み</td>
+          <td>-</td>
+          <td>完成（Trevenant検出）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
   <!-- ===== SECTION 3: TODOステータスボード ===== -->
   <div class="section-title">ステータスボード</div>
   <div class="card">
@@ -763,14 +991,14 @@
       <div class="todo-check"></div>
       <div class="todo-text">
         <div class="todo-main">Kaggleアカウント作成</div>
-        <div class="todo-sub">電話番号・顔認証が必要。自分で作業が必要</div>
+        <div class="todo-sub">認証手続き中（進行中）— 完了次第、次のステップへ即座に移行</div>
       </div>
     </div>
     <div class="todo-item" data-id="t02" onclick="toggleTodo(this)">
       <div class="todo-check"></div>
       <div class="todo-text">
-        <div class="todo-main">cabt engineをインストール</div>
-        <div class="todo-sub"><code>pip install cabt kaggle-environments</code> をサーバーで実行</div>
+        <div class="todo-main">cabt engineをインストール（Kaggle参加登録後にコンペページから入手）</div>
+        <div class="todo-sub">Kaggle参加登録 → コンペページのDataタブからcabtパッケージをダウンロードしてインストール</div>
       </div>
     </div>
     <div class="todo-item" data-id="t03" onclick="toggleTodo(this)">
@@ -793,14 +1021,14 @@
       <div class="todo-check"></div>
       <div class="todo-text">
         <div class="todo-main">盤面評価関数を設計・実装</div>
-        <div class="todo-sub">サイドカード枚数・相手HP残・エネルギー状況をスコア化。Greedy選択でELO 900以上が目安</div>
+        <div class="todo-sub">Week 1に前倒し完了 — KO判定・サイド差・最終進化ボーナス実装済み / 6テスト全パス</div>
       </div>
     </div>
     <div class="todo-item" data-id="t06" onclick="toggleTodo(this)">
       <div class="todo-check"></div>
       <div class="todo-text">
         <div class="todo-main">対戦ログを分析して弱点を特定</div>
-        <div class="todo-sub">エピソードデータセットで自分のエージェントの負けパターンを分析する</div>
+        <div class="todo-sub">Kaggle待ち（エピソードデータセット）</div>
       </div>
     </div>
 
@@ -809,14 +1037,14 @@
       <div class="todo-check"></div>
       <div class="todo-text">
         <div class="todo-main">MCTS（モンテカルロ木探索）を実装</div>
-        <div class="todo-sub">cabt engineのsearch APIを使って先読み探索を導入。ELO 1000以上が目安</div>
+        <div class="todo-sub">Week 1に基礎実装完了 — cabt engineのsearch API差し替え口設計済み / テスト全パス</div>
       </div>
     </div>
     <div class="todo-item" data-id="t08" onclick="toggleTodo(this)">
       <div class="todo-check"></div>
       <div class="todo-text">
         <div class="todo-main">PPO self-play学習をセットアップ</div>
-        <div class="todo-sub">Kaggle無料GPU（週30時間）で自己対戦学習。stable-baselines3を使用</div>
+        <div class="todo-sub">Week 1に環境構築完了 — PyTorch 2.8 + SB3 2.1.0 動作確認済み / cabt engine待ち</div>
       </div>
     </div>
 
@@ -835,6 +1063,13 @@
         <div class="todo-sub">使った手法・実験結果・デッキ選択理由を具体的な数値付きで記述</div>
       </div>
     </div>
+    <div class="todo-item" data-id="t12_pre" onclick="toggleTodo(this)">
+      <div class="todo-check"></div>
+      <div class="todo-text">
+        <div class="todo-main">Strategyレポート草稿</div>
+        <div class="todo-sub">作成済み (1758語・英語) — strategy_report_en.md / 実験結果欄はELO確定後に記入</div>
+      </div>
+    </div>
     <div class="todo-item" data-id="t11" onclick="toggleTodo(this)">
       <div class="todo-check"></div>
       <div class="todo-text">
@@ -851,7 +1086,37 @@
     </div>
   </div>
 
-  <!-- ===== SECTION 4: ロードマップ ===== -->
+  <!-- ===== SECTION 4: 採用デッキ決定 ===== -->
+  <div class="section-title">採用デッキ決定</div>
+  <div class="card">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <!-- 第1候補 -->
+      <div style="border: 2px solid #ffd700; border-radius: 10px; padding: 1rem;">
+        <div style="font-size:0.7rem; color:#ffd700; font-weight:800; letter-spacing:.1em; margin-bottom:.3rem;">PHASE 1 — 初回提出</div>
+        <div style="font-size:1rem; font-weight:800; color:#e8e8f0; margin-bottom:.4rem;">Bellibolt ex</div>
+        <div style="font-size:0.8rem; color:#aab0cc; line-height:1.6;">
+          ELO 836実績・シンプルな4段階ロジック<br>
+          スターターコードをそのまま使用<br>
+          <span style="color:#22c55e; font-weight:700;">目標: ELO 900以上</span>
+        </div>
+      </div>
+      <!-- 第2候補 -->
+      <div style="border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 1rem;">
+        <div style="font-size:0.7rem; color:#aab0cc; font-weight:800; letter-spacing:.1em; margin-bottom:.3rem;">PHASE 2 — ヒューリスティック強化後</div>
+        <div style="font-size:1rem; font-weight:800; color:#e8e8f0; margin-bottom:.4rem;">Dragapult ex</div>
+        <div style="font-size:0.8rem; color:#aab0cc; line-height:1.6;">
+          メタ勝率63.1%・スプレッドダメージ<br>
+          数学的に最適化しやすい戦略<br>
+          <span style="color:#ffd700; font-weight:700;">目標: ELO 1000以上</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 1rem; padding: .75rem; background: rgba(255,255,255,0.04); border-radius: 8px; font-size: .82rem; color: #aab0cc;">
+      重要: シンプルなデッキを完璧に操作する方が、複雑なデッキを不完全に操作するより強い（ptcg-abc実績より）
+    </div>
+  </div>
+
+  <!-- ===== SECTION 5: ロードマップ ===== -->
   <div class="section-title">8週間ロードマップ + Strategyフェーズ</div>
   <div class="card" style="padding: 1.5rem 1rem;">
     <div class="roadmap-scroll">
@@ -859,9 +1124,9 @@
         <div class="week-card current">
           <div class="week-num">Week 1</div>
           <div class="week-period">6/26〜7/2</div>
-          <div class="week-goal">環境構築・初提出</div>
-          <div class="week-tech">cabt engine・スターターコード</div>
-          <div class="week-milestone">ラダーに参加できている</div>
+          <div class="week-goal">大幅前倒し達成</div>
+          <div class="week-tech">Bellibolt v2 / Dragapult ex / Heuristic / MCTS / メタカウンター / type_chart / energy_manager 実装済み・Strategy英語草稿1758語完成</div>
+          <div class="week-milestone">Week 4〜5相当を先行完了 / Kaggle認証待ちのみ</div>
         </div>
         <div class="week-card">
           <div class="week-num">Week 2</div>

@@ -15,6 +15,8 @@ DEFAULT_TICKERS = [
     "GOOGL", "META", "AMD", "SMCI", "PLTR",
     "JPM", "BAC", "GS", "V", "MA",
     "XOM", "CVX", "LLY", "UNH", "COST",
+    # ETF
+    "QQQ", "SPY", "IWM",
 ]
 
 # ---------------------------------------------------------------------------
@@ -254,6 +256,265 @@ def scan_premarket(tickers: list = None) -> list:
                         pass
 
     results.sort(key=lambda x: x.get("premarket_change_pct", 0), reverse=True)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# RSI ヘルパー（シンプル実装）
+# ---------------------------------------------------------------------------
+
+def _calc_rsi(prices: list, period: int = 14) -> float:
+    """終値リストからRSIを計算して返す（シンプル実装）。"""
+    if len(prices) < period + 1:
+        return 50.0
+    deltas = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
+    gains  = [d if d > 0 else 0 for d in deltas[-period:]]
+    losses = [-d if d < 0 else 0 for d in deltas[-period:]]
+    avg_gain = sum(gains) / period
+    avg_loss = sum(losses) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return round(100 - 100 / (1 + rs), 1)
+
+
+# ---------------------------------------------------------------------------
+# scan_52w_breakout
+# ---------------------------------------------------------------------------
+
+def _scan_52w_breakout_single(ticker: str):
+    """52週高値ブレイクアウト — 1銘柄処理。"""
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="1y", interval="1d")
+        if hist.empty or len(hist) < 10:
+            return None
+
+        closes  = hist["Close"]
+        volumes = hist["Volume"]
+
+        current_price = _safe_float(closes.iloc[-1])
+        if current_price is None or current_price <= 0:
+            return None
+
+        week52_high = _safe_float(closes.max())
+        if week52_high is None or week52_high <= 0:
+            return None
+
+        # 条件: 現在価格 >= 52週高値の98%
+        if current_price < week52_high * 0.98:
+            return None
+
+        breakout_pct = round((current_price - week52_high) / week52_high * 100, 2)
+        today_volume = _safe_float(volumes.iloc[-1])
+
+        return {
+            "ticker": ticker,
+            "price": round(current_price, 2),
+            "week52_high": round(week52_high, 2),
+            "breakout_pct": breakout_pct,
+            "volume": int(today_volume) if today_volume else 0,
+        }
+    except Exception:
+        return None
+
+
+def scan_52w_breakout(tickers: list = None) -> list:
+    """
+    52週高値を更新した銘柄を探す。
+    条件: 現在価格 >= 52週高値の98%以上
+    返す情報: ticker, price, week52_high, breakout_pct, volume
+    """
+    if tickers is None:
+        tickers = DEFAULT_TICKERS
+
+    results = []
+    processed = set()
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_map = {executor.submit(_scan_52w_breakout_single, t): t for t in tickers}
+        try:
+            for future in as_completed(future_map, timeout=90):
+                processed.add(id(future))
+                try:
+                    result = future.result(timeout=15)
+                    if result is not None:
+                        results.append(result)
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            for future in future_map:
+                if id(future) not in processed and future.done():
+                    try:
+                        result = future.result()
+                        if result is not None:
+                            results.append(result)
+                    except Exception:
+                        pass
+
+    # breakout_pct 降順（高値に近いほど上位）
+    results.sort(key=lambda x: x.get("breakout_pct", -999), reverse=True)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# scan_volume_surge
+# ---------------------------------------------------------------------------
+
+def _scan_volume_surge_single(ticker: str, multiplier: float):
+    """出来高急増 — 1銘柄処理。"""
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="2mo", interval="1d")
+        if hist.empty or len(hist) < 6:
+            return None
+
+        closes  = hist["Close"]
+        volumes = hist["Volume"]
+
+        today_volume = _safe_float(volumes.iloc[-1])
+        avg_volume = _safe_float(
+            volumes.iloc[-21:-1].mean() if len(volumes) >= 21 else volumes.iloc[:-1].mean()
+        )
+        if avg_volume is None or avg_volume <= 0:
+            return None
+
+        volume_ratio = (today_volume / avg_volume) if today_volume else 0
+
+        # 条件: 当日出来高 >= 20日平均出来高 × multiplier
+        if volume_ratio < multiplier:
+            return None
+
+        prev_close    = _safe_float(closes.iloc[-2])
+        current_price = _safe_float(closes.iloc[-1])
+        if prev_close is None or current_price is None or prev_close <= 0:
+            return None
+        change_pct = round((current_price - prev_close) / prev_close * 100, 2)
+
+        return {
+            "ticker": ticker,
+            "price": round(current_price, 2),
+            "change_pct": change_pct,
+            "volume": int(today_volume) if today_volume else 0,
+            "avg_volume": int(avg_volume) if avg_volume else 0,
+            "volume_ratio": round(volume_ratio, 2),
+        }
+    except Exception:
+        return None
+
+
+def scan_volume_surge(tickers: list = None, multiplier: float = 2.0) -> list:
+    """
+    平均出来高の N倍以上の出来高を記録している銘柄。
+    条件: 当日出来高 >= 20日平均出来高 × multiplier
+    返す情報: ticker, price, change_pct, volume, avg_volume, volume_ratio
+    """
+    if tickers is None:
+        tickers = DEFAULT_TICKERS
+
+    results = []
+    processed = set()
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_map = {executor.submit(_scan_volume_surge_single, t, multiplier): t for t in tickers}
+        try:
+            for future in as_completed(future_map, timeout=90):
+                processed.add(id(future))
+                try:
+                    result = future.result(timeout=15)
+                    if result is not None:
+                        results.append(result)
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            for future in future_map:
+                if id(future) not in processed and future.done():
+                    try:
+                        result = future.result()
+                        if result is not None:
+                            results.append(result)
+                    except Exception:
+                        pass
+
+    results.sort(key=lambda x: x.get("volume_ratio", 0), reverse=True)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# scan_rsi_extreme
+# ---------------------------------------------------------------------------
+
+def _scan_rsi_extreme_single(ticker: str, oversold: float, overbought: float):
+    """RSI極値スキャン — 1銘柄処理。"""
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="3mo", interval="1d")
+        if hist.empty or len(hist) < 20:
+            return None
+
+        closes = hist["Close"]
+        prices = [_safe_float(c) for c in closes.tolist()]
+        prices = [p for p in prices if p is not None]
+        if len(prices) < 20:
+            return None
+
+        rsi = _calc_rsi(prices, period=14)
+
+        if rsi > oversold and rsi < overbought:
+            return None
+
+        signal = "oversold" if rsi <= oversold else "overbought"
+
+        current_price = prices[-1]
+        prev_price    = prices[-2] if len(prices) >= 2 else current_price
+        change_pct    = round((current_price - prev_price) / prev_price * 100, 2) if prev_price > 0 else 0
+
+        return {
+            "ticker": ticker,
+            "price": round(current_price, 2),
+            "change_pct": change_pct,
+            "rsi": rsi,
+            "signal": signal,
+        }
+    except Exception:
+        return None
+
+
+def scan_rsi_extreme(tickers: list = None, oversold: float = 30, overbought: float = 70) -> list:
+    """
+    RSIが極端な値の銘柄。
+    条件: RSI <= oversold (売られすぎ) または RSI >= overbought (買われすぎ)
+    返す情報: ticker, price, change_pct, rsi, signal (oversold/overbought)
+    """
+    if tickers is None:
+        tickers = DEFAULT_TICKERS
+
+    results = []
+    processed = set()
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_map = {
+            executor.submit(_scan_rsi_extreme_single, t, oversold, overbought): t
+            for t in tickers
+        }
+        try:
+            for future in as_completed(future_map, timeout=90):
+                processed.add(id(future))
+                try:
+                    result = future.result(timeout=15)
+                    if result is not None:
+                        results.append(result)
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            for future in future_map:
+                if id(future) not in processed and future.done():
+                    try:
+                        result = future.result()
+                        if result is not None:
+                            results.append(result)
+                    except Exception:
+                        pass
+
+    # oversold を上位（反発狙い向け）、次に overbought
+    results.sort(key=lambda x: (x["signal"] == "overbought", x["rsi"]))
     return results
 
 

@@ -15,8 +15,10 @@ from fundamentals import (
 from indicators import (
     calc_bollinger_bands, calc_ichimoku, calc_atr,
     calc_stochastic, calc_vwap, detect_candlestick_patterns,
-    find_support_resistance,
+    find_support_resistance, calc_adx, calc_williams_r,
+    detect_rsi_divergence, detect_ma_cross,
 )
+import alerts as _alerts_mod
 
 app = Flask(__name__)
 
@@ -92,22 +94,9 @@ def calc_macd(series, fast=12, slow=26, signal=9):
     return macd_out, signal_out, hist_out
 
 
-ALERTS_FILE = os.path.join(os.path.dirname(__file__), "alerts.json")
-_alerts_lock = threading.Lock()
-
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 WATCHLIST_FILE = os.path.join(DATA_DIR, "watchlist.json")
 _watchlist_lock = threading.Lock()
-
-def load_alerts():
-    if not os.path.exists(ALERTS_FILE):
-        return []
-    with open(ALERTS_FILE) as f:
-        return json.load(f)
-
-def save_alerts(alerts):
-    with open(ALERTS_FILE, "w") as f:
-        json.dump(alerts, f, ensure_ascii=False, indent=2)
 
 def _load_watchlist():
     if not os.path.exists(WATCHLIST_FILE):
@@ -379,70 +368,34 @@ def backtest():
 
 
 @app.route("/api/alerts", methods=["GET"])
-def get_alerts():
-    with _alerts_lock:
-        return jsonify(load_alerts())
+def get_alerts_api():
+    return jsonify({"alerts": _alerts_mod.get_alerts()})
 
 @app.route("/api/alerts", methods=["POST"])
-def add_alert():
-    data = request.get_json()
+def create_alert_api():
+    data = request.get_json() or {}
     ticker = data.get("ticker", "").upper().strip()
-    condition = data.get("condition")  # "above" or "below"
-    price = float(data.get("price", 0))
+    condition = data.get("condition")
+    try:
+        price = float(data.get("price", 0))
+    except (TypeError, ValueError):
+        price = 0
     if not ticker or condition not in ("above", "below") or price <= 0:
-        return jsonify({"error": "Invalid alert"}), 400
-    alert = {"id": int(datetime.now().timestamp() * 1000), "ticker": ticker,
-             "condition": condition, "price": price, "triggered": False,
-             "created": datetime.now().strftime("%Y-%m-%d %H:%M")}
-    with _alerts_lock:
-        alerts = load_alerts()
-        alerts.append(alert)
-        save_alerts(alerts)
-    return jsonify(alert)
+        return jsonify({"error": "Invalid alert parameters"}), 400
+    alert = _alerts_mod.create_alert(ticker, condition, price)
+    return jsonify(alert), 201
 
-@app.route("/api/alerts/<int:alert_id>", methods=["DELETE"])
-def delete_alert(alert_id):
-    with _alerts_lock:
-        alerts = load_alerts()
-        alerts = [a for a in alerts if a["id"] != alert_id]
-        save_alerts(alerts)
-    return jsonify({"ok": True})
+@app.route("/api/alerts/check", methods=["POST"])
+def check_alerts_api():
+    triggered = _alerts_mod.check_alerts()
+    return jsonify({"triggered": triggered, "alerts": _alerts_mod.get_alerts()})
 
-@app.route("/api/alerts/check", methods=["GET"])
-def check_alerts():
-    # ロック外で価格取得（時間のかかる IO をロック内に入れない）
-    with _alerts_lock:
-        alerts = load_alerts()
-
-    triggered = []
-    updates = {}  # id -> 更新フィールド
-    for alert in alerts:
-        if alert["triggered"]:
-            continue
-        try:
-            info = yf.Ticker(alert["ticker"]).fast_info
-            price = float(getattr(info, "last_price", 0))
-            hit = (alert["condition"] == "above" and price >= alert["price"]) or \
-                  (alert["condition"] == "below" and price <= alert["price"])
-            if hit:
-                updates[alert["id"]] = {
-                    "triggered": True,
-                    "triggered_price": round(price, 2),
-                    "triggered_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-        except Exception:
-            pass
-
-    if updates:
-        with _alerts_lock:
-            alerts = load_alerts()  # 再読み込みで競合を防ぐ
-            for alert in alerts:
-                if alert["id"] in updates:
-                    alert.update(updates[alert["id"]])
-                    triggered.append(alert)
-            save_alerts(alerts)
-
-    return jsonify({"triggered": triggered, "alerts": alerts})
+@app.route("/api/alerts/<alert_id>", methods=["DELETE"])
+def delete_alert_api(alert_id):
+    ok = _alerts_mod.delete_alert(alert_id)
+    if ok:
+        return jsonify({"ok": True})
+    return jsonify({"error": "Alert not found"}), 404
 
 
 @app.route("/api/sentiment")
@@ -590,6 +543,109 @@ def status_api():
 @app.route("/analysis")
 def analysis():
     return render_template("analysis.html")
+
+
+@app.route("/api/analysis/multi-timeframe/<ticker>")
+def multi_timeframe_analysis(ticker):
+    """1日足・1週足・1ヶ月足のテクニカル分析を返す"""
+    ticker = ticker.upper().strip()
+    results = {}
+    timeframes = {
+        "1d":  ("6mo", "1d"),    # 6ヶ月・日足
+        "1w":  ("2y",  "1wk"),   # 2年・週足
+        "1mo": ("5y",  "1mo"),   # 5年・月足
+    }
+
+    for tf_name, (period, interval) in timeframes.items():
+        try:
+            hist = yf.Ticker(ticker).history(period=period, interval=interval)
+            if hist.empty or len(hist) < 20:
+                results[tf_name] = {"error": "データ不足"}
+                continue
+
+            close = hist["Close"]
+            high  = hist["High"]
+            low   = hist["Low"]
+
+            # RSI — 最終値だけ取り出す
+            rsi_list = calc_rsi(close)
+            rsi_val  = round(rsi_list[-1]["y"], 1) if rsi_list else None
+
+            # MACD — 方向性を文字列で返す
+            macd_list, sig_list, _ = calc_macd(close)
+            if macd_list and sig_list:
+                ml = macd_list[-1]["y"]
+                sl = sig_list[-1]["y"]
+                macd_signal = "bullish" if ml > sl else ("bearish" if ml < sl else "neutral")
+            else:
+                macd_signal = "neutral"
+
+            # ADX — 新しく実装したものを使う
+            adx_data = calc_adx(high, low, close)
+            adx_val  = round(adx_data["adx"][-1]["y"], 1) if adx_data["adx"] else None
+
+            # トレンド方向（MA20 vs MA50、差が1%未満は横ばい）
+            ma20_list = calc_ma(close, 20)
+            ma50_list = calc_ma(close, 50)
+            if ma20_list and ma50_list:
+                ma20_last = ma20_list[-1]["y"]
+                ma50_last = ma50_list[-1]["y"]
+                diff_pct  = (ma20_last - ma50_last) / ma50_last * 100 if ma50_last else 0
+                trend = "uptrend" if diff_pct > 1 else ("downtrend" if diff_pct < -1 else "sideways")
+            else:
+                trend = "sideways"
+
+            results[tf_name] = {
+                "rsi":         rsi_val,
+                "macd_signal": macd_signal,
+                "adx":         adx_val,
+                "trend":       trend,
+                "close":       round(float(close.iloc[-1]), 2),
+            }
+        except Exception as e:
+            results[tf_name] = {"error": str(e)}
+
+    return jsonify({"ticker": ticker, "timeframes": results})
+
+
+@app.route("/api/analysis/divergence/<ticker>")
+def analysis_divergence(ticker):
+    """RSIダイバージェンス・MAクロス・サポレジを返す"""
+    ticker = ticker.upper().strip()
+    try:
+        hist = yf.Ticker(ticker).history(period="3mo", interval="1d")
+        if hist.empty:
+            return jsonify({"error": "データ取得失敗"}), 404
+
+        closes   = hist["Close"]
+        rsi_data = calc_rsi(closes)
+
+        divergence = detect_rsi_divergence(closes, rsi_data, lookback=20)
+        ma_cross   = detect_ma_cross(closes, fast=20, slow=50)
+        sr         = find_support_resistance(hist)
+
+        current_price = float(closes.iloc[-1])
+
+        # サポレジに現在価格との距離（%）を付加
+        def enrich_levels(levels):
+            result = []
+            for lvl in levels:
+                dist_pct = round((lvl - current_price) / current_price * 100, 2)
+                result.append({"price": lvl, "dist_pct": dist_pct})
+            return result
+
+        return jsonify({
+            "ticker": ticker,
+            "current_price": round(current_price, 2),
+            "divergence": divergence,
+            "ma_cross": ma_cross,
+            "support_resistance": {
+                "support":    enrich_levels(sr.get("support",    [])),
+                "resistance": enrich_levels(sr.get("resistance", [])),
+            },
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/signal")
@@ -885,6 +941,80 @@ def ptcg():
 
 
 # ---------------------------------------------------------------------------
+# 市場概況
+# ---------------------------------------------------------------------------
+
+@app.route("/market")
+def market_page():
+    return render_template("market.html")
+
+
+@app.route("/api/market/overview")
+def market_overview():
+    """主要指数・VIX"""
+    INDICES = {
+        "S&P 500":     "^GSPC",
+        "NASDAQ":      "^IXIC",
+        "Dow Jones":   "^DJI",
+        "Russell 2000":"^RUT",
+        "VIX":         "^VIX",
+        "日経225":     "^N225",
+    }
+
+    indices_data = {}
+    for name, symbol in INDICES.items():
+        try:
+            ticker = yf.Ticker(symbol)
+            price = float(ticker.fast_info.last_price or 0)
+            hist = ticker.history(period="2d", interval="1d")
+            if len(hist) >= 2:
+                prev = float(hist["Close"].iloc[-2])
+                change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+            else:
+                change_pct = 0
+            indices_data[name] = {"price": round(price, 2), "change_pct": change_pct}
+        except Exception as e:
+            indices_data[name] = {"price": None, "change_pct": 0, "error": str(e)}
+
+    return jsonify({"indices": indices_data})
+
+
+@app.route("/api/market/sectors")
+def market_sectors():
+    """セクター別パフォーマンス"""
+    SECTORS = {
+        "テクノロジー": "XLK",
+        "ヘルスケア":   "XLV",
+        "金融":         "XLF",
+        "エネルギー":   "XLE",
+        "素材":         "XLB",
+        "工業":         "XLI",
+        "公益":         "XLU",
+        "生活必需品":   "XLP",
+        "一般消費財":   "XLY",
+        "不動産":       "XLRE",
+        "通信":         "XLC",
+    }
+
+    sectors_data = {}
+    for name, symbol in SECTORS.items():
+        try:
+            ticker = yf.Ticker(symbol)
+            price = float(ticker.fast_info.last_price or 0)
+            hist = ticker.history(period="2d", interval="1d")
+            if len(hist) >= 2:
+                prev = float(hist["Close"].iloc[-2])
+                change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+            else:
+                change_pct = 0
+            sectors_data[name] = {"symbol": symbol, "price": round(price, 2), "change_pct": change_pct}
+        except Exception as e:
+            sectors_data[name] = {"symbol": symbol, "price": None, "change_pct": 0, "error": str(e)}
+
+    return jsonify({"sectors": sectors_data})
+
+
+# ---------------------------------------------------------------------------
 # ウォッチリスト
 # ---------------------------------------------------------------------------
 
@@ -961,6 +1091,283 @@ def remove_from_watchlist(ticker):
         wl["tickers"] = [t for t in wl["tickers"] if t != ticker]
         _save_watchlist(wl)
     return jsonify({"ok": True, "tickers": wl["tickers"]})
+
+
+# ---------------------------------------------------------------------------
+# バックテスト: RSIリバーサル戦略
+# ---------------------------------------------------------------------------
+
+@app.route("/api/backtest/rsi-reversal/<ticker>")
+def backtest_rsi_reversal(ticker):
+    """RSIリバーサル戦略: RSI < 30 で買い / RSI > 70 で売り（期間: 1年）"""
+    ticker = ticker.upper().strip()
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="1y", interval="1d")
+        if hist.empty:
+            return jsonify({"error": f"No data for '{ticker}'"}), 404
+
+        closes = hist["Close"]
+        dates = [int(ts.timestamp() * 1000) for ts in hist.index]
+        prices = closes.tolist()
+        n = len(prices)
+
+        # RSI計算（期間14）
+        delta = closes.diff()
+        gain = delta.clip(lower=0).ewm(com=13, min_periods=14).mean()
+        loss = (-delta.clip(upper=0)).ewm(com=13, min_periods=14).mean()
+        rsi = 100 - (100 / (1 + gain / loss))
+
+        capital = 1_000_000.0
+        initial = capital
+        position = 0
+        entry_price = 0.0
+        trades = []
+
+        for i in range(1, n):
+            if pd.isna(rsi.iloc[i]):
+                continue
+            price = prices[i]
+            rsi_val = float(rsi.iloc[i])
+
+            if rsi_val < 30 and position == 0:
+                shares = int(capital / price)
+                if shares > 0:
+                    position = shares
+                    entry_price = price
+                    capital -= shares * price
+                    trades.append({
+                        "date": dates[i], "type": "buy",
+                        "price": round(price, 2), "shares": shares,
+                        "rsi": round(rsi_val, 1),
+                    })
+            elif rsi_val > 70 and position > 0:
+                capital += position * price
+                pnl = (price - entry_price) * position
+                trades.append({
+                    "date": dates[i], "type": "sell",
+                    "price": round(price, 2), "shares": position,
+                    "pnl": round(pnl, 2), "rsi": round(rsi_val, 1),
+                })
+                position = 0
+
+        # 残ポジションを最終日終値で清算
+        if position > 0:
+            final_price = prices[-1]
+            capital += position * final_price
+            pnl = (final_price - entry_price) * position
+            trades.append({
+                "date": dates[-1], "type": "sell(final)",
+                "price": round(final_price, 2), "shares": position,
+                "pnl": round(pnl, 2),
+            })
+            position = 0
+
+        total_return_pct = (capital - initial) / initial * 100
+        sell_trades = [t for t in trades if t["type"] in ("sell", "sell(final)")]
+        win_trades = [t for t in sell_trades if t.get("pnl", 0) > 0]
+        win_rate = len(win_trades) / len(sell_trades) * 100 if sell_trades else 0
+
+        # 最大ドローダウン計算
+        eq_cap = initial
+        eq_pos = 0
+        trade_idx = 0
+        peak = initial
+        max_drawdown = 0.0
+        for i, (d, p) in enumerate(zip(dates, prices)):
+            while trade_idx < len(trades) and trades[trade_idx]["date"] == d:
+                t = trades[trade_idx]
+                if t["type"] == "buy":
+                    eq_cap -= t["shares"] * t["price"]
+                    eq_pos = t["shares"]
+                else:
+                    eq_cap += t["shares"] * t["price"]
+                    eq_pos = 0
+                trade_idx += 1
+            equity_val = eq_cap + eq_pos * p
+            if equity_val > peak:
+                peak = equity_val
+            dd = (equity_val - peak) / peak * 100
+            if dd < max_drawdown:
+                max_drawdown = dd
+
+        return jsonify({
+            "ticker": ticker,
+            "strategy": "rsi-reversal",
+            "total_return_pct": round(total_return_pct, 2),
+            "win_rate": round(win_rate, 2),
+            "total_trades": len(sell_trades),
+            "max_drawdown_pct": round(max_drawdown, 2),
+            "trades": trades,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# バックテスト: MACDクロスオーバー戦略
+# ---------------------------------------------------------------------------
+
+@app.route("/api/backtest/macd-crossover/<ticker>")
+def backtest_macd_crossover(ticker):
+    """MACDクロスオーバー戦略: MACDがシグナル線を上抜け→買い / 下抜け→売り（期間: 1年）"""
+    ticker = ticker.upper().strip()
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="1y", interval="1d")
+        if hist.empty:
+            return jsonify({"error": f"No data for '{ticker}'"}), 404
+
+        closes = hist["Close"]
+        dates = [int(ts.timestamp() * 1000) for ts in hist.index]
+        prices = closes.tolist()
+        n = len(prices)
+
+        # MACD計算（12/26/9）
+        ema_fast = closes.ewm(span=12, adjust=False).mean()
+        ema_slow = closes.ewm(span=26, adjust=False).mean()
+        macd_line = ema_fast - ema_slow
+        signal_line = macd_line.ewm(span=9, adjust=False).mean()
+
+        capital = 1_000_000.0
+        initial = capital
+        position = 0
+        entry_price = 0.0
+        trades = []
+
+        for i in range(1, n):
+            if pd.isna(macd_line.iloc[i]) or pd.isna(signal_line.iloc[i]):
+                continue
+            price = prices[i]
+            prev_diff = float(macd_line.iloc[i-1]) - float(signal_line.iloc[i-1])
+            curr_diff = float(macd_line.iloc[i]) - float(signal_line.iloc[i])
+
+            # 上抜けクロス: 買い
+            if prev_diff <= 0 and curr_diff > 0 and position == 0:
+                shares = int(capital / price)
+                if shares > 0:
+                    position = shares
+                    entry_price = price
+                    capital -= shares * price
+                    trades.append({
+                        "date": dates[i], "type": "buy",
+                        "price": round(price, 2), "shares": shares,
+                        "macd": round(float(macd_line.iloc[i]), 4),
+                    })
+            # 下抜けクロス: 売り
+            elif prev_diff >= 0 and curr_diff < 0 and position > 0:
+                capital += position * price
+                pnl = (price - entry_price) * position
+                trades.append({
+                    "date": dates[i], "type": "sell",
+                    "price": round(price, 2), "shares": position,
+                    "pnl": round(pnl, 2),
+                    "macd": round(float(macd_line.iloc[i]), 4),
+                })
+                position = 0
+
+        # 残ポジションを最終日終値で清算
+        if position > 0:
+            final_price = prices[-1]
+            capital += position * final_price
+            pnl = (final_price - entry_price) * position
+            trades.append({
+                "date": dates[-1], "type": "sell(final)",
+                "price": round(final_price, 2), "shares": position,
+                "pnl": round(pnl, 2),
+            })
+            position = 0
+
+        total_return_pct = (capital - initial) / initial * 100
+        sell_trades = [t for t in trades if t["type"] in ("sell", "sell(final)")]
+        win_trades = [t for t in sell_trades if t.get("pnl", 0) > 0]
+        win_rate = len(win_trades) / len(sell_trades) * 100 if sell_trades else 0
+
+        # 最大ドローダウン計算
+        eq_cap = initial
+        eq_pos = 0
+        trade_idx = 0
+        peak = initial
+        max_drawdown = 0.0
+        for i, (d, p) in enumerate(zip(dates, prices)):
+            while trade_idx < len(trades) and trades[trade_idx]["date"] == d:
+                t = trades[trade_idx]
+                if t["type"] == "buy":
+                    eq_cap -= t["shares"] * t["price"]
+                    eq_pos = t["shares"]
+                else:
+                    eq_cap += t["shares"] * t["price"]
+                    eq_pos = 0
+                trade_idx += 1
+            equity_val = eq_cap + eq_pos * p
+            if equity_val > peak:
+                peak = equity_val
+            dd = (equity_val - peak) / peak * 100
+            if dd < max_drawdown:
+                max_drawdown = dd
+
+        return jsonify({
+            "ticker": ticker,
+            "strategy": "macd-crossover",
+            "total_return_pct": round(total_return_pct, 2),
+            "win_rate": round(win_rate, 2),
+            "total_trades": len(sell_trades),
+            "max_drawdown_pct": round(max_drawdown, 2),
+            "trades": trades,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# ウォッチリスト: 相関分析API
+# ---------------------------------------------------------------------------
+
+@app.route("/api/watchlist/correlation")
+def watchlist_correlation():
+    """ウォッチリスト銘柄間の相関係数行列（過去3ヶ月の日次リターン）"""
+    with _watchlist_lock:
+        wl = _load_watchlist()
+    tickers = wl.get("tickers", [])
+    if len(tickers) < 2:
+        return jsonify({
+            "error": "相関分析には2銘柄以上が必要です",
+            "tickers": tickers,
+            "matrix": [],
+        }), 400
+
+    try:
+        price_dict = {}
+        for t in tickers:
+            try:
+                hist = yf.Ticker(t).history(period="3mo", interval="1d")
+                if not hist.empty and len(hist) > 5:
+                    price_dict[t] = hist["Close"]
+            except Exception:
+                pass
+
+        valid_tickers = list(price_dict.keys())
+        if len(valid_tickers) < 2:
+            return jsonify({"error": "有効な銘柄データが不足しています"}), 400
+
+        prices_df = pd.DataFrame(price_dict).dropna()
+        returns_df = prices_df.pct_change().dropna()
+        corr = returns_df.corr()
+
+        matrix = []
+        for t1 in valid_tickers:
+            row = []
+            for t2 in valid_tickers:
+                try:
+                    val = corr.loc[t1, t2]
+                    row.append(round(float(val), 4) if pd.notna(val) else None)
+                except KeyError:
+                    row.append(None)
+            matrix.append(row)
+
+        return jsonify({"tickers": valid_tickers, "matrix": matrix})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
