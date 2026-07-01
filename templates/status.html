@@ -47,7 +47,7 @@
     .g-nav-link:hover { color: #e6edf3; background: #21262d; }
     .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
 
-    main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+    main { padding: 24px; max-width: 1200px; margin: 0 auto; }
 
     /* Phase banner */
     .phase-banner {
@@ -142,6 +142,77 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .countdown { font-size: 12px; color: #8b949e; text-align: right; margin-top: 8px; }
+
+    /* ===== ヘルスダッシュボード ===== */
+    .health-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .health-kpi {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px 16px;
+      text-align: center;
+    }
+    .health-kpi.ok    { border-color: rgba(63,185,80,.4); }
+    .health-kpi.error { border-color: rgba(248,81,73,.4); }
+    .health-kpi .kpi-icon { font-size: 22px; margin-bottom: 4px; }
+    .health-kpi .kpi-value { font-size: 18px; font-weight: 700; }
+    .health-kpi.ok    .kpi-value { color: #3fb950; }
+    .health-kpi.error .kpi-value { color: #f85149; }
+    .health-kpi .kpi-label { font-size: 11px; color: #8b949e; margin-top: 2px; }
+
+    .health-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 10px;
+    }
+    .health-card {
+      display: flex; align-items: center; gap: 10px;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 10px 14px;
+    }
+    .health-card.ok    { border-color: rgba(63,185,80,.4); }
+    .health-card.error { border-color: rgba(248,81,73,.4); }
+    .health-card .hc-icon { font-size: 16px; flex-shrink: 0; }
+    .health-card .hc-title { font-size: 13px; font-weight: 600; }
+    .health-card.ok    .hc-title { color: #3fb950; }
+    .health-card.error .hc-title { color: #f85149; }
+    .health-card .hc-sub { font-size: 11px; color: #8b949e; margin-top: 2px; }
+    .health-ts { font-size: 11px; color: #8b949e; text-align: right; margin-top: 10px; }
+
+    /* ===== 機能一覧グリッド ===== */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .feature-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .feature-card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #58a6ff;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #21262d;
+    }
+    .feature-card ul {
+      list-style: none;
+      padding: 0;
+    }
+    .feature-card ul li {
+      font-size: 12px;
+      color: #c9d1d9;
+      padding: 3px 0;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -162,19 +233,19 @@
   </nav>
 
   <main>
-    <div style="padding: 16px 24px 0;">
-      <h1 style="font-size: 18px; font-weight: 700; color: #58a6ff;">📡 プロジェクト状況</h1>
+    <div style="padding: 16px 0 0;">
+      <h1 style="font-size: 18px; font-weight: 700; color: #58a6ff;">📡 プロジェクト状況 &amp; ダッシュボード</h1>
     </div>
-    <div id="spinner"><div class="spin"></div><p>データ読み込み中...</p></div>
+    <div id="spinner" style="display:block"><div class="spin" style="margin-top:40px"></div><p style="text-align:center;color:#8b949e;margin-top:8px">データ読み込み中...</p></div>
     <div id="content" style="display:none">
 
       <!-- Phase banner -->
-      <div class="phase-banner" id="phase-banner">
+      <div class="phase-banner" id="phase-banner" style="margin-top:20px">
         <div>
           <div class="phase-text" id="phase-text">読み込み中...</div>
           <div class="updated-at" id="updated-at"></div>
         </div>
-        <button class="refresh-btn" onclick="loadStatus()">🔄 今すぐ更新</button>
+        <button class="refresh-btn" onclick="loadAll()">🔄 今すぐ更新</button>
       </div>
 
       <!-- Overall progress -->
@@ -186,6 +257,109 @@
         </div>
         <div class="prog-bar-bg"><div class="prog-bar-fill" id="prog-bar" style="width:0%"></div></div>
         <div class="countdown" id="next-update"></div>
+      </div>
+
+      <!-- System Health Dashboard -->
+      <div class="section" id="health-section">
+        <div class="section-title">🩺 システムヘルス</div>
+
+        <!-- KPI カード行 -->
+        <div class="health-summary" id="health-summary">
+          <div style="color:#8b949e;font-size:13px">読み込み中...</div>
+        </div>
+
+        <!-- 詳細カード -->
+        <div class="health-detail-grid" id="health-detail"></div>
+
+        <div class="health-ts" id="health-ts"></div>
+      </div>
+
+      <!-- 実装済み機能一覧 -->
+      <div class="section">
+        <div class="section-title">📋 実装済み機能一覧</div>
+        <div class="feature-grid">
+
+          <div class="feature-card">
+            <h3>📊 マーケット情報</h3>
+            <ul>
+              <li>✅ 主要6指数リアルタイム</li>
+              <li>✅ S&amp;P500全セクター（11）</li>
+              <li>✅ FX為替（5通貨ペア）</li>
+              <li>✅ 暗号通貨（BTC/ETH/SOL/XRP）</li>
+              <li>✅ セクターヒートマップ（27銘柄）</li>
+              <li>✅ セクターローテーション（11ETF）</li>
+              <li>✅ Fear&amp;Greedセンチメント指標</li>
+            </ul>
+          </div>
+
+          <div class="feature-card">
+            <h3>🔍 銘柄分析</h3>
+            <ul>
+              <li>✅ テクニカル指標（RSI/MACD/BB/ATR）</li>
+              <li>✅ マルチタイムフレーム分析</li>
+              <li>✅ RSIダイバージェンス検出</li>
+              <li>✅ ファンダメンタルズ（PER/PBR/EPS）</li>
+              <li>✅ 配当情報・履歴</li>
+              <li>✅ リスク指標（ベータ/ボラティリティ）</li>
+              <li>✅ モメンタムスコア（4期間）</li>
+              <li>✅ 空売り比率・スクイーズリスク</li>
+              <li>✅ インサイダー取引履歴</li>
+              <li>✅ オプションチェーン（PCR/IV Skew）</li>
+            </ul>
+          </div>
+
+          <div class="feature-card">
+            <h3>📱 ウォッチリスト</h3>
+            <ul>
+              <li>✅ 銘柄管理（追加/削除）</li>
+              <li>✅ 一括インポート（カンマ区切り）</li>
+              <li>✅ プリセット（MAG7/高配当/日本株）</li>
+              <li>✅ 価格アラート（上/下突破）</li>
+              <li>✅ テクニカルアラート（MA/RSI）</li>
+              <li>✅ 相関行列</li>
+              <li>✅ ニュースフィード</li>
+            </ul>
+          </div>
+
+          <div class="feature-card">
+            <h3>📈 スキャナー</h3>
+            <ul>
+              <li>✅ 52週高値ブレイクアウト</li>
+              <li>✅ 出来高急増スキャン</li>
+              <li>✅ RSI過買・過売スキャン</li>
+              <li>✅ カスタムスクリーナー（テクニカル）</li>
+              <li>✅ ファンダメンタルスクリーナー</li>
+              <li>✅ バリュー/グロース/高配当プリセット</li>
+            </ul>
+          </div>
+
+          <div class="feature-card">
+            <h3>💼 ペーパートレード</h3>
+            <ul>
+              <li>✅ 仮想¥100,000運用</li>
+              <li>✅ USD→JPY自動換算</li>
+              <li>✅ 損切り/利確ライン設定</li>
+              <li>✅ 2%リスクルール計算機</li>
+              <li>✅ パフォーマンスサマリー</li>
+              <li>✅ 累積損益チャート</li>
+              <li>✅ CSVエクスポート</li>
+            </ul>
+          </div>
+
+          <div class="feature-card">
+            <h3>🔬 バックテスト・その他</h3>
+            <ul>
+              <li>✅ RSIリバーサル戦略</li>
+              <li>✅ MACDクロス戦略</li>
+              <li>✅ ポートフォリオシミュレーター</li>
+              <li>✅ 銘柄比較チャート（最大4銘柄）</li>
+              <li>✅ 経済カレンダー（38イベント）</li>
+              <li>✅ ウォッチリスト決算カレンダー</li>
+              <li>✅ AIシグナル（テクニカル20%+ファンダ40%+センチ40%）</li>
+            </ul>
+          </div>
+
+        </div>
       </div>
 
       <!-- File status -->
@@ -219,14 +393,6 @@
         </div>
       </div>
 
-      <!-- System Health -->
-      <div class="section" id="health-section">
-        <div class="section-title">🩺 システムヘルス</div>
-        <div id="health-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
-          <div style="color:#8b949e;font-size:13px">読み込み中...</div>
-        </div>
-      </div>
-
       <!-- Timeline -->
       <div class="section">
         <div class="section-title">📅 ロードマップ</div>
@@ -237,14 +403,14 @@
             <div class="tl-text">✅ チャートアプリ基本構築・MA/RSI/MACD・バックテスト・アラート・ガイドページ完成</div>
           </div>
           <div class="tl-item">
-            <div class="tl-dot dot-b"></div>
-            <div class="tl-date">6/21〜6/28 — Phase 1A（現在）</div>
-            <div class="tl-text">🔄 X/Twitterセンチメント・ファンダメンタルズ・CAN SLIM・SEPA・分析ダッシュボード・追加インジケーター</div>
+            <div class="tl-dot dot-g"></div>
+            <div class="tl-date">6/21〜6/28 — Phase 1A</div>
+            <div class="tl-text">✅ ファンダメンタルズ・分析ダッシュボード・スキャナー・ウォッチリスト・ペーパートレード・比較チャート・カレンダー実装完了</div>
           </div>
           <div class="tl-item">
-            <div class="tl-dot dot-x"></div>
-            <div class="tl-date">6/28〜7/5 — Phase 1B</div>
-            <div class="tl-text">⏳ シグナルエンジン統合・モメンタムスキャナー・デモ日誌・自動スケジューラー・Obsidian Wiki充実</div>
+            <div class="tl-dot dot-b"></div>
+            <div class="tl-date">6/28〜7/5 — Phase 1B（現在）</div>
+            <div class="tl-text">🔄 シグナルエンジン統合・AIスコア改善・デモ日誌・自動スケジューラー</div>
           </div>
           <div class="tl-item">
             <div class="tl-dot dot-x"></div>
@@ -278,16 +444,21 @@
     let nextRefreshSec = 3600;
     let countdownTimer = null;
 
-    async function loadStatus() {
+    async function loadAll() {
       document.getElementById("spinner").style.display = "block";
       document.getElementById("content").style.display = "none";
       try {
-        const r = await fetch("/api/status");
-        if (!r.ok) throw new Error("fetch failed");
-        const d = await r.json();
-        render(d);
+        const [statusRes, healthRes] = await Promise.all([
+          fetch("/api/status"),
+          fetch("/api/status/health"),
+        ]);
+        const statusData = statusRes.ok ? await statusRes.json() : null;
+        const healthData = healthRes.ok ? await healthRes.json() : null;
+        render(statusData || {});
+        if (healthData) renderHealth(healthData);
       } catch(e) {
-        document.getElementById("spinner").innerHTML = `<p style="color:#f85149">データ取得失敗。サーバーを確認してください。</p>`;
+        document.getElementById("spinner").innerHTML =
+          `<p style="color:#f85149;text-align:center;margin-top:40px">データ取得失敗。サーバーを確認してください。</p>`;
       }
     }
 
@@ -298,8 +469,8 @@
       // Phase
       const banner = document.getElementById("phase-banner");
       banner.className = `phase-banner ${d.phase_color || "blue"}`;
-      document.getElementById("phase-text").textContent = "🚀 " + d.phase;
-      document.getElementById("updated-at").textContent = "最終更新: " + d.updated_at;
+      document.getElementById("phase-text").textContent = "🚀 " + (d.phase || "Phase 1B — 開発中");
+      document.getElementById("updated-at").textContent = "最終更新: " + (d.updated_at || new Date().toLocaleString("ja-JP"));
 
       // Progress
       const pct = d.progress_pct || 0;
@@ -314,7 +485,7 @@
           <span class="file-label">${f.label}</span>
           <span class="file-badge ${f.done ? "badge-done" : "badge-pending"}">${f.done ? "完了" : "待機"}</span>
         </div>
-      `).join("");
+      `).join("") || '<div style="color:#8b949e;font-size:13px">データなし</div>';
 
       // Agents
       const ag = document.getElementById("agent-grid");
@@ -341,41 +512,85 @@
           : `<div style="color:#8b949e;font-size:12px">なし</div>`;
       });
 
-      // Countdown
       startCountdown();
-
-      // ヘルスチェックも非同期ロード
-      loadHealth();
     }
 
-    async function loadHealth() {
-      const grid = document.getElementById("health-grid");
-      try {
-        const r = await fetch("/api/status/health");
-        const d = await r.json();
-        const checks = d.checks || {};
-        const labels = {
-          "yfinance":         "yfinance 疎通",
-          "service":          "systemd サービス",
-          "paper_trades.json":"paper_trades.json",
-          "watchlist.json":   "watchlist.json",
-          "last_update":      "最終データ更新",
-        };
-        grid.innerHTML = Object.entries(checks).map(([key, val]) => {
-          const ok  = val.ok;
-          const lbl = labels[key] || key;
-          const sub = val.value || val.error || "";
-          return `<div style="display:flex;align-items:center;gap:10px;background:#0d1117;border:1px solid ${ok ? "rgba(63,185,80,.4)" : "rgba(248,81,73,.4)"};border-radius:8px;padding:10px 14px;">
-            <span style="font-size:16px">${ok ? "✅" : "❌"}</span>
-            <div>
-              <div style="font-size:13px;font-weight:600;color:${ok ? "#3fb950" : "#f85149"}">${lbl}</div>
-              ${sub ? `<div style="font-size:11px;color:#8b949e;margin-top:2px">${sub}</div>` : ""}
-            </div>
-          </div>`;
-        }).join("") + `<div style="font-size:11px;color:#8b949e;grid-column:1/-1;text-align:right;margin-top:4px">確認時刻: ${d.timestamp || ""}</div>`;
-      } catch (e) {
-        grid.innerHTML = `<div style="color:#f85149;font-size:13px">ヘルスチェック取得失敗: ${e.message}</div>`;
-      }
+    function renderHealth(d) {
+      const checks  = d.checks  || {};
+      const yf      = checks.yfinance      || {};
+      const pt      = checks.paper_trading || {};
+      const al      = checks.alerts        || {};
+      const df      = checks.data_files    || {};
+
+      // --- KPI サマリー ---
+      const summaryEl = document.getElementById("health-summary");
+      const yfOk = yf.status === "ok";
+      const kpis = [
+        {
+          icon: yfOk ? "🟢" : "🔴",
+          cls:  yfOk ? "ok" : "error",
+          value: yfOk ? "正常" : "エラー",
+          label: "yfinance 接続",
+        },
+        {
+          icon: "📈",
+          cls: "ok",
+          value: yfOk ? `$${yf.sample_price}` : "—",
+          label: `AAPL最終価格 (${yf.latency_sec ?? "—"}秒)`,
+        },
+        {
+          icon: "⭐",
+          cls: "ok",
+          value: (checks.watchlist_count ?? 0) + " 銘柄",
+          label: "ウォッチリスト",
+        },
+        {
+          icon: "🔔",
+          cls: "ok",
+          value: al.total ?? 0,
+          label: `アラート (有効: ${al.active ?? 0} / 発火: ${al.triggered ?? 0})`,
+        },
+        {
+          icon: "💼",
+          cls: pt.error ? "error" : "ok",
+          value: pt.error ? "エラー" : `¥${(pt.total_pnl ?? 0).toLocaleString()}`,
+          label: `PnL (${pt.trade_count ?? 0}回 / 勝率${pt.win_rate ?? 0}%)`,
+        },
+      ];
+      summaryEl.innerHTML = kpis.map(k => `
+        <div class="health-kpi ${k.cls}">
+          <div class="kpi-icon">${k.icon}</div>
+          <div class="kpi-value">${k.value}</div>
+          <div class="kpi-label">${k.label}</div>
+        </div>
+      `).join("");
+
+      // --- データファイル詳細カード ---
+      const detailEl = document.getElementById("health-detail");
+      const fileCards = Object.entries(df).map(([name, info]) => {
+        const ok = info.exists;
+        return `<div class="health-card ${ok ? "ok" : "error"}">
+          <span class="hc-icon">${ok ? "✅" : "❌"}</span>
+          <div>
+            <div class="hc-title">${name}.json</div>
+            <div class="hc-sub">${ok ? info.size_bytes + " bytes" : "ファイル不在"}</div>
+          </div>
+        </div>`;
+      });
+
+      // yfinance カード
+      const yfCard = `<div class="health-card ${yfOk ? "ok" : "error"}">
+        <span class="hc-icon">${yfOk ? "✅" : "❌"}</span>
+        <div>
+          <div class="hc-title">yfinance API</div>
+          <div class="hc-sub">${yfOk ? `レイテンシ: ${yf.latency_sec}秒` : (yf.error || "接続失敗")}</div>
+        </div>
+      </div>`;
+
+      detailEl.innerHTML = yfCard + fileCards.join("");
+
+      // タイムスタンプ
+      document.getElementById("health-ts").textContent = "ヘルスチェック時刻: " + (d.timestamp || "");
     }
 
     function startCountdown() {
@@ -389,12 +604,12 @@
           `次回自動更新まで: ${m}分${s}秒`;
         if (nextRefreshSec <= 0) {
           clearInterval(countdownTimer);
-          loadStatus();
+          loadAll();
         }
       }, 1000);
     }
 
-    loadStatus();
+    loadAll();
   </script>
 </body>
 </html>
