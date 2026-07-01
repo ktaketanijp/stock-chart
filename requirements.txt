@@ -1,0 +1,9 @@
+Flask==3.0.3
+gunicorn==23.0.0
+yfinance==1.2.0
+pandas==2.3.3
+numpy==2.0.2
+requests==2.32.3
+schedule==1.2.2
+groq==1.0.0
+openai==2.41.1
