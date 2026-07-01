@@ -1693,5 +1693,89 @@ def earnings_history(ticker):
     return jsonify(result)
 
 
+# ---------------------------------------------------------------------------
+# カスタムスクリーナー
+# ---------------------------------------------------------------------------
+
+@app.route("/api/screen", methods=["POST"])
+def custom_screen():
+    """
+    カスタムスクリーニング
+    POSTボディ: {
+        "tickers": ["AAPL", "NVDA", ...],  # 省略可能（省略時はデフォルトリスト）
+        "filters": {
+            "rsi_min": 30,          # RSI最小値
+            "rsi_max": 70,          # RSI最大値
+            "change_pct_min": 1.0,  # 当日変動率最小（%）
+            "change_pct_max": 10.0, # 当日変動率最大（%）
+            "price_min": 10.0,      # 株価最小
+            "price_max": 500.0,     # 株価最大
+            "volume_min": 1000000,  # 出来高最小（3ヶ月平均）
+        }
+    }
+    """
+    from scanner import DEFAULT_TICKERS, _calc_rsi as _scanner_calc_rsi
+
+    data = request.get_json() or {}
+    filters = data.get("filters", {})
+    tickers = data.get("tickers") or DEFAULT_TICKERS
+
+    results = []
+    for ticker in tickers:
+        try:
+            t = yf.Ticker(ticker)
+            price = float(t.fast_info.last_price or 0)
+            if price <= 0:
+                continue
+
+            # 当日変動率
+            hist = t.history(period="2d", interval="1d")
+            if len(hist) < 2:
+                continue
+            prev = float(hist["Close"].iloc[-2])
+            change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+
+            # RSI（14日）
+            hist30 = t.history(period="30d", interval="1d")
+            rsi = None
+            if len(hist30) >= 15:
+                rsi = _scanner_calc_rsi(hist30["Close"].tolist())
+
+            # 出来高（3ヶ月平均）
+            try:
+                volume = int(t.fast_info.three_month_average_volume or 0)
+            except Exception:
+                volume = 0
+
+            # フィルター適用
+            f = filters
+            if f.get("rsi_min") is not None and rsi is not None and rsi < f["rsi_min"]:
+                continue
+            if f.get("rsi_max") is not None and rsi is not None and rsi > f["rsi_max"]:
+                continue
+            if f.get("change_pct_min") is not None and change_pct < f["change_pct_min"]:
+                continue
+            if f.get("change_pct_max") is not None and change_pct > f["change_pct_max"]:
+                continue
+            if f.get("price_min") is not None and price < f["price_min"]:
+                continue
+            if f.get("price_max") is not None and price > f["price_max"]:
+                continue
+            if f.get("volume_min") is not None and volume < f["volume_min"]:
+                continue
+
+            results.append({
+                "ticker": ticker,
+                "price": round(price, 2),
+                "change_pct": change_pct,
+                "rsi": rsi,
+                "volume": volume,
+            })
+        except Exception:
+            continue
+
+    return jsonify({"results": results, "count": len(results), "filters_applied": filters})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

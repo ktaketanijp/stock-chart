@@ -355,13 +355,81 @@
       border-radius: 8px;
     }
 
+    /* ---- Custom Screener ---- */
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .filter-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .filter-item label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .filter-item input {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e6edf3;
+      font-size: 13px;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+    .filter-item input:focus {
+      border-color: #58a6ff;
+    }
+    .filter-item input::placeholder {
+      color: #484f58;
+    }
+    .preset-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .preset-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .preset-btn:hover {
+      background: #30363d;
+      border-color: #58a6ff;
+      color: #58a6ff;
+    }
+    .screen-summary {
+      font-size: 12px;
+      color: #8b949e;
+      margin: 12px 0 8px;
+    }
+
     /* ---- Responsive ---- */
     @media (max-width: 768px) {
       .sector-grid { grid-template-columns: 1fr; }
+      .filter-grid  { grid-template-columns: 1fr 1fr; }
       main { padding: 16px; }
       .control-bar { padding: 12px 16px; }
       header { padding: 12px 16px; }
       .card { padding: 16px; }
+    }
+    @media (max-width: 480px) {
+      .filter-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 480px) {
       .g-nav-link { font-size: 12px; padding: 4px 8px; }
@@ -475,6 +543,53 @@
     <div class="card" id="rsi-section" style="display:none">
       <div class="card-title">RSI極値スキャン（過売 / 過買）</div>
       <div id="rsi-content"></div>
+    </div>
+
+    <!-- カスタムスクリーナー -->
+    <div class="card" id="custom-screen-section">
+      <div class="card-title">カスタムスクリーナー</div>
+
+      <div class="filter-grid">
+        <div class="filter-item">
+          <label>RSI 最小</label>
+          <input type="number" id="f-rsi-min" placeholder="例: 30" min="0" max="100">
+        </div>
+        <div class="filter-item">
+          <label>RSI 最大</label>
+          <input type="number" id="f-rsi-max" placeholder="例: 70" min="0" max="100">
+        </div>
+        <div class="filter-item">
+          <label>変動率 最小 (%)</label>
+          <input type="number" id="f-change-min" placeholder="例: 1.0" step="0.1">
+        </div>
+        <div class="filter-item">
+          <label>変動率 最大 (%)</label>
+          <input type="number" id="f-change-max" placeholder="例: 10.0" step="0.1">
+        </div>
+        <div class="filter-item">
+          <label>株価 最小 ($)</label>
+          <input type="number" id="f-price-min" placeholder="例: 10">
+        </div>
+        <div class="filter-item">
+          <label>株価 最大 ($)</label>
+          <input type="number" id="f-price-max" placeholder="例: 500">
+        </div>
+      </div>
+
+      <div class="preset-btns">
+        <button class="preset-btn" onclick="applyPreset('oversold')">売られすぎ (RSI&lt;30)</button>
+        <button class="preset-btn" onclick="applyPreset('overbought')">買われすぎ (RSI&gt;70)</button>
+        <button class="preset-btn" onclick="applyPreset('momentum')">モメンタム (+1%以上)</button>
+        <button class="preset-btn" onclick="applyPreset('cheap')">低価格 ($10-$50)</button>
+        <button class="preset-btn" onclick="clearScreenFilters()" style="color:#f85149;border-color:rgba(248,81,73,0.3)">クリア</button>
+      </div>
+
+      <button class="btn btn-primary" id="btn-screen" onclick="runCustomScreen()">
+        <div class="spinner" id="screen-spinner"></div>
+        スクリーニング実行
+      </button>
+
+      <div id="screen-results"></div>
     </div>
   </main>
 
@@ -1100,6 +1215,147 @@
           </table>
         </div>`;
       document.getElementById("rsi-content").innerHTML = html;
+    }
+
+    // ---- Custom Screener ----
+    function applyPreset(type) {
+      // まずクリア
+      clearScreenFilters();
+      if (type === "oversold") {
+        document.getElementById("f-rsi-max").value = "30";
+      } else if (type === "overbought") {
+        document.getElementById("f-rsi-min").value = "70";
+      } else if (type === "momentum") {
+        document.getElementById("f-change-min").value = "1.0";
+      } else if (type === "cheap") {
+        document.getElementById("f-price-min").value = "10";
+        document.getElementById("f-price-max").value = "50";
+      }
+    }
+
+    function clearScreenFilters() {
+      ["f-rsi-min","f-rsi-max","f-change-min","f-change-max","f-price-min","f-price-max"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+    }
+
+    function getScreenFilters() {
+      const filters = {};
+      const parse = (id) => {
+        const v = document.getElementById(id)?.value.trim();
+        return v !== "" && v != null ? parseFloat(v) : null;
+      };
+      const rsiMin    = parse("f-rsi-min");
+      const rsiMax    = parse("f-rsi-max");
+      const chgMin    = parse("f-change-min");
+      const chgMax    = parse("f-change-max");
+      const priceMin  = parse("f-price-min");
+      const priceMax  = parse("f-price-max");
+      if (rsiMin    !== null) filters.rsi_min        = rsiMin;
+      if (rsiMax    !== null) filters.rsi_max        = rsiMax;
+      if (chgMin    !== null) filters.change_pct_min = chgMin;
+      if (chgMax    !== null) filters.change_pct_max = chgMax;
+      if (priceMin  !== null) filters.price_min      = priceMin;
+      if (priceMax  !== null) filters.price_max      = priceMax;
+      return filters;
+    }
+
+    async function runCustomScreen() {
+      const btn     = document.getElementById("btn-screen");
+      const spinner = document.getElementById("screen-spinner");
+      const resultsDiv = document.getElementById("screen-results");
+      btn.disabled = true;
+      spinner.style.display = "block";
+      resultsDiv.innerHTML =
+        `<div class="empty-state" style="margin-top:16px"><span class="inline-spinner"></span>&nbsp; スクリーニング実行中...</div>`;
+
+      const filters = getScreenFilters();
+
+      try {
+        const res  = await fetch("/api/screen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filters }),
+          signal: AbortSignal.timeout(120000),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderScreenResults(data.results || [], data.count || 0, filters);
+      } catch (e) {
+        showError(`スクリーナーエラー: ${e.message}`);
+        resultsDiv.innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function renderScreenResults(rows, count, filters) {
+      const resultsDiv = document.getElementById("screen-results");
+
+      // フィルター条件サマリー
+      const filterParts = [];
+      if (filters.rsi_min != null)        filterParts.push(`RSI ≥ ${filters.rsi_min}`);
+      if (filters.rsi_max != null)        filterParts.push(`RSI ≤ ${filters.rsi_max}`);
+      if (filters.change_pct_min != null) filterParts.push(`変動率 ≥ ${filters.change_pct_min}%`);
+      if (filters.change_pct_max != null) filterParts.push(`変動率 ≤ ${filters.change_pct_max}%`);
+      if (filters.price_min != null)      filterParts.push(`株価 ≥ $${filters.price_min}`);
+      if (filters.price_max != null)      filterParts.push(`株価 ≤ $${filters.price_max}`);
+      if (filters.volume_min != null)     filterParts.push(`出来高 ≥ ${Number(filters.volume_min).toLocaleString()}`);
+
+      const summaryText = filterParts.length
+        ? `条件: ${filterParts.join(" / ")} → ${count}件該当`
+        : `フィルターなし（全銘柄） → ${count}件`;
+
+      if (!rows || rows.length === 0) {
+        resultsDiv.innerHTML = `
+          <div class="screen-summary">${escHtml(summaryText)}</div>
+          <div class="empty-state"><div class="empty-icon">&#x1F50D;</div><p>条件に合致する銘柄はありません</p></div>`;
+        return;
+      }
+
+      const rsiBar = (rsi) => {
+        if (rsi == null) return "—";
+        const color = rsi <= 30 ? "#3fb950" : rsi >= 70 ? "#f85149" : "#58a6ff";
+        return `<span style="color:${color};font-weight:700">${rsi.toFixed(1)}</span>`;
+      };
+
+      const html = `
+        <div class="screen-summary">${escHtml(summaryText)}</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>銘柄</th>
+                <th>現在値</th>
+                <th>変動率</th>
+                <th>RSI</th>
+                <th>出来高(3M平均)</th>
+                <th>分析</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r, i) => {
+                const ticker = r.ticker || "—";
+                const vol    = r.volume != null ? Number(r.volume).toLocaleString() : "—";
+                return `
+                  <tr onclick="goToAnalysis('${escHtml(ticker)}')">
+                    <td class="td-rank">${i + 1}</td>
+                    <td><div class="td-ticker">${escHtml(ticker)}</div></td>
+                    <td>$${r.price != null ? r.price.toFixed(2) : "—"}</td>
+                    <td>${fmtChg(r.change_pct)}</td>
+                    <td>${rsiBar(r.rsi)}</td>
+                    <td style="font-size:12px;color:#8b949e">${vol}</td>
+                    <td><a href="/analysis?ticker=${encodeURIComponent(ticker)}" style="color:#58a6ff;text-decoration:none" onclick="event.stopPropagation()">分析 →</a></td>
+                  </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`;
+      resultsDiv.innerHTML = html;
     }
 
     // ---- Init ----
