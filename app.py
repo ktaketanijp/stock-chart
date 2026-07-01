@@ -494,47 +494,68 @@ def status_page():
 
 @app.route("/api/status/health")
 def health_check():
-    """システムヘルスチェック"""
-    import subprocess
+    """システム全体の健全性チェック"""
+    import time as _time
+
     checks = {}
 
-    # yfinance疎通確認
+    # yfinance 接続チェック
     try:
-        info = yf.Ticker("AAPL").fast_info
-        price = float(getattr(info, "last_price", None) or 0)
-        checks["yfinance"] = {"ok": price > 0, "value": f"AAPL ${price:.2f}"}
+        t = _time.time()
+        p = yf.Ticker("AAPL").fast_info.last_price
+        elapsed = round(_time.time() - t, 2)
+        checks["yfinance"] = {"status": "ok", "latency_sec": elapsed, "sample_price": round(float(p), 2)}
     except Exception as e:
-        checks["yfinance"] = {"ok": False, "error": str(e)}
+        checks["yfinance"] = {"status": "error", "error": str(e)}
 
-    # systemd サービス状態
+    # データファイルチェック
+    files = {
+        "watchlist": "watchlist.json",
+        "alerts": "alerts.json",
+        "paper_trades": "paper_trades.json",
+    }
+    checks["data_files"] = {}
+    for name, fname in files.items():
+        path = os.path.join(DATA_DIR, fname)
+        exists = os.path.exists(path)
+        size = os.path.getsize(path) if exists else 0
+        checks["data_files"][name] = {"exists": exists, "size_bytes": size}
+
+    # ウォッチリスト件数
     try:
-        out = subprocess.check_output(
-            ["systemctl", "is-active", "stock-chart.service"],
-            text=True, timeout=5
-        ).strip()
-        checks["service"] = {"ok": out == "active", "value": out}
-    except Exception as e:
-        checks["service"] = {"ok": False, "error": str(e)}
+        wl = _load_watchlist()
+        tickers = wl.get("tickers", []) if isinstance(wl, dict) else wl
+        checks["watchlist_count"] = len(tickers)
+    except Exception:
+        checks["watchlist_count"] = 0
 
-    # データファイル確認
-    for fname in ["paper_trades.json", "watchlist.json"]:
-        fpath = os.path.join(DATA_DIR, fname)
-        checks[fname] = {"ok": os.path.exists(fpath)}
-
-    # 最終データ更新時刻（status.json）
-    status_path = os.path.join(DATA_DIR, "status.json")
-    if os.path.exists(status_path):
-        mtime = os.path.getmtime(status_path)
-        checks["last_update"] = {
-            "ok": True,
-            "value": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+    # Paper trading 状態
+    try:
+        from paper_trading import get_performance
+        perf = get_performance()
+        checks["paper_trading"] = {
+            "total_pnl": perf.get("total_pnl"),
+            "trade_count": perf.get("trade_count"),
+            "win_rate": perf.get("win_rate"),
         }
-    else:
-        checks["last_update"] = {"ok": False, "value": "status.json なし"}
+    except Exception as e:
+        checks["paper_trading"] = {"error": str(e)}
 
-    all_ok = all(v.get("ok", False) for v in checks.values())
+    # アラート件数
+    try:
+        from alerts import get_alerts
+        alerts_list = get_alerts()
+        active = [a for a in alerts_list if not a.get("triggered")]
+        triggered = [a for a in alerts_list if a.get("triggered")]
+        checks["alerts"] = {"total": len(alerts_list), "active": len(active), "triggered": len(triggered)}
+    except Exception:
+        checks["alerts"] = {"total": 0}
+
+    overall = "ok" if checks.get("yfinance", {}).get("status") == "ok" else "degraded"
+
     return jsonify({
-        "status": "ok" if all_ok else "degraded",
+        "status": overall,
+        "version": "2.0",
         "checks": checks,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     })
@@ -1930,7 +1951,18 @@ def screen_fundamental():
 
             pe = float(info.get("trailingPE", 0) or 0)
             pb = float(info.get("priceToBook", 0) or 0)
-            div_yield = float(info.get("dividendYield", 0) or 0) * 100
+            try:
+                div_rate = float(info.get("dividendRate", 0) or 0)
+                price_for_div = float(info.get("currentPrice", info.get("regularMarketPrice", 0)) or 0)
+                if div_rate > 0 and price_for_div > 0:
+                    div_yield = round(div_rate / price_for_div * 100, 2)
+                else:
+                    raw_yield = info.get("dividendYield", 0) or 0
+                    div_yield = round(float(raw_yield) * 100, 2)
+                    if div_yield > 20:
+                        div_yield = 0
+            except Exception:
+                div_yield = 0
             market_cap = float(info.get("marketCap", 0) or 0) / 1e9
             revenue_growth = float(info.get("revenueGrowth", 0) or 0) * 100
             price = float(info.get("currentPrice", 0) or 0)
@@ -2706,6 +2738,59 @@ def market_sentiment():
         "label": label,
         "color": color,
         "components": components,
+    })
+
+
+@app.route("/api/market/sector-rotation")
+def sector_rotation_api():
+    """
+    過去1ヶ月のセクター別パフォーマンスをランキング形式で返す
+    リターン上位セクター = 資金流入中（強気）
+    """
+    SECTOR_ETFS = {
+        "テクノロジー": "XLK",
+        "金融": "XLF",
+        "ヘルスケア": "XLV",
+        "エネルギー": "XLE",
+        "消費者裁量": "XLY",
+        "消費者必需品": "XLP",
+        "資本財": "XLI",
+        "素材": "XLB",
+        "通信": "XLC",
+        "公益事業": "XLU",
+        "不動産": "XLRE",
+    }
+
+    results = []
+    for sector, etf in SECTOR_ETFS.items():
+        try:
+            hist = yf.Ticker(etf).history(period="1mo", interval="1d")
+            if len(hist) < 5:
+                continue
+
+            first = float(hist["Close"].iloc[0])
+            last = float(hist["Close"].iloc[-1])
+            change_1m = round((last - first) / first * 100, 2) if first else 0
+
+            last_5 = float(hist["Close"].iloc[-5]) if len(hist) >= 5 else first
+            change_1w = round((last - last_5) / last_5 * 100, 2) if last_5 else 0
+
+            results.append({
+                "sector": sector,
+                "etf": etf,
+                "price": round(last, 2),
+                "change_1m": change_1m,
+                "change_1w": change_1w,
+                "status": "OUTPERFORM" if change_1m > 3 else "UNDERPERFORM" if change_1m < -3 else "NEUTRAL",
+            })
+        except Exception:
+            continue
+
+    results.sort(key=lambda x: -x["change_1m"])
+
+    return jsonify({
+        "sectors": results,
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     })
 
 

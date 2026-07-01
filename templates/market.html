@@ -625,6 +625,12 @@
       </div>
     </div>
 
+    <!-- ④-B セクターローテーション -->
+    <div class="section-title">セクターローテーション（1ヶ月）</div>
+    <div id="rotation-container" style="margin-bottom:28px">
+      <div style="text-align:center;padding:20px;color:#8b949e"><span class="spinner"></span></div>
+    </div>
+
     <!-- ⑤ 為替レート -->
     <div class="section-title">為替レート（FX）</div>
     <div class="fx-section">
@@ -860,6 +866,58 @@
       }).join('');
     }
 
+    // ---- セクターローテーション ----
+    async function loadSectorRotation() {
+      try {
+        const resp = await fetch('/api/market/sector-rotation');
+        const data = await resp.json();
+
+        const html = `
+          <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+              <thead>
+                <tr style="color:#8b949e;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em">
+                  <th style="text-align:left;padding:6px 10px">ランク</th>
+                  <th style="text-align:left;padding:6px 10px">セクター</th>
+                  <th style="text-align:left;padding:6px 10px">ETF</th>
+                  <th style="text-align:right;padding:6px 10px">1ヶ月</th>
+                  <th style="text-align:right;padding:6px 10px">1週間</th>
+                  <th style="text-align:center;padding:6px 10px">ステータス</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.sectors.map((s, i) => `
+                  <tr style="border-top:1px solid #21262d">
+                    <td style="padding:8px 10px;color:#8b949e">${i + 1}</td>
+                    <td style="padding:8px 10px;color:#e6edf3;font-weight:600">${s.sector}</td>
+                    <td style="padding:8px 10px;color:#8b949e">${s.etf}</td>
+                    <td style="padding:8px 10px;text-align:right;font-weight:600;color:${s.change_1m >= 0 ? '#3fb950' : '#f85149'}">
+                      ${s.change_1m >= 0 ? '+' : ''}${s.change_1m}%
+                    </td>
+                    <td style="padding:8px 10px;text-align:right;font-weight:600;color:${s.change_1w >= 0 ? '#3fb950' : '#f85149'}">
+                      ${s.change_1w >= 0 ? '+' : ''}${s.change_1w}%
+                    </td>
+                    <td style="padding:8px 10px;text-align:center">
+                      <span style="padding:0.15rem 0.5rem;border-radius:0.25rem;font-size:0.75rem;
+                                   background:${s.status==='OUTPERFORM'?'#15803d':s.status==='UNDERPERFORM'?'#991b1b':'#374151'};
+                                   color:white">
+                        ${s.status==='OUTPERFORM'?'強気':s.status==='UNDERPERFORM'?'弱気':'中立'}
+                      </span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <p style="font-size:0.75rem;color:#8b949e;margin-top:0.75rem">セクターETFベース。更新: ${data.updated_at}</p>
+          </div>
+        `;
+        document.getElementById('rotation-container').innerHTML = html;
+      } catch (e) {
+        document.getElementById('rotation-container').innerHTML =
+          '<div style="color:#f85149;padding:16px">取得エラー: ' + e.message + '</div>';
+      }
+    }
+
     // ---- センチメント ----
     async function loadSentiment() {
       try {
@@ -962,6 +1020,7 @@
         loadSectors(),
         loadWatchlist(),
         loadHeatmap(),
+        loadSectorRotation(),
         loadForex(),
         loadCrypto(),
       ]);
