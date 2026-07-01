@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ポートフォリオ バックテスト | StockChart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --text-muted: #555555;
+      --border-color: #e0e0e0;
+      --border-light: #eeeeee;
+      --card-bg: #ffffff;
+      --nav-bg: #ffffff;
+      --nav-border: #e0e0e0;
+      --positive: #16a34a;
+      --negative: #dc2626;
+      --accent: #2563eb;
+      --accent-bg: rgba(37,99,235,0.12);
+      --hover-bg: #f0f0f0;
+      --input-bg: #f8f8f8;
+      --spinner-border: #e0e0e0;
+      --item-bg: #f8f8f8;
+      --table-header-bg: #f0f0f0;
+      --tag-bg: #eef2ff;
+      --tag-color: #3730a3;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #0d1117;
+      --bg-secondary: #21262d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #c9d1d9;
+      --border-color: #30363d;
+      --border-light: #21262d;
+      --card-bg: #161b22;
+      --nav-bg: #161b22;
+      --nav-border: #30363d;
+      --positive: #3fb950;
+      --negative: #f85149;
+      --accent: #58a6ff;
+      --accent-bg: rgba(31,111,235,0.12);
+      --hover-bg: #21262d;
+      --input-bg: #0d1117;
+      --spinner-border: #30363d;
+      --item-bg: #0d1117;
+      --table-header-bg: #21262d;
+      --tag-bg: #1f2a3d;
+      --tag-color: #79a8ff;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-wrap: wrap;
+      min-height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--accent);
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid var(--border-color);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: var(--text-primary); background: var(--hover-bg); }
+    .g-nav-link.active { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      color: var(--text-primary);
+      flex-shrink: 0;
+      margin-left: auto;
+      transition: background 0.15s;
+    }
+    .theme-btn:hover { background: var(--hover-bg); }
+
+    main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+    /* === カード === */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 18px;
+    }
+
+    /* === 追加フォーム === */
+    .add-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .field-group label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .field-group input {
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 8px 12px;
+      outline: none;
+      text-transform: uppercase;
+      transition: border-color 0.2s;
+    }
+    .field-group input:focus { border-color: var(--accent); }
+    .field-group input[type="number"] { text-transform: none; }
+    #ticker-input { width: 110px; }
+    #weight-input { width: 80px; }
+
+    /* === ボタン === */
+    .btn {
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 9px 18px;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .btn-add { background: var(--accent); color: #fff; }
+    .btn-add:hover { opacity: 0.85; }
+    .btn-run {
+      background: #16a34a;
+      color: #fff;
+      font-size: 15px;
+      padding: 10px 28px;
+    }
+    .btn-run:hover { opacity: 0.85; }
+    .btn-run:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-preset {
+      background: var(--item-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      transition: all 0.15s;
+    }
+    .btn-preset:hover { background: var(--hover-bg); color: var(--text-primary); }
+
+    /* === 追加済み銘柄タグリスト === */
+    .holdings-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 36px;
+      margin-bottom: 14px;
+    }
+    .holding-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--tag-bg);
+      color: var(--tag-color);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .holding-tag .del-btn {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0.6;
+      padding: 0;
+    }
+    .holding-tag .del-btn:hover { opacity: 1; }
+    .empty-holdings {
+      font-size: 13px;
+      color: var(--text-secondary);
+      padding: 6px 0;
+    }
+
+    /* === 設定行 === */
+    .settings-row {
+      display: flex;
+      gap: 20px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    /* === 期間ボタン === */
+    .period-buttons { display: flex; gap: 6px; }
+    .period-btn {
+      background: var(--item-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      transition: all 0.15s;
+    }
+    .period-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+    .period-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* プリセットボタン行 */
+    .preset-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+    .preset-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    /* === サマリーカード grid === */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 860px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .summary-grid { grid-template-columns: 1fr; } }
+
+    .metric-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px 18px;
+      text-align: center;
+    }
+    .metric-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .metric-value {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .metric-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+    .positive { color: var(--positive); }
+    .negative { color: var(--negative); }
+    .neutral  { color: var(--text-secondary); }
+
+    /* === チャート === */
+    .chart-container { position: relative; height: 400px; }
+    .bar-chart-container { position: relative; height: 260px; }
+
+    /* === スピナー === */
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--spinner-border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loading-overlay {
+      display: none;
+      text-align: center;
+      padding: 60px;
+      color: var(--text-secondary);
+    }
+
+    /* エラー */
+    .error-box {
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 8px;
+      color: #f85149;
+      padding: 12px 16px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    /* === 結果エリア初期非表示 === */
+    #results-area { display: none; }
+
+    /* === 配分サマリー === */
+    .alloc-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .alloc-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 10px 14px;
+      min-width: 70px;
+    }
+    .alloc-ticker { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+    .alloc-pct { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+    @media (max-width: 768px) {
+      main { padding: 12px; }
+      .card { padding: 14px 16px; }
+      .chart-container { height: 260px; }
+      .bar-chart-container { height: 200px; }
+      .metric-value { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link">📊 分析</a>
+    <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/market" class="g-nav-link">🌐 市場</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
+    <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
+    <a href="/compare" class="g-nav-link">📉 比較</a>
+    <a href="/news" class="g-nav-link">📰 ニュース</a>
+    <a href="/portfolio" class="g-nav-link active">PF</a>
+    <button id="theme-toggle" class="theme-btn" onclick="toggleTheme()" title="ダークモード切替">🌙</button>
+  </nav>
+
+  <main>
+    <!-- ① ポートフォリオ設定 -->
+    <div class="card">
+      <div class="card-title">ポートフォリオ バックテスト</div>
+
+      <!-- プリセット -->
+      <div class="preset-row">
+        <span class="preset-label">プリセット:</span>
+        <button class="btn-preset" onclick="loadPreset('mag7')">MAG7</button>
+        <button class="btn-preset" onclick="loadPreset('dividend')">高配当</button>
+      </div>
+
+      <!-- 銘柄追加フォーム -->
+      <div class="add-row" style="margin-top:14px">
+        <div class="field-group">
+          <label>銘柄コード</label>
+          <input id="ticker-input" type="text" placeholder="AAPL" onkeydown="if(event.key==='Enter')addHolding()">
+        </div>
+        <div class="field-group">
+          <label>比率 (%)</label>
+          <input id="weight-input" type="number" placeholder="25" min="1" max="100" value="25" onkeydown="if(event.key==='Enter')addHolding()">
+        </div>
+        <button class="btn btn-add" onclick="addHolding()">追加</button>
+      </div>
+
+      <!-- 追加済み銘柄 -->
+      <div id="holdings-list" class="holdings-list">
+        <span class="empty-holdings">銘柄を追加してください</span>
+      </div>
+
+      <div id="add-error" class="error-box" style="display:none;margin-bottom:10px"></div>
+
+      <!-- 設定 -->
+      <div class="settings-row">
+        <div class="field-group">
+          <label>初期投資額 (¥)</label>
+          <input id="initial-amount" type="number" value="1000000" min="10000" step="10000"
+                 style="width:160px;text-transform:none">
+        </div>
+        <div class="field-group">
+          <label>期間</label>
+          <div class="period-buttons">
+            <button class="period-btn active" data-period="1y" onclick="setPeriod(this)">1年</button>
+            <button class="period-btn" data-period="2y" onclick="setPeriod(this)">2年</button>
+            <button class="period-btn" data-period="5y" onclick="setPeriod(this)">5年</button>
+          </div>
+        </div>
+        <button class="btn btn-run" id="run-btn" onclick="runBacktest()">シミュレーション実行</button>
+      </div>
+
+      <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>データ取得・計算中...</p>
+      </div>
+      <div id="run-error" class="error-box" style="display:none"></div>
+    </div>
+
+    <!-- ② 結果エリア -->
+    <div id="results-area">
+      <!-- サマリーカード -->
+      <div class="summary-grid" style="margin-bottom:20px">
+        <div class="metric-card">
+          <div class="metric-label">総リターン</div>
+          <div class="metric-value" id="m-total-return">—</div>
+          <div class="metric-sub" id="m-annual-return"></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">最大ドローダウン</div>
+          <div class="metric-value" id="m-drawdown">—</div>
+          <div class="metric-sub">運用期間中の最大下落幅</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">シャープレシオ</div>
+          <div class="metric-value" id="m-sharpe">—</div>
+          <div class="metric-sub">リスク調整後リターン (RF=4.5%)</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">最終資産額</div>
+          <div class="metric-value" id="m-final-jpy">—</div>
+          <div class="metric-sub" id="m-initial-jpy"></div>
+        </div>
+      </div>
+
+      <!-- ③ 累積リターンチャート -->
+      <div class="card">
+        <div class="card-title">累積リターン推移</div>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary)" id="alloc-summary"></div>
+        <div class="chart-container">
+          <canvas id="cumulChart"></canvas>
+        </div>
+      </div>
+
+      <!-- ④ 個別銘柄リターン -->
+      <div class="card">
+        <div class="card-title">個別銘柄 リターン比較</div>
+        <div class="bar-chart-container">
+          <canvas id="barChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ========================
+    //  状態管理
+    // ========================
+    let holdings = {};   // { "AAPL": 25, ... }
+    let currentPeriod = "1y";
+    let cumulChartInst = null;
+    let barChartInst = null;
+
+    const PRESETS = {
+      mag7: { AAPL: 14, MSFT: 14, NVDA: 14, GOOGL: 14, AMZN: 14, META: 15, TSLA: 15 },
+      dividend: { JNJ: 20, KO: 20, PEP: 20, MCD: 20, VZ: 20 },
+    };
+
+    // ========================
+    //  プリセット読み込み
+    // ========================
+    function loadPreset(key) {
+      holdings = { ...PRESETS[key] };
+      renderHoldingsList();
+    }
+
+    // ========================
+    //  銘柄追加
+    // ========================
+    function addHolding() {
+      const tickerEl = document.getElementById("ticker-input");
+      const weightEl = document.getElementById("weight-input");
+      const errEl    = document.getElementById("add-error");
+
+      const ticker = tickerEl.value.trim().toUpperCase();
+      const weight = parseFloat(weightEl.value);
+
+      errEl.style.display = "none";
+
+      if (!ticker) { showAddError("銘柄コードを入力してください"); return; }
+      if (isNaN(weight) || weight <= 0) { showAddError("比率は1以上の数値で入力してください"); return; }
+      if (Object.keys(holdings).length >= 10) { showAddError("銘柄数は最大10銘柄です"); return; }
+
+      holdings[ticker] = weight;
+      renderHoldingsList();
+
+      tickerEl.value = "";
+      weightEl.value = "25";
+      tickerEl.focus();
+    }
+
+    function showAddError(msg) {
+      const el = document.getElementById("add-error");
+      el.textContent = msg;
+      el.style.display = "block";
+    }
+
+    function removeHolding(ticker) {
+      delete holdings[ticker];
+      renderHoldingsList();
+    }
+
+    function renderHoldingsList() {
+      const el = document.getElementById("holdings-list");
+      const entries = Object.entries(holdings);
+      if (entries.length === 0) {
+        el.innerHTML = '<span class="empty-holdings">銘柄を追加してください</span>';
+        return;
+      }
+      const total = entries.reduce((s, [, w]) => s + w, 0);
+      el.innerHTML = entries.map(([t, w]) => {
+        const pct = ((w / total) * 100).toFixed(1);
+        return `<div class="holding-tag">
+          <span>${t} <span style="opacity:.7">(${pct}%)</span></span>
+          <button class="del-btn" onclick="removeHolding('${t}')" title="削除">×</button>
+        </div>`;
+      }).join("");
+    }
+
+    // ========================
+    //  期間切替
+    // ========================
+    function setPeriod(btn) {
+      document.querySelectorAll(".period-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentPeriod = btn.dataset.period;
+    }
+
+    // ========================
+    //  バックテスト実行
+    // ========================
+    async function runBacktest() {
+      const errEl = document.getElementById("run-error");
+      errEl.style.display = "none";
+
+      if (Object.keys(holdings).length === 0) {
+        errEl.textContent = "銘柄を1つ以上追加してください。";
+        errEl.style.display = "block";
+        return;
+      }
+
+      const initialAmount = parseFloat(document.getElementById("initial-amount").value);
+      if (isNaN(initialAmount) || initialAmount < 1000) {
+        errEl.textContent = "初期投資額を正しく入力してください（最小 ¥1,000）。";
+        errEl.style.display = "block";
+        return;
+      }
+
+      document.getElementById("loading-overlay").style.display = "block";
+      document.getElementById("results-area").style.display = "none";
+      document.getElementById("run-btn").disabled = true;
+
+      try {
+        const res = await fetch("/api/portfolio/backtest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            holdings,
+            period: currentPeriod,
+            initial_amount: initialAmount,
+          }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          errEl.textContent = "エラー: " + data.error;
+          errEl.style.display = "block";
+          return;
+        }
+
+        renderResults(data);
+        document.getElementById("results-area").style.display = "block";
+      } catch (e) {
+        errEl.textContent = "通信エラー: " + e.message;
+        errEl.style.display = "block";
+      } finally {
+        document.getElementById("loading-overlay").style.display = "none";
+        document.getElementById("run-btn").disabled = false;
+      }
+    }
+
+    // ========================
+    //  結果描画
+    // ========================
+    function renderResults(data) {
+      // サマリー指標
+      const ret = data.total_return_pct;
+      const dd  = data.max_drawdown_pct;
+      const sh  = data.sharpe_ratio;
+
+      const retEl = document.getElementById("m-total-return");
+      retEl.textContent = (ret >= 0 ? "+" : "") + ret.toFixed(2) + "%";
+      retEl.className = "metric-value " + (ret >= 0 ? "positive" : "negative");
+
+      document.getElementById("m-annual-return").textContent =
+        "年率 " + (data.annual_return_pct >= 0 ? "+" : "") + data.annual_return_pct.toFixed(2) + "%";
+
+      const ddEl = document.getElementById("m-drawdown");
+      ddEl.textContent = "-" + dd.toFixed(2) + "%";
+      ddEl.className   = "metric-value " + (dd > 20 ? "negative" : dd > 10 ? "neutral" : "positive");
+
+      const shEl = document.getElementById("m-sharpe");
+      shEl.textContent = sh.toFixed(2);
+      shEl.className   = "metric-value " + (sh >= 1 ? "positive" : sh >= 0 ? "neutral" : "negative");
+
+      const finalEl = document.getElementById("m-final-jpy");
+      finalEl.textContent = "¥" + data.final_jpy.toLocaleString("ja-JP");
+      finalEl.className = "metric-value " + (data.final_jpy >= data.initial_jpy ? "positive" : "negative");
+
+      document.getElementById("m-initial-jpy").textContent =
+        "初期投資: ¥" + data.initial_jpy.toLocaleString("ja-JP");
+
+      // 配分サマリー
+      const pfEntries = Object.entries(data.portfolio);
+      const allocText = pfEntries.map(([t, w]) =>
+        `<strong>${t}</strong> ${(w * 100).toFixed(1)}%`
+      ).join(" / ");
+      document.getElementById("alloc-summary").innerHTML = allocText;
+
+      // 累積リターンチャート
+      renderCumulChart(data);
+
+      // 個別銘柄バーチャート
+      renderBarChart(data);
+    }
+
+    function renderCumulChart(data) {
+      if (cumulChartInst) { cumulChartInst.destroy(); cumulChartInst = null; }
+
+      const isDark   = document.documentElement.getAttribute("data-theme") === "dark";
+      const gridColor = isDark ? "#21262d" : "#eeeeee";
+      const tickColor = isDark ? "#8b949e" : "#666666";
+
+      const points = data.dates.map((d, i) => ({ x: d, y: data.cumulative_returns[i] }));
+
+      const ctx = document.getElementById("cumulChart").getContext("2d");
+      cumulChartInst = new Chart(ctx, {
+        type: "line",
+        data: {
+          datasets: [
+            {
+              label: "ポートフォリオ累積リターン",
+              data: points,
+              borderColor: "#58a6ff",
+              backgroundColor: "rgba(88,166,255,0.10)",
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              tension: 0.1,
+              fill: true,
+            },
+            {
+              label: "0%ライン",
+              data: data.dates.map(d => ({ x: d, y: 0 })),
+              borderColor: "rgba(139,148,158,0.4)",
+              borderWidth: 1,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => {
+                  if (ctx.dataset.label === "0%ライン") return null;
+                  const v = ctx.raw.y;
+                  return `累積リターン: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+                },
+              },
+              filter: item => item.dataset.label !== "0%ライン",
+            },
+          },
+          scales: {
+            x: {
+              type: "time",
+              time: { unit: "month", tooltipFormat: "yyyy-MM-dd" },
+              ticks: { color: tickColor, maxTicksLimit: 10 },
+              grid: { color: gridColor },
+            },
+            y: {
+              position: "right",
+              ticks: {
+                color: tickColor,
+                callback: v => (v >= 0 ? "+" : "") + v.toFixed(1) + "%",
+              },
+              grid: { color: gridColor },
+            },
+          },
+        },
+      });
+    }
+
+    function renderBarChart(data) {
+      if (barChartInst) { barChartInst.destroy(); barChartInst = null; }
+
+      const isDark   = document.documentElement.getAttribute("data-theme") === "dark";
+      const gridColor = isDark ? "#21262d" : "#eeeeee";
+      const tickColor = isDark ? "#8b949e" : "#666666";
+
+      const labels = Object.keys(data.individual_returns);
+      const values = Object.values(data.individual_returns);
+      const colors = values.map(v => v >= 0 ? "rgba(63,185,80,0.75)" : "rgba(248,81,73,0.75)");
+      const borders = values.map(v => v >= 0 ? "#3fb950" : "#f85149");
+
+      const ctx = document.getElementById("barChart").getContext("2d");
+      barChartInst = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "期間リターン (%)",
+            data: values,
+            backgroundColor: colors,
+            borderColor: borders,
+            borderWidth: 1,
+            borderRadius: 6,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => {
+                  const v = ctx.raw;
+                  return `${ctx.label}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: { color: tickColor },
+              grid: { color: gridColor },
+            },
+            y: {
+              position: "right",
+              ticks: {
+                color: tickColor,
+                callback: v => (v >= 0 ? "+" : "") + v.toFixed(1) + "%",
+              },
+              grid: { color: gridColor },
+            },
+          },
+        },
+      });
+    }
+
+    // ========================
+    //  テーマ切替
+    // ========================
+    function toggleTheme() {
+      const html   = document.documentElement;
+      const isDark = html.getAttribute("data-theme") === "dark";
+      const theme  = isDark ? "light" : "dark";
+      html.setAttribute("data-theme", theme);
+      localStorage.setItem("theme", theme);
+      document.getElementById("theme-toggle").textContent = isDark ? "🌙" : "☀️";
+
+      // チャートの色を更新
+      const isDarkNow = theme === "dark";
+      const gridColor = isDarkNow ? "#21262d" : "#eeeeee";
+      const tickColor = isDarkNow ? "#8b949e" : "#666666";
+      [cumulChartInst, barChartInst].forEach(chart => {
+        if (!chart) return;
+        if (chart.options.scales.x) {
+          chart.options.scales.x.ticks.color = tickColor;
+          chart.options.scales.x.grid.color  = gridColor;
+        }
+        if (chart.options.scales.y) {
+          chart.options.scales.y.ticks.color = tickColor;
+          chart.options.scales.y.grid.color  = gridColor;
+        }
+        chart.update();
+      });
+    }
+
+    // ========================
+    //  初期化
+    // ========================
+    (function() {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      const btn = document.getElementById("theme-toggle");
+      if (btn) btn.textContent = saved === "dark" ? "☀️" : "🌙";
+    })();
+  </script>
+</body>
+</html>
