@@ -570,6 +570,15 @@
         </tbody>
       </table>
     </div>
+
+    <!-- 相関行列ヒートマップ -->
+    <div class="section-title" style="margin-top:36px">
+      📊 銘柄間相関ヒートマップ
+      <button class="check-now-btn" onclick="loadCorrelation()">更新</button>
+    </div>
+    <div id="correlation-status" style="font-size:13px;color:#8b949e;margin-bottom:8px"></div>
+    <div id="correlation-heatmap" style="overflow-x:auto;margin-top:0.5rem;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;min-height:60px"></div>
+
   </div>
 
   <!-- アラート設定モーダル -->
@@ -1027,9 +1036,135 @@
       if (e.key === 'Enter') createAlert();
     });
 
+    // =====================
+    // 相関行列ヒートマップ
+    // =====================
+
+    function corrToColor(corr) {
+      if (corr >= 0.8)  return 'rgba(239,68,68,0.9)';
+      if (corr >= 0.5)  return 'rgba(249,115,22,0.7)';
+      if (corr >= 0.2)  return 'rgba(234,179,8,0.5)';
+      if (corr >= -0.2) return 'rgba(107,114,128,0.3)';
+      if (corr >= -0.5) return 'rgba(59,130,246,0.5)';
+      return 'rgba(16,185,129,0.8)';
+    }
+
+    function renderCorrelationHeatmap(corrData) {
+      const tickers = corrData.tickers || Object.keys(corrData.matrix || {});
+      const container = document.getElementById('correlation-heatmap');
+      if (!tickers.length) {
+        container.innerHTML = '<p style="color:#8b949e;font-size:13px;padding:8px">ウォッチリストに2銘柄以上登録すると相関行列が表示されます</p>';
+        return;
+      }
+
+      const n = tickers.length;
+      const cellSize = Math.max(40, Math.min(80, 400 / n));
+      const padLeft = 70, padTop = 70;
+      const W = padLeft + cellSize * n + 10;
+      const H = padTop + cellSize * n + 30;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      canvas.style.maxWidth = '100%';
+      container.innerHTML = '';
+      container.appendChild(canvas);
+
+      const ctx = canvas.getContext('2d');
+      const bgColor  = '#161b22';
+      const textColor = '#e6edf3';
+
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, W, H);
+
+      const matrix = corrData.matrix || {};
+
+      tickers.forEach((t1, i) => {
+        tickers.forEach((t2, j) => {
+          const corr = (t1 === t2) ? 1.0 : (
+            (matrix[t1] && matrix[t1][t2] != null) ? matrix[t1][t2] :
+            (matrix[t2] && matrix[t2][t1] != null) ? matrix[t2][t1] : 0
+          );
+          const x = padLeft + j * cellSize;
+          const y = padTop  + i * cellSize;
+
+          ctx.fillStyle = corrToColor(corr);
+          ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+
+          ctx.fillStyle = textColor;
+          ctx.font = `${Math.max(9, Math.floor(cellSize * 0.2))}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(corr.toFixed(2), x + cellSize / 2, y + cellSize / 2);
+        });
+
+        // 行ラベル（左）
+        ctx.fillStyle = textColor;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(t1, padLeft - 5, padTop + i * cellSize + cellSize / 2);
+
+        // 列ラベル（上・30度回転）
+        ctx.save();
+        ctx.translate(padLeft + i * cellSize + cellSize / 2, padTop - 5);
+        ctx.rotate(-Math.PI / 6);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tickers[i], 0, 0);
+        ctx.restore();
+      });
+
+      // 凡例
+      const legendLabels = [
+        {color: 'rgba(239,68,68,0.9)',   text: '強い正(≥0.8)'},
+        {color: 'rgba(249,115,22,0.7)',  text: '中程度正(≥0.5)'},
+        {color: 'rgba(234,179,8,0.5)',   text: '弱い正(≥0.2)'},
+        {color: 'rgba(107,114,128,0.3)', text: '無相関'},
+        {color: 'rgba(59,130,246,0.5)',  text: '弱い負'},
+        {color: 'rgba(16,185,129,0.8)',  text: '強い負'},
+      ];
+      let lx = padLeft;
+      const ly = H - 12;
+      ctx.font = '9px sans-serif';
+      ctx.textBaseline = 'middle';
+      legendLabels.forEach(l => {
+        if (lx + 90 > W) return;
+        ctx.fillStyle = l.color;
+        ctx.fillRect(lx, ly - 5, 10, 10);
+        ctx.fillStyle = textColor;
+        ctx.textAlign = 'left';
+        ctx.fillText(l.text, lx + 13, ly);
+        lx += 85;
+      });
+    }
+
+    async function loadCorrelation() {
+      const statusEl = document.getElementById('correlation-status');
+      const container = document.getElementById('correlation-heatmap');
+      statusEl.textContent = '相関データ取得中...';
+      container.innerHTML = '<p style="color:#8b949e;font-size:13px;padding:8px">読み込み中...</p>';
+      try {
+        const resp = await fetch('/api/watchlist/correlation');
+        if (!resp.ok) {
+          const d = await resp.json();
+          statusEl.textContent = d.error || '取得失敗';
+          container.innerHTML = `<p style="color:#f85149;font-size:13px;padding:8px">${escHtml(d.error || '取得失敗')}</p>`;
+          return;
+        }
+        const data = await resp.json();
+        statusEl.textContent = `${(data.tickers || []).length}銘柄 — 過去3ヶ月日次リターンの相関係数`;
+        renderCorrelationHeatmap(data);
+      } catch (err) {
+        statusEl.textContent = 'エラー: ' + err.message;
+        container.innerHTML = `<p style="color:#f85149;font-size:13px;padding:8px">${escHtml(err.message)}</p>`;
+      }
+    }
+
     // 初回ロード
     loadWatchlist(false);
     loadAlerts();
+    loadCorrelation();
 
     // 5分ごとにアラート状態を更新
     setInterval(() => loadAlerts(), 5 * 60 * 1000);

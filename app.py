@@ -409,6 +409,12 @@ def delete_alert_api(alert_id):
         return jsonify({"ok": True})
     return jsonify({"error": "Alert not found"}), 404
 
+@app.route("/api/alerts/history")
+def alert_history():
+    """発動したアラートの履歴（直近100件）"""
+    from alerts import get_alert_history
+    return jsonify({"history": get_alert_history()})
+
 
 @app.route("/api/sentiment")
 def sentiment():
@@ -1431,18 +1437,23 @@ def watchlist_correlation():
         returns_df = prices_df.pct_change().dropna()
         corr = returns_df.corr()
 
-        matrix = []
+        matrix_list = []
+        matrix_dict = {}
         for t1 in valid_tickers:
             row = []
+            matrix_dict[t1] = {}
             for t2 in valid_tickers:
                 try:
                     val = corr.loc[t1, t2]
-                    row.append(round(float(val), 4) if pd.notna(val) else None)
+                    v = round(float(val), 4) if pd.notna(val) else None
                 except KeyError:
-                    row.append(None)
-            matrix.append(row)
+                    v = None
+                row.append(v)
+                if v is not None:
+                    matrix_dict[t1][t2] = v
+            matrix_list.append(row)
 
-        return jsonify({"tickers": valid_tickers, "matrix": matrix})
+        return jsonify({"tickers": valid_tickers, "matrix": matrix_dict, "matrix_list": matrix_list})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2548,6 +2559,23 @@ def risk_analysis(ticker):
         result["volatility_20d"] = calc_historical_volatility(close, 20)
         result["volatility_60d"] = calc_historical_volatility(close, 60)
         result["momentum"] = calc_momentum_score(close)
+
+        # シャープレシオ（リスクフリーレート 4.5% 想定）
+        try:
+            daily_rets = close.pct_change().dropna()
+            rf_daily = 0.045 / 252
+            avg_ret = float(daily_rets.mean())
+            std_ret = float(daily_rets.std())
+            sharpe = round((avg_ret - rf_daily) / std_ret * (252 ** 0.5), 2) if std_ret > 0 else 0
+            result["sharpe_ratio"] = sharpe
+            result["sharpe_label"] = (
+                "優秀" if sharpe > 1.5 else
+                "良好" if sharpe > 1.0 else
+                "普通" if sharpe > 0.5 else
+                "低い"
+            )
+        except Exception:
+            pass
 
         # ATR (14日)
         try:
