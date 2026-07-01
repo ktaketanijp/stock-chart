@@ -1891,6 +1891,87 @@ def custom_screen():
 
 
 # ---------------------------------------------------------------------------
+# ファンダメンタルスクリーナー
+# ---------------------------------------------------------------------------
+
+@app.route("/api/screen/fundamental", methods=["POST"])
+def screen_fundamental():
+    """
+    ファンダメンタル指標によるスクリーニング
+    POST: {
+        "tickers": ["AAPL", "MSFT", ...],  // 空なら主要銘柄リストを使用
+        "filters": {
+            "pe_max": 30,
+            "pe_min": 0,
+            "pb_max": 5,
+            "dividend_min": 1.0,
+            "market_cap_min": 10,
+            "market_cap_max": 1000,
+            "revenue_growth_min": 5.0,
+        }
+    }
+    """
+    data = request.get_json() or {}
+    tickers = data.get("tickers", [])
+    filters = data.get("filters", {})
+
+    if not tickers:
+        wl = _load_watchlist()
+        tickers = wl.get("tickers", [])
+        if not tickers:
+            tickers = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+                       "JPM", "BAC", "JNJ", "XOM", "WMT", "V", "MA", "HD"]
+
+    results = []
+    for ticker in tickers[:30]:
+        try:
+            t = yf.Ticker(ticker)
+            info = t.info
+
+            pe = float(info.get("trailingPE", 0) or 0)
+            pb = float(info.get("priceToBook", 0) or 0)
+            div_yield = float(info.get("dividendYield", 0) or 0) * 100
+            market_cap = float(info.get("marketCap", 0) or 0) / 1e9
+            revenue_growth = float(info.get("revenueGrowth", 0) or 0) * 100
+            price = float(info.get("currentPrice", 0) or 0)
+
+            # フィルター適用
+            if filters.get("pe_max") and pe > 0 and pe > filters["pe_max"]:
+                continue
+            if filters.get("pe_min") and pe > 0 and pe < filters["pe_min"]:
+                continue
+            if filters.get("pb_max") and pb > 0 and pb > filters["pb_max"]:
+                continue
+            if filters.get("dividend_min") and div_yield < filters["dividend_min"]:
+                continue
+            if filters.get("market_cap_min") and market_cap < filters["market_cap_min"]:
+                continue
+            if filters.get("market_cap_max") and market_cap > filters["market_cap_max"]:
+                continue
+            if filters.get("revenue_growth_min") and revenue_growth < filters["revenue_growth_min"]:
+                continue
+
+            results.append({
+                "ticker": ticker,
+                "company": (info.get("shortName", ticker) or ticker)[:25],
+                "price": round(price, 2),
+                "pe_ratio": round(pe, 1) if pe else None,
+                "pb_ratio": round(pb, 2) if pb else None,
+                "dividend_yield": round(div_yield, 2),
+                "market_cap_b": round(market_cap, 1),
+                "revenue_growth_pct": round(revenue_growth, 1),
+                "sector": info.get("sector", ""),
+            })
+        except Exception:
+            continue
+
+    # PE順でソート（低い順、PE未取得は末尾）
+    results.sort(key=lambda x: x.get("pe_ratio") or 9999)
+
+    return jsonify({"results": results, "count": len(results), "filters": filters})
+
+
+# ---------------------------------------------------------------------------
 # 配当情報
 # ---------------------------------------------------------------------------
 

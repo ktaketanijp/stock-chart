@@ -419,6 +419,56 @@
       margin: 12px 0 8px;
     }
 
+    /* ---- Fundamental Screener ---- */
+    .btn-sm {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .btn-sm:hover {
+      background: #30363d;
+      border-color: #58a6ff;
+      color: #58a6ff;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .data-table thead th {
+      text-align: left;
+      padding: 8px 12px;
+      color: #8b949e;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid #30363d;
+      white-space: nowrap;
+    }
+    .data-table tbody tr {
+      border-bottom: 1px solid #21262d;
+      transition: background 0.12s;
+    }
+    .data-table tbody tr:hover { background: rgba(88,166,255,0.05); }
+    .data-table tbody td {
+      padding: 9px 12px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .funda-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
     /* ---- Responsive ---- */
     @media (max-width: 768px) {
       .sector-grid { grid-template-columns: 1fr; }
@@ -592,6 +642,50 @@
       </button>
 
       <div id="screen-results"></div>
+    </div>
+
+    <!-- ファンダメンタルスクリーナー -->
+    <div class="card" id="fundamental-screen-section">
+      <div class="card-title">&#x1F3E2; ファンダメンタルスクリーナー</div>
+
+      <div class="funda-filter-grid">
+        <div class="filter-item">
+          <label>PER上限</label>
+          <input type="number" id="f-pe-max" placeholder="例: 30" value="30">
+        </div>
+        <div class="filter-item">
+          <label>PBR上限</label>
+          <input type="number" id="f-pb-max" placeholder="例: 5" value="5">
+        </div>
+        <div class="filter-item">
+          <label>配当利回り下限 (%)</label>
+          <input type="number" id="f-div-min" placeholder="例: 1.5" step="0.1">
+        </div>
+        <div class="filter-item">
+          <label>時価総額下限 ($B)</label>
+          <input type="number" id="f-cap-min" placeholder="例: 10" value="10">
+        </div>
+        <div class="filter-item">
+          <label>売上成長率下限 (%)</label>
+          <input type="number" id="f-rev-growth" placeholder="例: 5">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;align-items:center">
+        <span style="font-size:0.8rem;color:#8b949e">プリセット:</span>
+        <button class="btn-sm" onclick="fundaPreset('value')">バリュー株</button>
+        <button class="btn-sm" onclick="fundaPreset('growth')">グロース株</button>
+        <button class="btn-sm" onclick="fundaPreset('dividend')">高配当</button>
+        <button class="btn-sm" onclick="fundaPreset('quality')">高品質</button>
+        <button class="btn-sm" onclick="fundaClear()" style="color:#f85149;border-color:rgba(248,81,73,0.3)">クリア</button>
+      </div>
+
+      <button class="btn btn-primary" id="btn-funda-screen" onclick="runFundamentalScreen()">
+        <div class="spinner" id="funda-spinner"></div>
+        スクリーニング実行
+      </button>
+
+      <div id="fundamental-results" style="margin-top:1rem"></div>
     </div>
   </main>
 
@@ -1352,6 +1446,121 @@
                     <td>${rsiBar(r.rsi)}</td>
                     <td style="font-size:12px;color:#8b949e">${vol}</td>
                     <td><a href="/analysis?ticker=${encodeURIComponent(ticker)}" style="color:#58a6ff;text-decoration:none" onclick="event.stopPropagation()">分析 →</a></td>
+                  </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>`;
+      resultsDiv.innerHTML = html;
+    }
+
+    // ---- Fundamental Screener ----
+    const FUNDA_PRESETS = {
+      value:    { pe_max: 20, pb_max: 3 },
+      growth:   { revenue_growth_min: 15, market_cap_min: 10 },
+      dividend: { dividend_min: 2.0, pe_max: 25 },
+      quality:  { pe_max: 30, pb_max: 5, revenue_growth_min: 5 },
+    };
+
+    function fundaPreset(name) {
+      const p = FUNDA_PRESETS[name];
+      document.getElementById("f-pe-max").value     = p.pe_max            != null ? p.pe_max            : "";
+      document.getElementById("f-pb-max").value     = p.pb_max            != null ? p.pb_max            : "";
+      document.getElementById("f-div-min").value    = p.dividend_min      != null ? p.dividend_min      : "";
+      document.getElementById("f-cap-min").value    = p.market_cap_min    != null ? p.market_cap_min    : "";
+      document.getElementById("f-rev-growth").value = p.revenue_growth_min!= null ? p.revenue_growth_min: "";
+    }
+
+    function fundaClear() {
+      ["f-pe-max","f-pb-max","f-div-min","f-cap-min","f-rev-growth"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+      document.getElementById("fundamental-results").innerHTML = "";
+    }
+
+    async function runFundamentalScreen() {
+      const btn     = document.getElementById("btn-funda-screen");
+      const spinner = document.getElementById("funda-spinner");
+      const resultsDiv = document.getElementById("fundamental-results");
+      btn.disabled = true;
+      spinner.style.display = "block";
+      resultsDiv.innerHTML =
+        `<div class="empty-state" style="margin-top:8px"><span class="inline-spinner"></span>&nbsp; ファンダメンタルスクリーニング中（銘柄ごとに情報取得、30秒程度かかる場合があります）...</div>`;
+
+      const filters = {};
+      const peMax     = document.getElementById("f-pe-max").value.trim();
+      const pbMax     = document.getElementById("f-pb-max").value.trim();
+      const divMin    = document.getElementById("f-div-min").value.trim();
+      const capMin    = document.getElementById("f-cap-min").value.trim();
+      const revGrowth = document.getElementById("f-rev-growth").value.trim();
+      if (peMax)     filters.pe_max             = parseFloat(peMax);
+      if (pbMax)     filters.pb_max             = parseFloat(pbMax);
+      if (divMin)    filters.dividend_min       = parseFloat(divMin);
+      if (capMin)    filters.market_cap_min     = parseFloat(capMin);
+      if (revGrowth) filters.revenue_growth_min = parseFloat(revGrowth);
+
+      try {
+        const res  = await fetch("/api/screen/fundamental", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filters }),
+          signal: AbortSignal.timeout(120000),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderFundaResults(data.results || [], data.count || 0);
+      } catch (e) {
+        showError(`ファンダメンタルスクリーナーエラー: ${e.message}`);
+        resultsDiv.innerHTML =
+          `<div class="empty-state"><p style="color:#f85149">${escHtml(e.message)}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function renderFundaResults(rows, count) {
+      const resultsDiv = document.getElementById("fundamental-results");
+      if (!rows || rows.length === 0) {
+        resultsDiv.innerHTML =
+          `<div class="empty-state"><div class="empty-icon">&#x1F4CA;</div><p>条件に合う銘柄がありません</p></div>`;
+        return;
+      }
+
+      const html = `
+        <p style="color:#8b949e;font-size:0.85rem;margin-bottom:8px">${count}件ヒット（PER低い順）</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>銘柄</th>
+                <th>会社名</th>
+                <th>株価</th>
+                <th>PER</th>
+                <th>PBR</th>
+                <th>配当利回り</th>
+                <th>時価総額</th>
+                <th>売上成長</th>
+                <th>セクター</th>
+                <th>分析</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => {
+                const growthColor = r.revenue_growth_pct > 0 ? "#3fb950" : "#f85149";
+                return `
+                  <tr onclick="goToAnalysis('${escHtml(r.ticker)}')">
+                    <td style="font-weight:700;color:#58a6ff">${escHtml(r.ticker)}</td>
+                    <td style="font-size:0.8rem;color:#8b949e;max-width:140px;overflow:hidden;text-overflow:ellipsis">${escHtml(r.company)}</td>
+                    <td>$${r.price != null ? r.price.toFixed(2) : "—"}</td>
+                    <td>${r.pe_ratio != null ? r.pe_ratio : "N/A"}</td>
+                    <td>${r.pb_ratio != null ? r.pb_ratio : "N/A"}</td>
+                    <td>${r.dividend_yield ? r.dividend_yield + "%" : "—"}</td>
+                    <td>$${r.market_cap_b != null ? r.market_cap_b + "B" : "—"}</td>
+                    <td style="color:${growthColor};font-weight:600">${r.revenue_growth_pct != null ? r.revenue_growth_pct + "%" : "—"}</td>
+                    <td style="font-size:0.8rem;color:#8b949e">${escHtml(r.sector || "—")}</td>
+                    <td><a href="/analysis?ticker=${encodeURIComponent(r.ticker)}" style="color:#58a6ff;text-decoration:none" onclick="event.stopPropagation()">分析 →</a></td>
                   </tr>`;
               }).join("")}
             </tbody>
