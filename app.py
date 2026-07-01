@@ -2157,6 +2157,48 @@ def market_crypto():
     return jsonify({"crypto": result})
 
 
+@app.route("/api/market/bonds")
+def bond_yields():
+    """米国債利回り（2Y/5Y/10Y/30Y）とイールドカーブ形状"""
+    BOND_TICKERS = {
+        "2年債": "^IRX",
+        "5年債": "^FVX",
+        "10年債": "^TNX",
+        "30年債": "^TYX",
+    }
+
+    yields = {}
+    for name, ticker in BOND_TICKERS.items():
+        try:
+            price = yf.Ticker(ticker).fast_info.last_price
+            yields[name] = {
+                "ticker": ticker,
+                "yield_pct": round(float(price), 3) if price else None,
+            }
+        except Exception:
+            yields[name] = {"ticker": ticker, "yield_pct": None}
+
+    y2  = yields.get("2年債",  {}).get("yield_pct", 0) or 0
+    y10 = yields.get("10年債", {}).get("yield_pct", 0) or 0
+
+    if y10 > y2 + 0.5:
+        curve_shape = "NORMAL"
+        curve_desc  = "正常（長期>短期） — 景気拡大示唆"
+    elif y10 < y2:
+        curve_shape = "INVERTED"
+        curve_desc  = "逆イールド（短期>長期） — 景気後退リスク"
+    else:
+        curve_shape = "FLAT"
+        curve_desc  = "フラット — 不確実な状況"
+
+    return jsonify({
+        "yields": yields,
+        "curve_shape": curve_shape,
+        "curve_description": curve_desc,
+        "spread_2y10y": round(y10 - y2, 3),
+    })
+
+
 @app.route("/news")
 def news_page():
     return render_template("news.html")

@@ -1720,6 +1720,88 @@
         </div>
       </div>
 
+      <!-- ローソク足チャート説明 -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>📊 ローソク足チャート（MA・出来高）</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <p style="margin-bottom:10px;">銘柄分析ページで「折れ線 / ローソク足」ボタンで切替できます。</p>
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">ローソク足</strong>: 始値・高値・安値・終値（OHLC）を視覚的に表示</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">MA20（青）/ MA50（オレンジ）/ MA200（赤）</strong>のオーバーレイ</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">出来高サブチャート</strong>: ローソクの色と連動（陽線=緑 / 陰線=赤）</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">ツールチップ</strong>: マウスオーバーで OHLCV を詳細表示</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">期間切替</strong>: 1ヶ月 / 3ヶ月 / 1年</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 相対強度説明 -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>📈 相対強度（RS）vs S&amp;P500</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">相対強度 (RS)</strong>: 銘柄リターン ÷ S&amp;P500リターン</li>
+              <li style="margin-bottom:6px;">RS &gt; 1.0: 市場をアウトパフォーム（強い銘柄）</li>
+              <li style="margin-bottom:6px;">RS &lt; 1.0: 市場をアンダーパフォーム（弱い銘柄）</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">52週レンジバー</strong>: 現在価格が1年間の高値・安値のどこにあるか視覚化</li>
+              <li style="margin-bottom:6px;">高値5%以内 → 🔥高値圏バッジ、安値10%以内 → ⚠️安値圏バッジ</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- アナリスト目標・VWAP・フィボナッチ説明 -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>🎯 アナリスト評価・VWAP・フィボナッチ</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">アナリスト評価</strong>: 複数アナリストの目標株価平均とアップサイド%</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">VWAP</strong>: 出来高加重平均価格。現在価格がVWAP上なら強気</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">フィボナッチリトレースメント</strong>: 52週高値・安値から 0% / 23.6% / 38.2% / 50% / 61.8% / 100% の押し目水準を計算</li>
+            </ul>
+            <div class="acc-tip">
+              銘柄分析ページ（/analysis）の詳細セクションで確認できます。フィボナッチラインとサポレジを重ねて押し目エントリーの精度を上げましょう。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 米国債利回り・イールドカーブ説明 -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>🏦 米国債利回り・イールドカーブ</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <p style="margin-bottom:10px;"><strong style="color:var(--text)">/market</strong> ページの「米国債利回り」セクションで確認できます。</p>
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">2年債 / 5年債 / 10年債 / 30年債</strong>: リアルタイム利回りを一覧表示</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">NORMAL（緑）</strong>: 長期 &gt; 短期。景気拡大局面で見られる正常な形状</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">INVERTED（赤）</strong>: 短期 &gt; 長期（逆イールド）。過去の景気後退前に多く発生</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">FLAT（グレー）</strong>: 長短差が小さい。不確実な移行期</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">2Y-10Yスプレッド</strong>: 景気サイクルの先行指標。マイナス（逆イールド）が長期化すると注意</li>
+            </ul>
+            <div class="acc-note">
+              10年債利回りが上昇すると株式のバリュエーション（PER）への圧力が強まる傾向があります。特に高PERのグロース株への影響が大きいため、金利動向と合わせて銘柄を選別しましょう。
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /accordion-list -->
   </section>
 
