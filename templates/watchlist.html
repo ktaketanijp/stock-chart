@@ -411,6 +411,77 @@
     }
     .btn-sm:hover { background: #30363d; }
 
+    /* === CSS変数 === */
+    :root {
+      --positive: #3fb950;
+      --negative: #f85149;
+    }
+
+    /* === パフォーマンスメトリクスカード === */
+    .metric-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+    .metric-label {
+      font-size: 11px;
+      color: #8b949e;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 4px;
+    }
+    .metric-value {
+      font-weight: 700;
+      color: #e6edf3;
+    }
+
+    /* === data-table (パフォーマンス用小テーブル) === */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table thead th {
+      background: #161b22;
+      color: #8b949e;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #30363d;
+      white-space: nowrap;
+    }
+    .data-table tbody tr {
+      border-bottom: 1px solid #21262d;
+      transition: background .1s;
+    }
+    .data-table tbody tr:last-child { border-bottom: none; }
+    .data-table tbody tr:hover { background: #21262d; }
+    .data-table td {
+      padding: 8px 12px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .data-table td a { color: #58a6ff; text-decoration: none; font-weight: 600; }
+    .data-table td a:hover { text-decoration: underline; }
+
+    /* パフォーマンスセクション外枠 */
+    #wl-perf-section {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    #wl-perf-section h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #e6edf3;
+      margin: 0;
+    }
+
     /* === モバイル対応 === */
     @media (max-width: 768px) {
       .g-nav {
@@ -521,6 +592,46 @@
         <button class="btn-sm" onclick="importPreset('mag7')">MAG7</button>
         <button class="btn-sm" onclick="importPreset('dividend')">高配当</button>
         <button class="btn-sm" onclick="importPreset('japan')">日本株ETF</button>
+      </div>
+    </div>
+
+    <!-- ウォッチリスト群パフォーマンス -->
+    <div id="wl-perf-section" style="margin-bottom:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+        <h3>📊 ウォッチリスト パフォーマンス</h3>
+        <button class="btn-sm" onclick="loadWLPerformance()">更新</button>
+      </div>
+
+      <!-- サマリーカード -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:0.5rem;margin-bottom:0.75rem">
+        <div class="metric-card">
+          <div class="metric-label">平均（今日）</div>
+          <div id="wl-avg-1d" class="metric-value" style="font-size:1.1rem">--</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">平均（1ヶ月）</div>
+          <div id="wl-avg-1m" class="metric-value" style="font-size:1.1rem">--</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">最強（1ヶ月）</div>
+          <div id="wl-best" class="metric-value" style="font-size:1.1rem;color:var(--positive)">--</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">最弱（1ヶ月）</div>
+          <div id="wl-worst" class="metric-value" style="font-size:1.1rem;color:var(--negative)">--</div>
+        </div>
+      </div>
+
+      <!-- ミニランキングテーブル -->
+      <div id="wl-perf-table" style="overflow-x:auto;border:1px solid #30363d;border-radius:8px">
+        <table class="data-table" style="font-size:0.8rem">
+          <thead>
+            <tr><th>銘柄</th><th>価格</th><th>今日</th><th>1週</th><th>1ヶ月</th></tr>
+          </thead>
+          <tbody id="wl-perf-tbody">
+            <tr><td colspan="5" style="text-align:center;color:#8b949e;padding:16px">読み込み中...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -1194,10 +1305,65 @@
       }
     }
 
+    // =====================
+    // ウォッチリスト パフォーマンスサマリー
+    // =====================
+
+    async function loadWLPerformance() {
+      document.getElementById('wl-perf-tbody').innerHTML =
+        '<tr><td colspan="5" style="text-align:center;color:#8b949e;padding:16px">読み込み中...</td></tr>';
+      try {
+        const resp = await fetch('/api/watchlist/performance');
+        const data = await resp.json();
+        if (data.error) {
+          document.getElementById('wl-perf-tbody').innerHTML =
+            '<tr><td colspan="5" style="text-align:center;color:#8b949e;padding:16px">' + escHtml(data.error) + '</td></tr>';
+          return;
+        }
+
+        const s = data.summary;
+
+        const avg1d = document.getElementById('wl-avg-1d');
+        avg1d.textContent = (s.avg_1d >= 0 ? '+' : '') + s.avg_1d + '%';
+        avg1d.style.color = s.avg_1d >= 0 ? 'var(--positive)' : 'var(--negative)';
+
+        const avg1m = document.getElementById('wl-avg-1m');
+        avg1m.textContent = (s.avg_1m >= 0 ? '+' : '') + s.avg_1m + '%';
+        avg1m.style.color = s.avg_1m >= 0 ? 'var(--positive)' : 'var(--negative)';
+
+        document.getElementById('wl-best').textContent =
+          s.best.ticker + ' +' + s.best.change_1m + '%';
+        document.getElementById('wl-worst').textContent =
+          s.worst.ticker + ' ' + s.worst.change_1m + '%';
+
+        // ミニテーブル（1ヶ月リターン順）
+        const sorted = [...data.stocks].sort((a, b) => b.change_1m - a.change_1m);
+        document.getElementById('wl-perf-tbody').innerHTML = sorted.map(r => `
+          <tr>
+            <td><a href="/analysis?ticker=${encodeURIComponent(r.ticker)}">${escHtml(r.ticker)}</a></td>
+            <td>$${r.price}</td>
+            <td style="color:${r.change_1d >= 0 ? 'var(--positive)' : 'var(--negative)'}">
+              ${r.change_1d >= 0 ? '+' : ''}${r.change_1d}%
+            </td>
+            <td style="color:${r.change_1w >= 0 ? 'var(--positive)' : 'var(--negative)'}">
+              ${r.change_1w >= 0 ? '+' : ''}${r.change_1w}%
+            </td>
+            <td style="color:${r.change_1m >= 0 ? 'var(--positive)' : 'var(--negative)'}">
+              ${r.change_1m >= 0 ? '+' : ''}${r.change_1m}%
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        document.getElementById('wl-perf-tbody').innerHTML =
+          '<tr><td colspan="5" style="text-align:center;color:#f85149;padding:16px">取得エラー: ' + escHtml(err.message) + '</td></tr>';
+      }
+    }
+
     // 初回ロード
     loadWatchlist(false);
     loadAlerts();
     loadCorrelation();
+    loadWLPerformance();
 
     // 5分ごとにアラート状態を更新
     setInterval(() => loadAlerts(), 5 * 60 * 1000);

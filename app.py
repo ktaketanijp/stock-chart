@@ -1458,6 +1458,62 @@ def watchlist_correlation():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/watchlist/performance")
+def watchlist_performance():
+    """
+    ウォッチリスト全銘柄の1日/1週/1ヶ月パフォーマンスを集計
+    全銘柄の平均・最強・最弱を返す
+    """
+    watchlist = _load_watchlist()
+    tickers = watchlist.get("tickers", []) if isinstance(watchlist, dict) else watchlist
+
+    if not tickers:
+        return jsonify({"error": "ウォッチリストが空です"})
+
+    results = []
+    for ticker in tickers[:20]:
+        try:
+            hist = yf.Ticker(ticker).history(period="1mo", interval="1d")
+            if len(hist) < 2:
+                continue
+
+            price = float(hist["Close"].iloc[-1])
+            prev_1d = float(hist["Close"].iloc[-2])
+            prev_1w = float(hist["Close"].iloc[-5]) if len(hist) >= 5 else hist["Close"].iloc[0]
+            prev_1m = float(hist["Close"].iloc[0])
+
+            results.append({
+                "ticker": ticker,
+                "price": round(price, 2),
+                "change_1d": round((price - prev_1d) / prev_1d * 100, 2),
+                "change_1w": round((price - float(prev_1w)) / float(prev_1w) * 100, 2),
+                "change_1m": round((price - prev_1m) / prev_1m * 100, 2),
+            })
+        except Exception:
+            continue
+
+    if not results:
+        return jsonify({"error": "データ取得失敗"})
+
+    # 統計
+    avg_1d = round(sum(r["change_1d"] for r in results) / len(results), 2)
+    avg_1m = round(sum(r["change_1m"] for r in results) / len(results), 2)
+
+    best_1m = max(results, key=lambda x: x["change_1m"])
+    worst_1m = min(results, key=lambda x: x["change_1m"])
+
+    return jsonify({
+        "stocks": results,
+        "summary": {
+            "count": len(results),
+            "avg_1d": avg_1d,
+            "avg_1m": avg_1m,
+            "best": {"ticker": best_1m["ticker"], "change_1m": best_1m["change_1m"]},
+            "worst": {"ticker": worst_1m["ticker"], "change_1m": worst_1m["change_1m"]},
+        }
+    })
+
+
 # ---------------------------------------------------------------------------
 # 経済カレンダー
 # ---------------------------------------------------------------------------
