@@ -461,6 +461,53 @@ def detect_ma_cross(close: pd.Series, fast: int = 20, slow: int = 50) -> dict:
     }
 
 
+def calc_historical_volatility(close: pd.Series, period: int = 20, annualized: bool = True) -> float:
+    """
+    ヒストリカルボラティリティ（デフォルト20日）
+    日次リターンの標準偏差を年率換算
+    """
+    if len(close) < period + 1:
+        return 0.0
+
+    returns = close.pct_change().dropna()
+    hv = returns.iloc[-period:].std()
+
+    if annualized:
+        hv = hv * (252 ** 0.5)  # 年率換算
+
+    return round(float(hv) * 100, 2)  # パーセント表示
+
+
+def calc_momentum_score(close: pd.Series) -> dict:
+    """
+    複数期間のモメンタムを総合評価
+    1週間・1ヶ月・3ヶ月・6ヶ月のリターンを合成
+    """
+    if len(close) < 130:
+        return {"score": 0, "components": {}}
+
+    def safe_return(n):
+        if len(close) <= n:
+            return 0
+        prev = float(close.iloc[-(n + 1)])
+        curr = float(close.iloc[-1])
+        return round((curr - prev) / prev * 100, 2) if prev else 0
+
+    w1 = safe_return(5)    # 1週間
+    m1 = safe_return(21)   # 1ヶ月
+    m3 = safe_return(63)   # 3ヶ月
+    m6 = safe_return(126)  # 6ヶ月
+
+    # 加重平均スコア（短期ほど重みが高い）
+    score = w1 * 0.4 + m1 * 0.3 + m3 * 0.2 + m6 * 0.1
+
+    return {
+        "score": round(score, 2),
+        "1w": w1, "1m": m1, "3m": m3, "6m": m6,
+        "signal": "STRONG" if score > 5 else "BULLISH" if score > 0 else "BEARISH" if score > -5 else "STRONG_SELL",
+    }
+
+
 def calc_fibonacci_retracements(high: float, low: float) -> dict:
     """
     直近の高値・安値からフィボナッチレベルを計算

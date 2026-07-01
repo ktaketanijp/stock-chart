@@ -17,6 +17,7 @@ from indicators import (
     calc_stochastic, calc_vwap, detect_candlestick_patterns,
     find_support_resistance, calc_adx, calc_williams_r,
     detect_rsi_divergence, detect_ma_cross,
+    calc_historical_volatility, calc_momentum_score,
 )
 import alerts as _alerts_mod
 
@@ -2081,6 +2082,285 @@ def portfolio_backtest():
         "dates": dates,
         "cumulative_returns": [round((v - 1) * 100, 2) for v in cumulative[1:]],
         "individual_returns": {t: round(r["total_return"], 2) for t, r in returns_data.items()},
+    })
+
+
+# ---------------------------------------------------------------------------
+# ショートインタレスト・インサイダー取引
+# ---------------------------------------------------------------------------
+
+@app.route("/api/analysis/short-interest/<ticker>")
+def short_interest(ticker):
+    """
+    空売り比率・ショートインタレスト
+    yfinanceの info から取得できる情報を活用
+    """
+    t = yf.Ticker(ticker.upper())
+
+    try:
+        info = t.info
+        result = {
+            "ticker": ticker.upper(),
+            "short_ratio": round(float(info.get("shortRatio", 0) or 0), 2),
+            "short_percent_of_float": round(float(info.get("shortPercentOfFloat", 0) or 0) * 100, 2),
+            "shares_short": int(info.get("sharesShort", 0) or 0),
+            "shares_short_prior_month": int(info.get("sharesShortPriorMonth", 0) or 0),
+            "float_shares": int(info.get("floatShares", 0) or 0),
+        }
+
+        # ショートスクイーズリスク評価
+        short_pct = result["short_percent_of_float"]
+        short_ratio = result["short_ratio"]
+
+        if short_pct > 20 and short_ratio > 5:
+            result["squeeze_risk"] = "HIGH"
+            result["squeeze_desc"] = f"空売り比率{short_pct}%・日数カバー{short_ratio}日 — ショートスクイーズリスク高"
+        elif short_pct > 10:
+            result["squeeze_risk"] = "MEDIUM"
+            result["squeeze_desc"] = f"空売り比率{short_pct}% — 注意"
+        else:
+            result["squeeze_risk"] = "LOW"
+            result["squeeze_desc"] = f"空売り比率{short_pct}% — 正常"
+
+    except Exception as e:
+        result = {"error": str(e), "ticker": ticker.upper()}
+
+    return jsonify(result)
+
+
+@app.route("/api/analysis/insider/<ticker>")
+def insider_trading(ticker):
+    """
+    インサイダー取引情報（yfinanceから取得）
+    """
+    t = yf.Ticker(ticker.upper())
+
+    try:
+        # yfinanceのinsider_transactions
+        insider = t.insider_transactions
+        if insider is None or insider.empty:
+            return jsonify({"ticker": ticker.upper(), "transactions": [], "summary": "データなし"})
+
+        transactions = []
+        for _, row in insider.head(10).iterrows():
+            try:
+                # yfinanceのカラム名はバージョンにより異なるため両方試す
+                insider_name = str(row.get("Insider") or row.get("Insider Trading") or "")
+                position     = str(row.get("Position") or row.get("Relationship") or "")
+                # Transactionカラムが空の場合はTextから取引タイプを判定
+                tx_type = str(row.get("Transaction") or "")
+                text    = str(row.get("Text") or "")
+                if not tx_type.strip():
+                    if "sale" in text.lower() or "sell" in text.lower():
+                        tx_type = "Sale"
+                    elif "purchase" in text.lower() or "buy" in text.lower():
+                        tx_type = "Purchase"
+                    elif "gift" in text.lower():
+                        tx_type = "Gift"
+                    else:
+                        tx_type = text[:40] if text else "Unknown"
+                start_date = row.get("Start Date", row.name)
+                date_str   = str(start_date)[:10] if start_date is not None else ""
+                transactions.append({
+                    "date": date_str,
+                    "insider": insider_name,
+                    "position": position,
+                    "transaction": tx_type,
+                    "shares": int(row.get("Shares", 0) or 0),
+                    "value": int(row.get("Value", 0) or 0),
+                })
+            except Exception:
+                continue
+
+        # 売買バランス
+        buys = sum(1 for tx in transactions if "buy" in tx["transaction"].lower() or "purchase" in tx["transaction"].lower())
+        sells = sum(1 for tx in transactions if "sell" in tx["transaction"].lower() or "sale" in tx["transaction"].lower())
+
+        return jsonify({
+            "ticker": ticker.upper(),
+            "transactions": transactions,
+            "buy_count": buys,
+            "sell_count": sells,
+            "summary": "買い優勢" if buys > sells else "売り優勢" if sells > buys else "中立",
+        })
+    except Exception as e:
+        return jsonify({"ticker": ticker.upper(), "transactions": [], "error": str(e)})
+
+
+# ---------------------------------------------------------------------------
+# リスク指標: ベータ値・ヒストリカルボラティリティ・モメンタム
+# ---------------------------------------------------------------------------
+
+@app.route("/api/analysis/risk/<ticker>")
+def risk_analysis(ticker):
+    """
+    リスク指標: ベータ値・ヒストリカルボラティリティ・モメンタム
+    """
+    t = yf.Ticker(ticker.upper())
+
+    result = {"ticker": ticker.upper()}
+
+    try:
+        # ベータ値（yfinanceのinfo.betaから取得）
+        info = t.info
+        result["beta"] = round(float(info.get("beta", 1.0) or 1.0), 2)
+    except Exception:
+        result["beta"] = None
+
+    try:
+        # 1年データでボラティリティ・モメンタム計算
+        hist = t.history(period="1y", interval="1d")
+        close = hist["Close"]
+
+        result["volatility_20d"] = calc_historical_volatility(close, 20)
+        result["volatility_60d"] = calc_historical_volatility(close, 60)
+        result["momentum"] = calc_momentum_score(close)
+
+        # ベータ値（S&P500と比較、手動計算 — infoから取得できなかった場合）
+        if not result.get("beta"):
+            sp500 = yf.Ticker("^GSPC").history(period="1y", interval="1d")["Close"]
+            min_len = min(len(close), len(sp500))
+            if min_len > 60:
+                stock_ret = close.pct_change().dropna().iloc[-60:]
+                sp500_ret = sp500.pct_change().dropna().iloc[-60:]
+                min_len2 = min(len(stock_ret), len(sp500_ret))
+                if min_len2 > 20:
+                    cov = float(stock_ret.iloc[:min_len2].cov(sp500_ret.iloc[:min_len2]))
+                    var = float(sp500_ret.iloc[:min_len2].var())
+                    result["beta"] = round(cov / var, 2) if var else 1.0
+    except Exception as e:
+        result["error"] = str(e)
+
+    # リスク評価
+    beta = result.get("beta", 1.0) or 1.0
+    vol = result.get("volatility_20d", 20) or 20
+
+    if beta > 1.5 or vol > 40:
+        result["risk_level"] = "HIGH"
+    elif beta > 1.0 or vol > 25:
+        result["risk_level"] = "MEDIUM"
+    else:
+        result["risk_level"] = "LOW"
+
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# セクターヒートマップ
+# ---------------------------------------------------------------------------
+
+@app.route("/api/market/heatmap")
+def market_heatmap():
+    """
+    S&P500主要銘柄のセクター別ヒートマップデータ
+    （各銘柄の前日比を返す）
+    """
+    HEATMAP_TICKERS = {
+        "テクノロジー": ["AAPL", "MSFT", "NVDA", "META", "GOOGL", "AMZN"],
+        "金融":         ["JPM", "BAC", "GS", "MS", "BRK-B"],
+        "ヘルスケア":   ["JNJ", "UNH", "PFE", "MRK", "ABBV"],
+        "エネルギー":   ["XOM", "CVX", "COP", "SLB"],
+        "自動車/EV":    ["TSLA", "GM", "F"],
+        "消費者":       ["WMT", "COST", "MCD", "SBUX"],
+    }
+
+    result = {}
+    for sector, tickers in HEATMAP_TICKERS.items():
+        result[sector] = []
+        for ticker in tickers:
+            try:
+                t = yf.Ticker(ticker)
+                price = float(t.fast_info.last_price or 0)
+                hist = t.history(period="2d", interval="1d")
+                change_pct = 0
+                if len(hist) >= 2:
+                    prev = float(hist["Close"].iloc[-2])
+                    change_pct = round((price - prev) / prev * 100, 2) if prev else 0
+                market_cap = float(t.fast_info.market_cap or 0) / 1e9
+                result[sector].append({
+                    "ticker": ticker,
+                    "price": round(price, 2),
+                    "change_pct": change_pct,
+                    "market_cap_b": round(market_cap, 0),
+                })
+            except Exception:
+                continue
+
+    return jsonify({"heatmap": result})
+
+
+# ---------------------------------------------------------------------------
+# マーケットセンチメント指標
+# ---------------------------------------------------------------------------
+
+@app.route("/api/market/sentiment")
+def market_sentiment():
+    """
+    マーケット全体のセンチメント指標
+    VIX・市場パフォーマンスから算出する簡易Fear&Greed
+    """
+    score = 50
+    components = {}
+
+    try:
+        vix = float(yf.Ticker("^VIX").fast_info.last_price or 20)
+        if vix < 15:
+            vix_score = 80
+        elif vix < 20:
+            vix_score = 60
+        elif vix < 25:
+            vix_score = 40
+        elif vix < 30:
+            vix_score = 25
+        else:
+            vix_score = 10
+        components["vix"] = {"value": round(vix, 1), "score": vix_score}
+        score = vix_score
+    except Exception:
+        pass
+
+    try:
+        sp500 = yf.Ticker("^GSPC").history(period="1mo", interval="1d")
+        if len(sp500) >= 5:
+            recent_return = (
+                float(sp500["Close"].iloc[-1]) - float(sp500["Close"].iloc[-5])
+            ) / float(sp500["Close"].iloc[-5]) * 100
+            if recent_return > 3:
+                momentum_score = 80
+            elif recent_return > 1:
+                momentum_score = 65
+            elif recent_return > -1:
+                momentum_score = 50
+            elif recent_return > -3:
+                momentum_score = 35
+            else:
+                momentum_score = 20
+            components["momentum"] = {"value": round(recent_return, 2), "score": momentum_score}
+            score = round((score + momentum_score) / 2)
+    except Exception:
+        pass
+
+    if score >= 75:
+        label = "極度の強欲"
+        color = "#dc2626"
+    elif score >= 55:
+        label = "強欲"
+        color = "#f97316"
+    elif score >= 45:
+        label = "中立"
+        color = "#eab308"
+    elif score >= 25:
+        label = "恐怖"
+        color = "#3b82f6"
+    else:
+        label = "極度の恐怖"
+        color = "#1e40af"
+
+    return jsonify({
+        "score": score,
+        "label": label,
+        "color": color,
+        "components": components,
     })
 
 

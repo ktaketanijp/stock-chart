@@ -633,6 +633,30 @@
         <div class="error-box" id="patterns-error" style="display:none"></div>
       </div>
 
+      <!-- Section 9: ショートインタレスト + インサイダー取引 -->
+      <div class="card" id="short-insider-section">
+        <div class="card-title">Section 9 — 空売り情報 / インサイダー取引</div>
+        <div id="short-insider-loading"><span class="inline-spinner"></span> データ取得中...</div>
+        <div id="short-insider-content" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+
+            <!-- ショートインタレスト -->
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">空売り情報</div>
+              <div id="short-info"></div>
+            </div>
+
+            <!-- インサイダー取引 -->
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">インサイダー取引（直近5件）</div>
+              <div id="insider-info"></div>
+            </div>
+
+          </div>
+        </div>
+        <div class="error-box" id="short-insider-error" style="display:none"></div>
+      </div>
+
       <!-- Section 8: RSIダイバージェンス・MAクロス・サポレジ -->
       <div class="card">
         <div class="card-title">Section 8 — RSIダイバージェンス / MAクロス / サポート・レジスタンス</div>
@@ -1490,6 +1514,103 @@
       }
     }
 
+    // ---- Section 9: ショートインタレスト + インサイダー取引 ----
+    async function loadShortInsider(ticker) {
+      const loadEl = document.getElementById("short-insider-loading");
+      const contEl = document.getElementById("short-insider-content");
+      const errEl  = document.getElementById("short-insider-error");
+      loadEl.style.display = "block";
+      contEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      try {
+        const [shortRes, insiderRes] = await Promise.all([
+          fetch(`/api/analysis/short-interest/${encodeURIComponent(ticker)}`),
+          fetch(`/api/analysis/insider/${encodeURIComponent(ticker)}`),
+        ]);
+        const shortData  = await shortRes.json();
+        const insiderData = await insiderRes.json();
+
+        // -- ショートインタレスト表示 --
+        const shortEl = document.getElementById("short-info");
+        if (shortData.error) {
+          shortEl.innerHTML = `<div class="error-box">${escHtml(shortData.error)}</div>`;
+        } else {
+          const risk  = shortData.squeeze_risk || "LOW";
+          const riskColor = risk === "HIGH" ? "#f85149" : risk === "MEDIUM" ? "#f0c040" : "#3fb950";
+          const riskBadge = `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}55">${risk}</span>`;
+
+          const fmtNum = (n) => n ? n.toLocaleString() : "N/A";
+
+          shortEl.innerHTML = `
+            <div style="margin-bottom:12px">
+              ${riskBadge}
+              <div style="font-size:13px;color:var(--text-muted);margin-top:8px">${escHtml(shortData.squeeze_desc || "")}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div style="background:var(--item-bg);border-radius:8px;padding:10px 12px">
+                <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">空売り比率</div>
+                <div style="font-size:20px;font-weight:700;color:${riskColor}">${shortData.short_percent_of_float}%</div>
+              </div>
+              <div style="background:var(--item-bg);border-radius:8px;padding:10px 12px">
+                <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">カバー日数</div>
+                <div style="font-size:20px;font-weight:700">${shortData.short_ratio}日</div>
+              </div>
+              <div style="background:var(--item-bg);border-radius:8px;padding:10px 12px">
+                <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">空売り株数</div>
+                <div style="font-size:14px;font-weight:700">${fmtNum(shortData.shares_short)}</div>
+              </div>
+              <div style="background:var(--item-bg);border-radius:8px;padding:10px 12px">
+                <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">先月比</div>
+                <div style="font-size:14px;font-weight:700">${fmtNum(shortData.shares_short_prior_month)}</div>
+              </div>
+            </div>`;
+        }
+
+        // -- インサイダー取引表示 --
+        const insiderEl = document.getElementById("insider-info");
+        if (insiderData.error && (!insiderData.transactions || insiderData.transactions.length === 0)) {
+          insiderEl.innerHTML = `<div style="color:var(--text-secondary);font-size:13px">データ取得エラー: ${escHtml(insiderData.error)}</div>`;
+        } else if (!insiderData.transactions || insiderData.transactions.length === 0) {
+          insiderEl.innerHTML = `<div style="color:var(--text-secondary);font-size:13px">インサイダー取引データなし</div>`;
+        } else {
+          const buys  = insiderData.buy_count  || 0;
+          const sells = insiderData.sell_count || 0;
+          const summary = insiderData.summary || "中立";
+          const summaryColor = summary === "買い優勢" ? "#3fb950" : summary === "売り優勢" ? "#f85149" : "#8b949e";
+
+          const txRows = insiderData.transactions.slice(0, 5).map(tx => {
+            const isBuy = tx.transaction.toLowerCase().includes("buy") || tx.transaction.toLowerCase().includes("purchase");
+            const isSell = tx.transaction.toLowerCase().includes("sell") || tx.transaction.toLowerCase().includes("sale");
+            const txColor = isBuy ? "#3fb950" : isSell ? "#f85149" : "#8b949e";
+            const valStr = tx.value > 0 ? `$${(tx.value / 1e6).toFixed(2)}M` : "N/A";
+            return `<div style="background:var(--item-bg);border-radius:8px;padding:8px 12px;margin-bottom:6px;border-left:3px solid ${txColor}">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;font-weight:700;color:${txColor}">${escHtml(tx.transaction)}</span>
+                <span style="font-size:11px;color:var(--text-secondary)">${escHtml(tx.date)}</span>
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${escHtml(tx.insider)} <span style="color:var(--text-secondary)">/ ${escHtml(tx.position)}</span></div>
+              <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">${tx.shares.toLocaleString()}株 · ${valStr}</div>
+            </div>`;
+          }).join("");
+
+          insiderEl.innerHTML = `
+            <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+              <span style="font-size:15px;font-weight:700;color:${summaryColor}">${escHtml(summary)}</span>
+              <span style="font-size:12px;color:var(--text-secondary)">買${buys}件 / 売${sells}件</span>
+            </div>
+            ${txRows}`;
+        }
+
+        loadEl.style.display = "none";
+        contEl.style.display = "block";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `データ取得エラー: ${escHtml(e.message)}`;
+      }
+    }
+
     // ---- Section 6: Earnings History ----
     async function loadEarningsHistory(ticker) {
       const section = document.getElementById('earnings-history-section');
@@ -1592,6 +1713,7 @@
         loadPatterns(ticker),
         loadDivergence(ticker),
         loadDividend(ticker),
+        loadShortInsider(ticker),
       ]);
 
       startRefreshTimer();

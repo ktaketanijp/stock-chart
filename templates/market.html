@@ -337,6 +337,154 @@
     .bar-right { display: flex; justify-content: flex-start; }
     .bar-divider { background: #30363d; height: 14px; width: 1px; }
 
+    /* === センチメントゲージ === */
+    .sentiment-section {
+      margin-bottom: 28px;
+    }
+    .sentiment-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 24px 28px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+    .sentiment-score-wrap {
+      text-align: center;
+      min-width: 100px;
+      flex-shrink: 0;
+    }
+    .sentiment-score-num {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .sentiment-label-text {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .sentiment-gauge-wrap {
+      flex: 1;
+      min-width: 200px;
+    }
+    .sentiment-bar-track {
+      position: relative;
+      height: 16px;
+      border-radius: 8px;
+      background: linear-gradient(to right,
+        #1e40af 0%,
+        #3b82f6 25%,
+        #eab308 50%,
+        #f97316 75%,
+        #dc2626 100%
+      );
+      margin-bottom: 8px;
+    }
+    .sentiment-needle {
+      position: absolute;
+      top: -5px;
+      width: 4px;
+      height: 26px;
+      background: #fff;
+      border-radius: 2px;
+      transform: translateX(-50%);
+      box-shadow: 0 0 6px rgba(0,0,0,0.6);
+      transition: left 0.6s ease;
+    }
+    .sentiment-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #8b949e;
+      padding: 0 2px;
+    }
+    .sentiment-components {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .sentiment-comp-item {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 14px;
+      min-width: 100px;
+    }
+    .sentiment-comp-label {
+      font-size: 10px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .sentiment-comp-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e6edf3;
+    }
+    .sentiment-comp-score {
+      font-size: 11px;
+      color: #8b949e;
+      margin-top: 2px;
+    }
+
+    /* === セクターヒートマップ === */
+    .heatmap-section {
+      margin-bottom: 28px;
+    }
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 1100px) { .heatmap-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px)  { .heatmap-grid { grid-template-columns: 1fr; } }
+
+    .heatmap-sector {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .heatmap-sector-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+    .heatmap-tickers {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .heatmap-tile {
+      border-radius: 6px;
+      padding: 8px 10px;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      transition: opacity 0.15s;
+      flex: 1;
+      min-width: 70px;
+    }
+    .heatmap-tile:hover { opacity: 0.85; }
+    .heatmap-tile-ticker {
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 3px;
+    }
+    .heatmap-tile-pct {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+    }
+
     /* === FX・暗号通貨セクション === */
     .fx-section, .crypto-section {
       margin-bottom: 28px;
@@ -417,6 +565,30 @@
       </div>
     </div>
 
+    <!-- センチメント指標 -->
+    <div class="section-title">マーケットセンチメント（Fear &amp; Greed）</div>
+    <div class="sentiment-section">
+      <div class="sentiment-card">
+        <div class="sentiment-score-wrap">
+          <div class="sentiment-score-num" id="sentiment-score" style="color:#eab308">--</div>
+          <div class="sentiment-label-text" id="sentiment-label" style="color:#eab308">読み込み中...</div>
+        </div>
+        <div class="sentiment-gauge-wrap">
+          <div class="sentiment-bar-track">
+            <div class="sentiment-needle" id="sentiment-needle" style="left:50%"></div>
+          </div>
+          <div class="sentiment-scale">
+            <span>極度の恐怖</span>
+            <span>恐怖</span>
+            <span>中立</span>
+            <span>強欲</span>
+            <span>極度の強欲</span>
+          </div>
+        </div>
+        <div class="sentiment-components" id="sentiment-components"></div>
+      </div>
+    </div>
+
     <!-- ① 主要指数 -->
     <div class="section-title">主要指数</div>
     <div class="indices-grid" id="indices-grid">
@@ -445,7 +617,15 @@
       </div>
     </div>
 
-    <!-- ④ 為替レート -->
+    <!-- ④ セクターヒートマップ -->
+    <div class="section-title">セクター別ヒートマップ（主要銘柄・前日比）</div>
+    <div class="heatmap-section">
+      <div class="heatmap-grid" id="heatmap-grid">
+        <div style="grid-column:1/-1;text-align:center;padding:20px;color:#8b949e"><span class="spinner"></span></div>
+      </div>
+    </div>
+
+    <!-- ⑤ 為替レート -->
     <div class="section-title">為替レート（FX）</div>
     <div class="fx-section">
       <div class="fx-grid" id="fx-grid">
@@ -457,7 +637,7 @@
       </div>
     </div>
 
-    <!-- ⑤ 暗号通貨 -->
+    <!-- ⑥ 暗号通貨 -->
     <div class="section-title">暗号通貨</div>
     <div class="crypto-section">
       <div class="crypto-grid" id="crypto-grid">
@@ -680,10 +860,111 @@
       }).join('');
     }
 
+    // ---- センチメント ----
+    async function loadSentiment() {
+      try {
+        const res = await fetch('/api/market/sentiment');
+        const data = await res.json();
+        renderSentiment(data);
+      } catch (e) {
+        document.getElementById('sentiment-label').textContent = '取得エラー';
+      }
+    }
+
+    function renderSentiment(data) {
+      const score = data.score;
+      const label = data.label;
+      const color = data.color;
+
+      const scoreEl = document.getElementById('sentiment-score');
+      scoreEl.textContent = score;
+      scoreEl.style.color = color;
+
+      const labelEl = document.getElementById('sentiment-label');
+      labelEl.textContent = label;
+      labelEl.style.color = color;
+
+      // 針の位置（0〜100 → 0%〜100%）
+      const needle = document.getElementById('sentiment-needle');
+      needle.style.left = score + '%';
+
+      // コンポーネント表示
+      const comps = data.components || {};
+      const compEl = document.getElementById('sentiment-components');
+      const compLabels = { vix: 'VIX', momentum: 'SP500 5日騰落' };
+      const compUnits  = { vix: '', momentum: '%' };
+      compEl.innerHTML = Object.entries(comps).map(([key, val]) => {
+        const lbl = compLabels[key] || key;
+        const unit = compUnits[key] || '';
+        const scoreColor = val.score >= 55 ? '#f97316' : val.score >= 45 ? '#eab308' : '#3b82f6';
+        return `<div class="sentiment-comp-item">
+          <div class="sentiment-comp-label">${lbl}</div>
+          <div class="sentiment-comp-value">${val.value}${unit}</div>
+          <div class="sentiment-comp-score" style="color:${scoreColor}">スコア: ${val.score}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ---- ヒートマップ ----
+    async function loadHeatmap() {
+      try {
+        const res = await fetch('/api/market/heatmap');
+        const data = await res.json();
+        renderHeatmap(data.heatmap);
+      } catch (e) {
+        document.getElementById('heatmap-grid').innerHTML =
+          '<div style="color:#f85149;grid-column:1/-1;padding:16px">取得エラー: ' + e.message + '</div>';
+      }
+    }
+
+    function heatmapColor(pct) {
+      if (pct >  3) return '#15803d';
+      if (pct >  1) return '#16a34a';
+      if (pct >  0) return '#22c55e';
+      if (pct > -1) return '#ef4444';
+      if (pct > -3) return '#dc2626';
+      return '#991b1b';
+    }
+
+    function renderHeatmap(heatmap) {
+      const grid = document.getElementById('heatmap-grid');
+      const SECTOR_ORDER = ['テクノロジー', '金融', 'ヘルスケア', 'エネルギー', '自動車/EV', '消費者'];
+
+      grid.innerHTML = SECTOR_ORDER.filter(s => heatmap[s]).map(sector => {
+        const tickers = heatmap[sector];
+        const tiles = tickers.map(t => {
+          const sign = t.change_pct > 0 ? '+' : '';
+          const bg = heatmapColor(t.change_pct);
+          return `<a class="heatmap-tile" href="/?ticker=${encodeURIComponent(t.ticker)}"
+                    style="background:${bg}" title="${t.ticker}: $${t.price}">
+            <div class="heatmap-tile-ticker">${t.ticker}</div>
+            <div class="heatmap-tile-pct">${sign}${t.change_pct.toFixed(2)}%</div>
+          </a>`;
+        }).join('');
+
+        return `<div class="heatmap-sector">
+          <div class="heatmap-sector-name">${sector}</div>
+          <div class="heatmap-tickers">${tiles}</div>
+        </div>`;
+      }).join('');
+
+      if (!grid.innerHTML.trim()) {
+        grid.innerHTML = '<div style="color:#8b949e;grid-column:1/-1;padding:16px">データなし</div>';
+      }
+    }
+
     // ---- 全更新 ----
     async function refreshAll() {
       document.getElementById('last-updated').textContent = '更新中...';
-      await Promise.all([loadIndices(), loadSectors(), loadWatchlist(), loadForex(), loadCrypto()]);
+      await Promise.all([
+        loadSentiment(),
+        loadIndices(),
+        loadSectors(),
+        loadWatchlist(),
+        loadHeatmap(),
+        loadForex(),
+        loadCrypto(),
+      ]);
       document.getElementById('last-updated').textContent =
         '最終更新: ' + new Date().toLocaleTimeString('ja-JP');
     }

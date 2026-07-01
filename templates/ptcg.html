@@ -869,8 +869,8 @@
       <div class="agent-row partial">
         <div class="agent-status-dot"></div>
         <div class="agent-name">PPO 学習環境</div>
-        <div class="agent-badge badge-partial">環境準備完了</div>
-        <div class="agent-detail">PyTorch 2.8 + SB3 2.1.0 / cabt engine待ち</div>
+        <div class="agent-badge badge-partial">50,000ステップ学習完了</div>
+        <div class="agent-detail">50,000ステップ学習完了 (モックシミュレーター) / 本番学習はcabt engine統合後</div>
       </div>
       <!-- deck.csv -->
       <div class="agent-row waiting">
@@ -940,7 +940,21 @@
       <div class="agent-row">
         <div class="agent-dot dot-partial"></div>
         <div class="agent-name">PPO強化学習環境</div>
-        <div class="agent-status">接続済み <span class="badge badge-partial">モックシミュレーター接続・動作確認済み</span></div>
+        <div class="agent-status">50,000ステップ学習完了 <span class="badge badge-partial">本番学習はcabt engine統合後</span></div>
+      </div>
+
+      <!-- ベイズ手札推定 -->
+      <div class="agent-row">
+        <div class="agent-dot dot-done"></div>
+        <div class="agent-name">ベイズ的手札推定 (hand_inference)</div>
+        <div class="agent-status">実装済み <span class="badge badge-done">Boss's Orders / Switch確率推定</span></div>
+      </div>
+
+      <!-- オープニングブック -->
+      <div class="agent-row">
+        <div class="agent-dot dot-done"></div>
+        <div class="agent-name">オープニングブック + トランスポジションテーブル</div>
+        <div class="agent-status">実装済み <span class="badge badge-done">MCTS統合済み</span></div>
       </div>
 
       <!-- 提出パッケージ（2デッキ） -->
@@ -1395,11 +1409,13 @@
   <div class="section card" style="background:#f0fdf4;border-left:4px solid #16a34a;">
     <h2 style="color:#15803d;">✅ Kaggle認証後の即座提出が可能な状態</h2>
     <ul style="color:#166534; font-size:0.9rem; line-height:2; padding-left:1.2rem;">
-      <li>提出パッケージ: 2デッキ分完成（Bellibolt/Dragapult ex）</li>
-      <li>全5エージェント: 52シナリオ 100%通過</li>
-      <li>Strategyレポート草稿: 英語1758語完成</li>
-      <li>開発済みモジュール: type_chart / energy_manager / trevenant_counter / game_analyzer / PPO環境</li>
-      <li>残作業: cabt engine取得 → 実戦テスト → ELOスコア記入 → Strategy提出</li>
+      <li>✅ 全5エージェント: 52/52 (100%) — bellibolt/heuristic/dragapult/mcts/meta_counter</li>
+      <li>✅ PPO強化学習: 50,000ステップ学習完了 (models/ppo/ptcg_ppo_50k.zip)</li>
+      <li>✅ 提出パッケージ: 2デッキ分完成 (Bellibolt ex / Dragapult ex 各60枚)</li>
+      <li>✅ Strategyレポート: 英語2,124語完成</li>
+      <li>✅ 高度モジュール: type_chart / energy_manager / trevenant_counter / hand_inference / opening_book / transposition_table / game_analyzer</li>
+      <li>✅ Pythonファイル: 31ファイル</li>
+      <li>⏳ 残作業: cabt engine取得 → 実戦テスト → ELOスコア記入 → Strategy提出</li>
     </ul>
   </div>
 
