@@ -306,6 +306,89 @@
       margin-bottom: 14px;
     }
     .section-header .section-title { margin-bottom: 0; flex: 1; }
+
+    /* === タブナビゲーション === */
+    .tab-nav {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 0;
+    }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      transition: all 0.15s;
+      position: relative;
+      bottom: -1px;
+    }
+    .tab-btn:hover { color: #e6edf3; background: #21262d; }
+    .tab-btn.active {
+      color: #e6edf3;
+      background: #161b22;
+      border-color: #30363d;
+      border-bottom-color: #161b22;
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* === ウォッチリスト決算カード === */
+    .wl-earnings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .wl-earnings-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 14px 16px;
+      transition: border-color 0.2s;
+    }
+    .wl-earnings-card:hover { border-color: #58a6ff; }
+    .wl-earnings-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .wl-earnings-ticker {
+      font-size: 16px;
+      font-weight: 700;
+      color: #58a6ff;
+    }
+    .wl-earnings-company {
+      font-size: 12px;
+      color: #8b949e;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wl-earnings-date {
+      font-size: 13px;
+      color: #e6edf3;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .wl-earnings-eps {
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .wl-earnings-empty {
+      text-align: center;
+      padding: 40px;
+      color: #8b949e;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
@@ -328,43 +411,68 @@
     <div class="page-title">経済カレンダー</div>
     <div class="page-subtitle">FRB・CPI・雇用統計などの重要経済イベントとウォッチリスト銘柄の決算日</div>
 
-    <!-- ① 今後7日間ハイライト -->
-    <div class="highlight-section">
-      <div class="section-title">今後7日間のイベント</div>
-      <div id="highlight-area">
-        <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+    <!-- タブナビゲーション -->
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('economic')">経済指標</button>
+      <button class="tab-btn" onclick="switchTab('earnings')">主要決算</button>
+      <button class="tab-btn" onclick="switchTab('watchlist-earnings')">ウォッチリスト</button>
+    </div>
+
+    <!-- タブ: 経済指標 -->
+    <div class="tab-panel active" id="panel-economic">
+      <!-- ① 今後7日間ハイライト -->
+      <div class="highlight-section">
+        <div class="section-title">今後7日間のイベント</div>
+        <div id="highlight-area">
+          <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+        </div>
+      </div>
+
+      <!-- ② イベントリスト -->
+      <div class="event-section">
+        <div class="section-header">
+          <div class="section-title">経済イベント一覧</div>
+          <button class="refresh-btn" onclick="loadEconomic()">更新</button>
+        </div>
+        <div class="filter-bar" id="filter-bar">
+          <button class="filter-btn active" data-cat="ALL" onclick="setFilter(this)">すべて</button>
+          <button class="filter-btn" data-cat="FRB" onclick="setFilter(this)">FRB</button>
+          <button class="filter-btn" data-cat="CPI" onclick="setFilter(this)">CPI</button>
+          <button class="filter-btn" data-cat="雇用" onclick="setFilter(this)">雇用統計</button>
+          <button class="filter-btn" data-cat="PCE" onclick="setFilter(this)">PCE</button>
+          <button class="filter-btn" data-cat="GDP" onclick="setFilter(this)">GDP</button>
+          <button class="filter-btn" data-cat="景況感" onclick="setFilter(this)">ISM</button>
+          <button class="filter-btn" data-cat="日銀" onclick="setFilter(this)">日銀</button>
+        </div>
+        <div id="event-table-area">
+          <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+        </div>
       </div>
     </div>
 
-    <!-- ② イベントリスト -->
-    <div class="event-section">
-      <div class="section-header">
-        <div class="section-title">経済イベント一覧</div>
-        <button class="refresh-btn" onclick="loadEconomic()">更新</button>
-      </div>
-      <div class="filter-bar" id="filter-bar">
-        <button class="filter-btn active" data-cat="ALL" onclick="setFilter(this)">すべて</button>
-        <button class="filter-btn" data-cat="FRB" onclick="setFilter(this)">FRB</button>
-        <button class="filter-btn" data-cat="CPI" onclick="setFilter(this)">CPI</button>
-        <button class="filter-btn" data-cat="雇用" onclick="setFilter(this)">雇用統計</button>
-        <button class="filter-btn" data-cat="PCE" onclick="setFilter(this)">PCE</button>
-        <button class="filter-btn" data-cat="GDP" onclick="setFilter(this)">GDP</button>
-        <button class="filter-btn" data-cat="景況感" onclick="setFilter(this)">ISM</button>
-        <button class="filter-btn" data-cat="日銀" onclick="setFilter(this)">日銀</button>
-      </div>
-      <div id="event-table-area">
-        <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+    <!-- タブ: 主要決算 -->
+    <div class="tab-panel" id="panel-earnings">
+      <div class="earnings-section">
+        <div class="section-header">
+          <div class="section-title">決算カレンダー（ウォッチリスト銘柄 / 今後90日）</div>
+          <button class="refresh-btn" onclick="loadEarnings()">更新</button>
+        </div>
+        <div id="earnings-area">
+          <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+        </div>
       </div>
     </div>
 
-    <!-- ③ 決算カレンダー -->
-    <div class="earnings-section">
-      <div class="section-header">
-        <div class="section-title">決算カレンダー（ウォッチリスト銘柄 / 今後90日）</div>
-        <button class="refresh-btn" onclick="loadEarnings()">更新</button>
-      </div>
-      <div id="earnings-area">
-        <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+    <!-- タブ: ウォッチリスト決算 -->
+    <div class="tab-panel" id="panel-watchlist-earnings">
+      <div class="earnings-section">
+        <div class="section-header">
+          <div class="section-title">ウォッチリスト決算（EPS予想・社名付き）</div>
+          <button class="refresh-btn" onclick="loadWatchlistEarnings()">更新</button>
+        </div>
+        <div id="watchlist-earnings-container">
+          <div class="loading-box"><div class="spinner"></div>読み込み中...</div>
+        </div>
       </div>
     </div>
   </main>
@@ -511,6 +619,30 @@
       area.innerHTML = `<div class="earnings-grid">${cards}</div>`;
     }
 
+    // ---- タブ切り替え ----
+    let watchlistEarningsLoaded = false;
+    let earningsLoaded = false;
+
+    function switchTab(name) {
+      document.querySelectorAll(".tab-btn").forEach((b, i) => {
+        const names = ["economic", "earnings", "watchlist-earnings"];
+        b.classList.toggle("active", names[i] === name);
+      });
+      document.querySelectorAll(".tab-panel").forEach(p => {
+        p.classList.toggle("active", p.id === "panel-" + name);
+      });
+
+      // 遅延ロード（初回のみ）
+      if (name === "earnings" && !earningsLoaded) {
+        earningsLoaded = true;
+        loadEarnings();
+      }
+      if (name === "watchlist-earnings" && !watchlistEarningsLoaded) {
+        watchlistEarningsLoaded = true;
+        loadWatchlistEarnings();
+      }
+    }
+
     // ---- データ取得 ----
     async function loadEconomic() {
       document.getElementById("highlight-area").innerHTML =
@@ -544,9 +676,51 @@
       }
     }
 
-    // 初期ロード
+    async function loadWatchlistEarnings() {
+      const container = document.getElementById("watchlist-earnings-container");
+      container.innerHTML =
+        `<div class="loading-box"><div class="spinner"></div>yfinanceから取得中...</div>`;
+      try {
+        const resp = await fetch("/api/calendar/earnings/watchlist");
+        const data = await resp.json();
+
+        if (!data.earnings || !data.earnings.length) {
+          container.innerHTML =
+            `<div class="wl-earnings-empty">ウォッチリストを追加すると決算日が表示されます</div>`;
+          return;
+        }
+
+        const html = data.earnings.map(e => {
+          const d = daysUntil(e.date);
+          const daysLabel = d === 0 ? "今日"
+                          : d === 1 ? "明日"
+                          : d < 0   ? `${Math.abs(d)}日前`
+                          : `${d}日後`;
+          const daysColor = d <= 7 && d >= 0 ? "#3fb950" : "#8b949e";
+          return `
+            <div class="wl-earnings-card">
+              <div class="wl-earnings-header">
+                <span class="wl-earnings-ticker">${e.ticker}</span>
+                <span class="wl-earnings-company">${e.company || e.ticker}</span>
+                <span class="earnings-days" style="color:${daysColor}">${daysLabel}</span>
+              </div>
+              <div class="wl-earnings-date">${formatDateJP(e.date)} ${e.date}</div>
+              <div class="wl-earnings-eps">EPS予想: ${e.eps_estimate != null ? '$' + e.eps_estimate : 'N/A'}</div>
+            </div>
+          `;
+        }).join("");
+
+        container.innerHTML =
+          `<div style="margin-bottom:10px;color:#8b949e;font-size:12px">${data.count}件取得</div>
+           <div class="wl-earnings-grid">${html}</div>`;
+      } catch (err) {
+        container.innerHTML =
+          `<p style="color:#f85149;padding:16px">取得エラー: ${err.message}</p>`;
+      }
+    }
+
+    // 初期ロード（経済指標タブのみ）
     loadEconomic();
-    loadEarnings();
   </script>
 </body>
 </html>
