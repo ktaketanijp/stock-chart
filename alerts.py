@@ -9,6 +9,44 @@ import yfinance as yf
 ALERTS_FILE = os.path.join(os.path.dirname(__file__), "data", "alerts.json")
 _lock = threading.Lock()
 
+_alert_log_file = os.path.join(os.path.dirname(__file__), "data", "alert_history.json")
+
+
+def log_triggered_alert(alert: dict, triggered_value: float = None) -> None:
+    """発動したアラートを履歴に記録"""
+    with _lock:
+        if os.path.exists(_alert_log_file):
+            with open(_alert_log_file, encoding="utf-8") as f:
+                history = json.load(f)
+        else:
+            history = []
+
+        history.append({
+            "id": alert["id"],
+            "ticker": alert["ticker"],
+            "condition": alert.get("condition", ""),
+            "description": alert.get("description", ""),
+            "type": alert.get("type", "price"),
+            "triggered_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "triggered_value": triggered_value,
+        })
+
+        # 直近100件のみ保持
+        history = history[-100:]
+
+        os.makedirs(os.path.dirname(_alert_log_file), exist_ok=True)
+        with open(_alert_log_file, "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+
+
+def get_alert_history() -> list:
+    """発動アラートの履歴を返す（新しい順）"""
+    if not os.path.exists(_alert_log_file):
+        return []
+    with open(_alert_log_file, encoding="utf-8") as f:
+        history = json.load(f)
+    return list(reversed(history))
+
 
 def _load():
     if not os.path.exists(ALERTS_FILE):
@@ -103,6 +141,8 @@ def check_alerts() -> list:
                     alert.update(updates[alert["id"]])
                     triggered.append(dict(alert))
             _save(data)
+        for alert in triggered:
+            log_triggered_alert(alert, alert.get("triggered_price"))
 
     return triggered
 
@@ -187,15 +227,17 @@ def check_technical_alerts() -> list:
                 hit = current_rsi >= 70
 
             if hit:
+                triggered_val = round(current_rsi, 1) if "rsi" in condition else None
                 with _lock:
                     d2 = _load()
                     for a in d2["alerts"]:
                         if a["id"] == alert["id"]:
                             a["triggered"] = True
                             a["triggered_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                            a["triggered_value"] = round(current_rsi, 1) if "rsi" in condition else None
+                            a["triggered_value"] = triggered_val
                     _save(d2)
                 triggered.append(alert)
+                log_triggered_alert(alert, triggered_val)
         except Exception:
             continue
 

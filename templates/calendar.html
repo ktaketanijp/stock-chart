@@ -492,6 +492,15 @@
       return Math.round((d - today) / 86400000);
     }
 
+    function daysFromNow(dateStr) {
+      const now = new Date();
+      const target = new Date(dateStr + "T00:00:00");
+      const diffDays = Math.round((target - now) / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) return '<span style="color:#f85149;font-weight:700">本日</span>';
+      if (diffDays > 0) return `<span style="color:#8b949e">${diffDays}日後</span>`;
+      return `<span style="color:#8b949e;text-decoration:line-through">${Math.abs(diffDays)}日前</span>`;
+    }
+
     function formatDateJP(dateStr) {
       const d = new Date(dateStr + "T00:00:00");
       const mm = d.getMonth() + 1;
@@ -550,10 +559,7 @@
         if (d === 0) rowClass = "row-today";
         else if (d >= 1 && d <= 7) rowClass = "row-soon";
 
-        const diffLabel = d === 0 ? '<span style="color:#58a6ff;font-size:11px;font-weight:700">今日</span>'
-                        : d === 1 ? '<span style="color:#3fb950;font-size:11px">明日</span>'
-                        : d <= 7  ? `<span style="color:#3fb950;font-size:11px">${d}日後</span>`
-                        : "";
+        const diffLabel = daysFromNow(e.date);
 
         return `
           <tr class="${rowClass}">

@@ -590,6 +590,7 @@
       <div class="modal-tabs">
         <button class="tab-btn active" id="tab-price-btn" onclick="switchTab('price')">価格アラート</button>
         <button class="tab-btn" id="tab-tech-btn" onclick="switchTab('technical')">テクニカル</button>
+        <button class="tab-btn" id="tab-history-btn" onclick="switchTab('history')">発動履歴</button>
       </div>
 
       <!-- 価格アラートタブ -->
@@ -620,7 +621,12 @@
         </div>
       </div>
 
-      <div class="modal-actions">
+      <!-- 発動履歴タブ -->
+      <div id="history-tab" style="display:none">
+        <div id="alert-history-list" style="max-height:260px;overflow-y:auto">読み込み中...</div>
+      </div>
+
+      <div class="modal-actions" id="modal-actions">
         <button class="btn" onclick="createAlert()">設定</button>
         <button class="btn btn-cancel" onclick="closeAlertModal()">キャンセル</button>
       </div>
@@ -791,9 +797,36 @@
       currentAlertTab = tab;
       document.getElementById('price-tab').style.display = tab === 'price' ? '' : 'none';
       document.getElementById('tech-tab').style.display = tab === 'technical' ? '' : 'none';
+      document.getElementById('history-tab').style.display = tab === 'history' ? '' : 'none';
       document.getElementById('tab-price-btn').classList.toggle('active', tab === 'price');
       document.getElementById('tab-tech-btn').classList.toggle('active', tab === 'technical');
+      document.getElementById('tab-history-btn').classList.toggle('active', tab === 'history');
+      document.getElementById('modal-actions').style.display = tab === 'history' ? 'none' : '';
       document.getElementById('modal-msg').textContent = '';
+      if (tab === 'history') loadAlertHistory();
+    }
+
+    async function loadAlertHistory() {
+      const el = document.getElementById('alert-history-list');
+      el.textContent = '読み込み中...';
+      try {
+        const resp = await fetch('/api/alerts/history');
+        const data = await resp.json();
+        if (!data.history || !data.history.length) {
+          el.innerHTML = '<p style="color:#8b949e;font-size:13px;padding:8px 0">まだアラートは発動していません</p>';
+          return;
+        }
+        el.innerHTML = data.history.slice(0, 20).map(h => `
+          <div style="padding:0.4rem 0;border-bottom:1px solid #21262d;font-size:0.85rem">
+            <strong style="color:#58a6ff">${escHtml(h.ticker)}</strong>
+            <span style="color:#8b949e;margin:0 0.5rem">${escHtml(h.triggered_at || '')}</span>
+            <span style="color:#c9d1d9">${escHtml(h.description || h.condition || '')}</span>
+            ${h.triggered_value != null ? `<span style="color:#8b949e"> (${h.triggered_value})</span>` : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        el.innerHTML = '<p style="color:#f85149;font-size:13px">取得エラー: ' + escHtml(err.message) + '</p>';
+      }
     }
 
     function openAlertModal(ticker) {
