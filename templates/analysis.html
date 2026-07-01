@@ -657,6 +657,35 @@
         <div class="error-box" id="short-insider-error" style="display:none"></div>
       </div>
 
+      <!-- Section 8.5: リスク・モメンタム指標 -->
+      <div class="section-card card" id="risk-section">
+        <div class="card-title">Section 8.5 — リスク・モメンタム指標</div>
+        <div id="risk-loading"><span class="inline-spinner"></span> リスク指標取得中...</div>
+        <div id="risk-content" style="display:none">
+          <div class="metrics-grid" id="risk-metrics" style="grid-template-columns:repeat(4,1fr)">
+            <div class="metric-card">
+              <div class="metric-label">ベータ値</div>
+              <div id="risk-beta" class="metric-value">--</div>
+              <div id="beta-desc" style="font-size:0.75rem;color:var(--text-secondary)"></div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">20日ボラティリティ</div>
+              <div id="risk-vol20" class="metric-value">--</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">モメンタムスコア</div>
+              <div id="risk-momentum" class="metric-value">--</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">総合リスク</div>
+              <div id="risk-level" class="metric-value">--</div>
+            </div>
+          </div>
+          <div id="momentum-detail" style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary)"></div>
+        </div>
+        <div class="error-box" id="risk-error" style="display:none"></div>
+      </div>
+
       <!-- Section 8: RSIダイバージェンス・MAクロス・サポレジ -->
       <div class="card">
         <div class="card-title">Section 8 — RSIダイバージェンス / MAクロス / サポート・レジスタンス</div>
@@ -1514,6 +1543,59 @@
       }
     }
 
+    // ---- Section 8.5: リスク・モメンタム指標 ----
+    async function loadRiskAnalysis(ticker) {
+      const loadEl = document.getElementById("risk-loading");
+      const contEl = document.getElementById("risk-content");
+      const errEl  = document.getElementById("risk-error");
+      loadEl.style.display = "block";
+      contEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      try {
+        const resp = await fetch(`/api/analysis/risk/${encodeURIComponent(ticker)}`);
+        const data = await resp.json();
+        if (data.error && !data.beta && !data.volatility_20d) throw new Error(data.error);
+
+        // ベータ
+        const beta = data.beta != null ? data.beta : 1.0;
+        document.getElementById('risk-beta').textContent = beta;
+        document.getElementById('beta-desc').textContent =
+          beta > 1.5 ? '市場より大きく動く（高リスク）' :
+          beta > 1.0 ? '市場より少し大きく動く' :
+          beta < 0   ? '市場と逆相関' : '市場より安定';
+
+        // ボラティリティ
+        document.getElementById('risk-vol20').textContent = `${data.volatility_20d ?? '--'}%`;
+
+        // モメンタム
+        const mom = data.momentum || {};
+        const momScore = mom.score ?? 0;
+        const momEl = document.getElementById('risk-momentum');
+        momEl.textContent = momScore;
+        momEl.style.color = momScore > 5 ? 'var(--positive)' : momScore < -5 ? 'var(--negative)' : 'var(--text-secondary)';
+
+        const momSig = mom.signal || '';
+        const sigLabel = momSig === 'STRONG' ? '強い上昇' : momSig === 'BULLISH' ? '上昇' : momSig === 'BEARISH' ? '下降' : momSig === 'STRONG_SELL' ? '強い下降' : '';
+        document.getElementById('momentum-detail').innerHTML =
+          `${sigLabel ? '<strong>' + escHtml(sigLabel) + '</strong> &nbsp;|&nbsp; ' : ''}` +
+          `1週: ${mom['1w'] ?? '--'}% &nbsp;/&nbsp; 1ヶ月: ${mom['1m'] ?? '--'}% &nbsp;/&nbsp; 3ヶ月: ${mom['3m'] ?? '--'}% &nbsp;/&nbsp; 6ヶ月: ${mom['6m'] ?? '--'}%`;
+
+        // リスクレベル
+        const lvl = data.risk_level || 'MEDIUM';
+        const lvlEl = document.getElementById('risk-level');
+        lvlEl.textContent = lvl === 'HIGH' ? '高リスク' : lvl === 'MEDIUM' ? '中リスク' : '低リスク';
+        lvlEl.style.color = lvl === 'HIGH' ? 'var(--negative)' : lvl === 'LOW' ? 'var(--positive)' : 'var(--text-secondary)';
+
+        loadEl.style.display = "none";
+        contEl.style.display = "block";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `リスク指標取得エラー: ${escHtml(e.message)}`;
+      }
+    }
+
     // ---- Section 9: ショートインタレスト + インサイダー取引 ----
     async function loadShortInsider(ticker) {
       const loadEl = document.getElementById("short-insider-loading");
@@ -1711,6 +1793,7 @@
         loadEarningsHistory(ticker),
         loadMTF(ticker),
         loadPatterns(ticker),
+        loadRiskAnalysis(ticker),
         loadDivergence(ticker),
         loadDividend(ticker),
         loadShortInsider(ticker),
