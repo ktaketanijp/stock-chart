@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>株価比較 | StockChart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --text-muted: #555555;
+      --border-color: #e0e0e0;
+      --border-light: #eeeeee;
+      --card-bg: #ffffff;
+      --nav-bg: #ffffff;
+      --nav-border: #e0e0e0;
+      --positive: #16a34a;
+      --negative: #dc2626;
+      --accent: #2563eb;
+      --accent-bg: rgba(37,99,235,0.12);
+      --hover-bg: #f0f0f0;
+      --input-bg: #f8f8f8;
+      --spinner-border: #e0e0e0;
+      --item-bg: #f8f8f8;
+      --table-header-bg: #f0f0f0;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #0d1117;
+      --bg-secondary: #21262d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #c9d1d9;
+      --border-color: #30363d;
+      --border-light: #21262d;
+      --card-bg: #161b22;
+      --nav-bg: #161b22;
+      --nav-border: #30363d;
+      --positive: #3fb950;
+      --negative: #f85149;
+      --accent: #58a6ff;
+      --accent-bg: rgba(31,111,235,0.12);
+      --hover-bg: #21262d;
+      --input-bg: #0d1117;
+      --spinner-border: #30363d;
+      --item-bg: #0d1117;
+      --table-header-bg: #21262d;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* === グローバルナビ === */
+    .g-nav {
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-wrap: wrap;
+      min-height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow-x: auto;
+    }
+    .g-nav::-webkit-scrollbar { display: none; }
+    .g-nav-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--accent);
+      text-decoration: none;
+      padding-right: 16px;
+      margin-right: 8px;
+      border-right: 1px solid var(--border-color);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: color .15s, background .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .g-nav-link:hover { color: var(--text-primary); background: var(--hover-bg); }
+    .g-nav-link.active { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      color: var(--text-primary);
+      flex-shrink: 0;
+      margin-left: auto;
+      transition: background 0.15s;
+    }
+    .theme-btn:hover { background: var(--hover-bg); }
+
+    main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+    /* === カード === */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 18px;
+    }
+
+    /* === 入力エリア === */
+    .input-area {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      margin-bottom: 16px;
+    }
+    .ticker-inputs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .ticker-input-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ticker-input-wrap label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .ticker-input-wrap input {
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 8px 12px;
+      outline: none;
+      width: 100px;
+      text-transform: uppercase;
+      transition: border-color 0.2s;
+    }
+    .ticker-input-wrap input:focus { border-color: var(--accent); }
+    .ticker-input-wrap input::placeholder { color: var(--text-secondary); font-weight: 400; }
+
+    /* === 期間ボタン === */
+    .period-buttons {
+      display: flex;
+      gap: 6px;
+    }
+    .period-btn {
+      background: var(--item-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 14px;
+      transition: all 0.15s;
+    }
+    .period-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+    .period-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn-compare {
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 9px 20px;
+      transition: opacity 0.15s;
+    }
+    .btn-compare:hover { opacity: 0.85; }
+
+    /* === チャートエリア === */
+    .chart-container { position: relative; height: 420px; }
+
+    /* === スピナー === */
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--spinner-border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #chart-loading { display: none; text-align: center; padding: 60px; color: var(--text-secondary); }
+
+    /* === 凡例 === */
+    .legend-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .legend-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* === サマリーテーブル === */
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .summary-table th {
+      background: var(--table-header-bg);
+      color: var(--text-secondary);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 11px;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .summary-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-light);
+      color: var(--text-primary);
+    }
+    .summary-table tr:last-child td { border-bottom: none; }
+    .summary-table tr:hover td { background: var(--hover-bg); }
+
+    .positive { color: var(--positive); font-weight: 700; }
+    .negative { color: var(--negative); font-weight: 700; }
+    .neutral  { color: var(--text-secondary); font-weight: 700; }
+
+    /* === ゼロライン説明 === */
+    .zero-line-note {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* エラー */
+    .error-box {
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 8px;
+      color: #f85149;
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+
+    /* === 初期メッセージ === */
+    #initial-msg {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+    #initial-msg .hint {
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    @media (max-width: 768px) {
+      main { padding: 12px; }
+      .input-area { flex-direction: column; }
+      .chart-container { height: 280px; }
+      .card { padding: 14px 16px; }
+      .ticker-input-wrap input { width: 80px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="g-nav">
+    <a href="/" class="g-nav-logo">StockChart</a>
+    <a href="/" class="g-nav-link">📈 チャート</a>
+    <a href="/analysis" class="g-nav-link">📊 分析</a>
+    <a href="/scanner" class="g-nav-link">🔍 スキャナー</a>
+    <a href="/journal" class="g-nav-link">📒 日誌</a>
+    <a href="/guide" class="g-nav-link">📖 ガイド</a>
+    <a href="/status" class="g-nav-link">⚙️ 状況</a>
+    <a href="/market" class="g-nav-link">🌐 市場</a>
+    <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
+    <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
+    <a href="/compare" class="g-nav-link active">📉 比較</a>
+    <button id="theme-toggle" class="theme-btn" onclick="toggleTheme()" title="ダークモード切替">🌙</button>
+  </nav>
+
+  <main>
+    <!-- 入力エリア -->
+    <div class="card">
+      <div class="card-title">銘柄比較 — 騰落率チャート</div>
+      <div class="input-area">
+        <div class="ticker-inputs">
+          <div class="ticker-input-wrap">
+            <label>銘柄 1</label>
+            <input id="t1" type="text" placeholder="AAPL" value="AAPL">
+          </div>
+          <div class="ticker-input-wrap">
+            <label>銘柄 2</label>
+            <input id="t2" type="text" placeholder="NVDA" value="NVDA">
+          </div>
+          <div class="ticker-input-wrap">
+            <label>銘柄 3</label>
+            <input id="t3" type="text" placeholder="MSFT">
+          </div>
+          <div class="ticker-input-wrap">
+            <label>銘柄 4</label>
+            <input id="t4" type="text" placeholder="TSLA">
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;margin-bottom:4px">期間</div>
+          <div class="period-buttons">
+            <button class="period-btn" data-period="1mo" onclick="setPeriod(this)">1M</button>
+            <button class="period-btn active" data-period="3mo" onclick="setPeriod(this)">3M</button>
+            <button class="period-btn" data-period="6mo" onclick="setPeriod(this)">6M</button>
+            <button class="period-btn" data-period="1y" onclick="setPeriod(this)">1Y</button>
+          </div>
+        </div>
+        <button class="btn-compare" onclick="runCompare()">比較する</button>
+      </div>
+    </div>
+
+    <!-- チャートエリア -->
+    <div class="card">
+      <div id="initial-msg">
+        <div class="hint">
+          銘柄を入力して「比較する」をクリックしてください。<br>
+          最大4銘柄を基準日からの騰落率（%）で比較します。
+        </div>
+      </div>
+      <div id="chart-loading">
+        <div class="spinner"></div>
+        <p>データ取得中...</p>
+      </div>
+      <div id="chart-area" style="display:none">
+        <div class="legend-wrap" id="chart-legend"></div>
+        <div class="chart-container">
+          <canvas id="compareChart"></canvas>
+        </div>
+        <div class="zero-line-note">0%ライン = 比較開始日の終値を基準とした騰落率</div>
+      </div>
+      <div class="error-box" id="chart-error" style="display:none"></div>
+    </div>
+
+    <!-- サマリーテーブル -->
+    <div class="card" id="summary-card" style="display:none">
+      <div class="card-title">パフォーマンスサマリー</div>
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th>銘柄</th>
+            <th>現在騰落率</th>
+            <th>期間最高</th>
+            <th>期間最低</th>
+          </tr>
+        </thead>
+        <tbody id="summary-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    const COLORS = ["#58a6ff", "#3fb950", "#f0c040", "#f85149"];
+    let currentPeriod = "3mo";
+    let chartInst = null;
+
+    function setPeriod(btn) {
+      document.querySelectorAll(".period-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentPeriod = btn.dataset.period;
+    }
+
+    function getTickers() {
+      return ["t1", "t2", "t3", "t4"]
+        .map(id => document.getElementById(id).value.trim().toUpperCase())
+        .filter(v => v);
+    }
+
+    async function runCompare() {
+      const tickers = getTickers();
+      if (tickers.length === 0) {
+        alert("銘柄を1つ以上入力してください。");
+        return;
+      }
+
+      document.getElementById("initial-msg").style.display  = "none";
+      document.getElementById("chart-area").style.display   = "none";
+      document.getElementById("chart-error").style.display  = "none";
+      document.getElementById("summary-card").style.display = "none";
+      document.getElementById("chart-loading").style.display = "block";
+
+      try {
+        const url = `/api/compare?tickers=${encodeURIComponent(tickers.join(","))}&period=${currentPeriod}`;
+        const res  = await fetch(url);
+        const data = await res.json();
+
+        document.getElementById("chart-loading").style.display = "none";
+
+        const entries = Object.entries(data.data || {});
+        if (entries.length === 0) {
+          document.getElementById("chart-error").style.display  = "block";
+          document.getElementById("chart-error").textContent = "データを取得できませんでした。銘柄コードを確認してください。";
+          return;
+        }
+
+        renderChart(entries);
+        renderSummary(entries);
+
+        document.getElementById("chart-area").style.display   = "block";
+        document.getElementById("summary-card").style.display = "block";
+      } catch (e) {
+        document.getElementById("chart-loading").style.display = "none";
+        document.getElementById("chart-error").style.display  = "block";
+        document.getElementById("chart-error").textContent = `エラー: ${e.message}`;
+      }
+    }
+
+    function renderChart(entries) {
+      if (chartInst) {
+        chartInst.destroy();
+        chartInst = null;
+      }
+
+      // 凡例
+      const legendEl = document.getElementById("chart-legend");
+      legendEl.innerHTML = entries.map(([ticker], i) => {
+        const color = COLORS[i % COLORS.length];
+        return `<div class="legend-item">
+          <div class="legend-dot" style="background:${color}"></div>
+          <span>${ticker}</span>
+        </div>`;
+      }).join("");
+
+      // データセット構築: 全データの共通日付軸を作る
+      const allDates = new Set();
+      entries.forEach(([, v]) => v.dates.forEach(d => allDates.add(d)));
+      const sortedDates = Array.from(allDates).sort();
+
+      const datasets = entries.map(([ticker, v], i) => {
+        const color = COLORS[i % COLORS.length];
+        const dateMap = {};
+        v.dates.forEach((d, idx) => { dateMap[d] = v.returns[idx]; });
+        const points = sortedDates
+          .filter(d => dateMap[d] !== undefined)
+          .map(d => ({ x: d, y: dateMap[d] }));
+        return {
+          label: ticker,
+          data: points,
+          borderColor: color,
+          backgroundColor: color + "22",
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.1,
+          fill: false,
+        };
+      });
+
+      // ゼロライン用データセット
+      const zeroLine = {
+        label: "0%ライン",
+        data: sortedDates.map(d => ({ x: d, y: 0 })),
+        borderColor: "rgba(139,148,158,0.4)",
+        borderWidth: 1,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+      };
+      datasets.push(zeroLine);
+
+      const ctx = document.getElementById("compareChart").getContext("2d");
+      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      const gridColor  = isDark ? "#21262d" : "#eeeeee";
+      const tickColor  = isDark ? "#8b949e" : "#666666";
+
+      chartInst = new Chart(ctx, {
+        type: "line",
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: {
+              display: false,
+            },
+            tooltip: {
+              callbacks: {
+                label: ctx => {
+                  if (ctx.dataset.label === "0%ライン") return null;
+                  const v = ctx.raw.y;
+                  const sign = v >= 0 ? "+" : "";
+                  return `${ctx.dataset.label}: ${sign}${v.toFixed(2)}%`;
+                },
+              },
+              filter: item => item.dataset.label !== "0%ライン",
+            },
+          },
+          scales: {
+            x: {
+              type: "time",
+              time: { unit: "month", tooltipFormat: "yyyy-MM-dd" },
+              ticks: { color: tickColor, maxTicksLimit: 8 },
+              grid: { color: gridColor },
+            },
+            y: {
+              position: "right",
+              ticks: {
+                color: tickColor,
+                callback: v => (v >= 0 ? "+" : "") + v.toFixed(1) + "%",
+              },
+              grid: { color: gridColor },
+            },
+          },
+        },
+      });
+    }
+
+    function renderSummary(entries) {
+      const tbody = document.getElementById("summary-tbody");
+      tbody.innerHTML = entries.map(([ticker, v], i) => {
+        const color = COLORS[i % COLORS.length];
+        const cur = v.current_return;
+        const max = v.max_return;
+        const min = v.min_return;
+        const sign = n => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+        const cls  = n => n > 0 ? "positive" : n < 0 ? "negative" : "neutral";
+        return `<tr>
+          <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${color};margin-right:8px;vertical-align:middle"></span><strong>${ticker}</strong></td>
+          <td class="${cls(cur)}">${sign(cur)}</td>
+          <td class="positive">${sign(max)}</td>
+          <td class="negative">${sign(min)}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    // Enter キーでも比較実行
+    ["t1","t2","t3","t4"].forEach(id => {
+      document.getElementById(id).addEventListener("keydown", e => {
+        if (e.key === "Enter") runCompare();
+      });
+    });
+
+    // テーマ切替
+    function toggleTheme() {
+      const html   = document.documentElement;
+      const isDark = html.getAttribute("data-theme") === "dark";
+      const theme  = isDark ? "light" : "dark";
+      html.setAttribute("data-theme", theme);
+      localStorage.setItem("theme", theme);
+      document.getElementById("theme-toggle").textContent = isDark ? "🌙" : "☀️";
+      // チャートを再描画（色を更新）
+      if (chartInst) {
+        const entries = Object.entries(
+          chartInst.data.datasets
+            .filter(d => d.label !== "0%ライン")
+            .reduce((acc, d) => { acc[d.label] = d; return acc; }, {})
+        );
+        // 再描画より、単純にグリッド色だけ更新
+        const isDarkNow = theme === "dark";
+        const gridColor = isDarkNow ? "#21262d" : "#eeeeee";
+        const tickColor = isDarkNow ? "#8b949e" : "#666666";
+        chartInst.options.scales.x.ticks.color = tickColor;
+        chartInst.options.scales.x.grid.color  = gridColor;
+        chartInst.options.scales.y.ticks.color = tickColor;
+        chartInst.options.scales.y.grid.color  = gridColor;
+        chartInst.update();
+      }
+    }
+
+    // テーマ初期化
+    (function() {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      const btn = document.getElementById("theme-toggle");
+      if (btn) btn.textContent = saved === "dark" ? "☀️" : "🌙";
+    })();
+  </script>
+</body>
+</html>

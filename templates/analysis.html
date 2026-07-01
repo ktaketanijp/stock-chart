@@ -10,22 +10,66 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* === CSS変数（テーマ） === */
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --text-muted: #555555;
+      --border-color: #e0e0e0;
+      --border-light: #eeeeee;
+      --card-bg: #ffffff;
+      --nav-bg: #ffffff;
+      --nav-border: #e0e0e0;
+      --positive: #16a34a;
+      --negative: #dc2626;
+      --accent: #2563eb;
+      --accent-bg: rgba(37,99,235,0.12);
+      --hover-bg: #f0f0f0;
+      --input-bg: #f8f8f8;
+      --spinner-border: #e0e0e0;
+      --item-bg: #f8f8f8;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #0d1117;
+      --bg-secondary: #21262d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #c9d1d9;
+      --border-color: #30363d;
+      --border-light: #21262d;
+      --card-bg: #161b22;
+      --nav-bg: #161b22;
+      --nav-border: #30363d;
+      --positive: #3fb950;
+      --negative: #f85149;
+      --accent: #58a6ff;
+      --accent-bg: rgba(31,111,235,0.12);
+      --hover-bg: #21262d;
+      --input-bg: #0d1117;
+      --spinner-border: #30363d;
+      --item-bg: #0d1117;
+    }
+
     body {
-      background: #0d1117;
-      color: #e6edf3;
+      background: var(--bg-primary);
+      color: var(--text-primary);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       min-height: 100vh;
     }
 
     /* === グローバルナビ === */
     .g-nav {
-      background: #161b22;
-      border-bottom: 1px solid #30363d;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
       padding: 0 20px;
       display: flex;
       align-items: center;
       gap: 2px;
-      height: 52px;
+      flex-wrap: wrap;
+      min-height: 52px;
       position: sticky;
       top: 0;
       z-index: 100;
@@ -35,16 +79,16 @@
     .g-nav-logo {
       font-weight: 700;
       font-size: 15px;
-      color: #58a6ff;
+      color: var(--accent);
       text-decoration: none;
       padding-right: 16px;
       margin-right: 8px;
-      border-right: 1px solid #30363d;
+      border-right: 1px solid var(--border-color);
       white-space: nowrap;
       flex-shrink: 0;
     }
     .g-nav-link {
-      color: #8b949e;
+      color: var(--text-secondary);
       text-decoration: none;
       padding: 6px 11px;
       border-radius: 6px;
@@ -53,8 +97,21 @@
       white-space: nowrap;
       flex-shrink: 0;
     }
-    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
-    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+    .g-nav-link:hover { color: var(--text-primary); background: var(--hover-bg); }
+    .g-nav-link.active { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      color: var(--text-primary);
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .theme-btn:hover { background: var(--hover-bg); }
 
     .ticker-search {
       display: flex;
@@ -63,10 +120,10 @@
       align-items: center;
     }
     .ticker-search input {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
-      color: #e6edf3;
+      color: var(--text-primary);
       font-size: 14px;
       padding: 8px 14px;
       outline: none;
@@ -74,7 +131,7 @@
       text-transform: uppercase;
       transition: border-color 0.2s;
     }
-    .ticker-search input:focus { border-color: #58a6ff; }
+    .ticker-search input:focus { border-color: var(--accent); }
     .btn-analyze {
       background: #1f6feb;
       border: none;
@@ -96,12 +153,12 @@
       display: none;
       text-align: center;
       padding: 80px;
-      color: #8b949e;
+      color: var(--text-secondary);
     }
     .spinner {
       width: 40px; height: 40px;
-      border: 3px solid #30363d;
-      border-top-color: #58a6ff;
+      border: 3px solid var(--spinner-border);
+      border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       margin: 0 auto 16px;
@@ -110,8 +167,8 @@
     .inline-spinner {
       display: inline-block;
       width: 14px; height: 14px;
-      border: 2px solid #30363d;
-      border-top-color: #58a6ff;
+      border: 2px solid var(--spinner-border);
+      border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       vertical-align: middle;
@@ -120,8 +177,8 @@
 
     /* ---- Cards ---- */
     .card {
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
       border-radius: 12px;
       padding: 20px 24px;
       margin-bottom: 20px;
@@ -129,7 +186,7 @@
     .card-title {
       font-size: 14px;
       font-weight: 700;
-      color: #8b949e;
+      color: var(--text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin-bottom: 18px;
@@ -154,29 +211,18 @@
     }
     .gauge-canvas-wrap { position: relative; width: 220px; height: 130px; overflow: hidden; }
     .gauge-canvas-wrap canvas { position: absolute; top: 0; left: 0; }
-    .gauge-label {
-      text-align: center;
-      margin-top: 8px;
-    }
-    .gauge-score {
-      font-size: 42px;
-      font-weight: 800;
-      line-height: 1;
-    }
-    .gauge-judgment {
-      font-size: 18px;
-      font-weight: 600;
-      margin-top: 4px;
-    }
+    .gauge-label { text-align: center; margin-top: 8px; }
+    .gauge-score { font-size: 42px; font-weight: 800; line-height: 1; }
+    .gauge-judgment { font-size: 18px; font-weight: 600; margin-top: 4px; }
     .signal-detail { display: flex; flex-direction: column; gap: 12px; }
     .reasons-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
     .reasons-list li {
       font-size: 13px;
-      color: #c9d1d9;
+      color: var(--text-muted);
       padding: 8px 12px;
-      background: #0d1117;
+      background: var(--item-bg);
       border-radius: 6px;
-      border-left: 3px solid #30363d;
+      border-left: 3px solid var(--border-color);
     }
     .trade-grid {
       display: grid;
@@ -184,8 +230,8 @@
       gap: 12px;
       margin-top: 4px;
     }
-    .trade-item { background: #0d1117; border-radius: 8px; padding: 12px 14px; }
-    .trade-item .label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .trade-item { background: var(--item-bg); border-radius: 8px; padding: 12px 14px; }
+    .trade-item .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
     .trade-item .value { font-size: 18px; font-weight: 700; }
 
     /* ---- Section 2: Sentiment ---- */
@@ -197,23 +243,14 @@
     .sent-score-bar-wrap { margin-bottom: 14px; }
     .sent-score-bar-bg {
       height: 10px;
-      background: #21262d;
+      background: var(--bg-secondary);
       border-radius: 5px;
       overflow: hidden;
       margin-top: 6px;
     }
-    .sent-score-bar-fill {
-      height: 100%;
-      border-radius: 5px;
-      transition: width 0.5s;
-    }
+    .sent-score-bar-fill { height: 100%; border-radius: 5px; transition: width 0.5s; }
     .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-    .badge {
-      font-size: 12px;
-      font-weight: 600;
-      padding: 4px 10px;
-      border-radius: 20px;
-    }
+    .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
     .badge-blue { background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); }
     .badge-green { background: rgba(63,185,80,0.15); color: #3fb950; border: 1px solid rgba(63,185,80,0.3); }
     .badge-red { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
@@ -224,75 +261,56 @@
       font-size: 12px;
       padding: 3px 10px;
       border-radius: 20px;
-      background: #21262d;
-      color: #c9d1d9;
-      border: 1px solid #30363d;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
     }
     .post-cards { display: flex; flex-direction: column; gap: 8px; }
     .post-card {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--item-bg);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 12px 14px;
     }
-    .post-card .post-text { font-size: 13px; color: #c9d1d9; line-height: 1.5; margin-bottom: 4px; }
-    .post-card .post-time { font-size: 11px; color: #8b949e; }
+    .post-card .post-text { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 4px; }
+    .post-card .post-time { font-size: 11px; color: var(--text-secondary); }
     .sent-summary {
       font-size: 14px;
-      color: #c9d1d9;
+      color: var(--text-muted);
       line-height: 1.6;
-      background: #0d1117;
+      background: var(--item-bg);
       border-radius: 8px;
       padding: 14px;
-      border-left: 3px solid #58a6ff;
+      border-left: 3px solid var(--accent);
     }
 
     /* ---- Section 3: Fundamentals + CAN SLIM ---- */
-    .fund-layout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-    }
+    .fund-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 10px;
       margin-bottom: 16px;
     }
-    .metric-box {
-      background: #0d1117;
-      border-radius: 8px;
-      padding: 12px 14px;
-      text-align: center;
-    }
-    .metric-box .m-label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; }
+    .metric-box { background: var(--item-bg); border-radius: 8px; padding: 12px 14px; text-align: center; }
+    .metric-box .m-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; }
     .metric-box .m-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
     .canslim-row {
       display: flex;
       align-items: center;
       gap: 10px;
       padding: 8px 0;
-      border-bottom: 1px solid #21262d;
+      border-bottom: 1px solid var(--border-light);
     }
     .canslim-row:last-child { border-bottom: none; }
-    .canslim-letter {
-      font-size: 18px;
-      font-weight: 800;
-      min-width: 28px;
-      color: #58a6ff;
-    }
+    .canslim-letter { font-size: 18px; font-weight: 800; min-width: 28px; color: var(--accent); }
     .canslim-name { font-size: 13px; flex: 1; }
-    .canslim-value { font-size: 12px; color: #8b949e; min-width: 80px; text-align: right; }
+    .canslim-value { font-size: 12px; color: var(--text-secondary); min-width: 80px; text-align: right; }
     .canslim-icon { font-size: 16px; min-width: 20px; text-align: center; }
     .grade-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 48px; height: 48px;
-      border-radius: 50%;
-      font-size: 24px;
-      font-weight: 800;
-      border: 3px solid;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 48px; height: 48px; border-radius: 50%;
+      font-size: 24px; font-weight: 800; border: 3px solid;
     }
     .grade-A { border-color: #3fb950; color: #3fb950; background: rgba(63,185,80,0.1); }
     .grade-B { border-color: #58a6ff; color: #58a6ff; background: rgba(88,166,255,0.1); }
@@ -300,129 +318,131 @@
     .grade-D { border-color: #f0a040; color: #f0a040; background: rgba(240,160,64,0.1); }
     .grade-F { border-color: #f85149; color: #f85149; background: rgba(248,81,73,0.1); }
     .sepa-box {
-      margin-top: 16px;
-      padding: 14px;
-      border-radius: 8px;
-      border: 1px solid #30363d;
-      background: #0d1117;
+      margin-top: 16px; padding: 14px; border-radius: 8px;
+      border: 1px solid var(--border-color); background: var(--item-bg);
     }
     .sepa-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
     .sepa-conditions { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-    .sepa-conditions li { font-size: 12px; color: #8b949e; display: flex; gap: 8px; align-items: flex-start; }
+    .sepa-conditions li { font-size: 12px; color: var(--text-secondary); display: flex; gap: 8px; align-items: flex-start; }
     .news-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-    .news-item {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 12px 14px;
-    }
-    .news-item a { color: #58a6ff; text-decoration: none; font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px; }
+    .news-item { background: var(--item-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px; }
+    .news-item a { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px; }
     .news-item a:hover { text-decoration: underline; }
-    .news-item .news-meta { font-size: 11px; color: #8b949e; }
+    .news-item .news-meta { font-size: 11px; color: var(--text-secondary); }
 
     /* ---- Section 4: Technical Chart ---- */
     .chart-container { position: relative; height: 360px; }
     .volume-container { position: relative; height: 80px; margin-top: 8px; }
     .atr-info {
-      margin-top: 16px;
-      padding: 12px 16px;
-      background: #0d1117;
-      border-radius: 8px;
-      border-left: 3px solid #f0a040;
-      font-size: 13px;
-      color: #c9d1d9;
+      margin-top: 16px; padding: 12px 16px;
+      background: var(--item-bg); border-radius: 8px;
+      border-left: 3px solid #f0a040; font-size: 13px; color: var(--text-muted);
     }
 
     /* ---- Section 5: Earnings Calendar ---- */
-    .earnings-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 12px;
-    }
+    .earnings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
     .earnings-card {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 16px;
-      transition: border-color 0.2s;
+      background: var(--item-bg); border: 1px solid var(--border-color);
+      border-radius: 10px; padding: 16px; transition: border-color 0.2s;
     }
-    .earnings-card:hover { border-color: #58a6ff; }
-    .earnings-ticker { font-size: 20px; font-weight: 800; color: #58a6ff; margin-bottom: 4px; }
-    .earnings-date { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
-    .days-until {
-      display: inline-block;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 10px;
-      margin-bottom: 10px;
-    }
+    .earnings-card:hover { border-color: var(--accent); }
+    .earnings-ticker { font-size: 20px; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+    .earnings-date { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+    .days-until { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-bottom: 10px; }
     .days-soon { background: rgba(248,81,73,0.15); color: #f85149; }
     .days-medium { background: rgba(240,192,64,0.15); color: #f0c040; }
     .days-far { background: rgba(139,148,158,0.15); color: #8b949e; }
-    .earnings-eps { font-size: 12px; color: #8b949e; }
-    .earnings-eps span { color: #e6edf3; font-weight: 600; }
+    .earnings-eps { font-size: 12px; color: var(--text-secondary); }
+    .earnings-eps span { color: var(--text-primary); font-weight: 600; }
 
     /* ---- Refresh countdown ---- */
-    #refresh-info {
-      font-size: 12px;
-      color: #8b949e;
-      text-align: right;
-      padding-bottom: 8px;
-    }
+    #refresh-info { font-size: 12px; color: var(--text-secondary); text-align: right; padding-bottom: 8px; }
 
     /* ---- Error box ---- */
     .error-box {
-      background: rgba(248,81,73,0.08);
-      border: 1px solid rgba(248,81,73,0.3);
-      border-radius: 8px;
-      color: #f85149;
-      padding: 12px 16px;
-      font-size: 13px;
-      margin-top: 8px;
+      background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 8px; color: #f85149; padding: 12px 16px; font-size: 13px; margin-top: 8px;
     }
 
     /* ---- Section 6: Multi-Timeframe ---- */
-    .mtf-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-    }
-    .mtf-card {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      overflow: hidden;
-    }
+    .mtf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .mtf-card { background: var(--item-bg); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; }
     .mtf-header {
-      background: #161b22;
-      padding: 10px 14px;
-      font-size: 14px;
-      font-weight: 700;
-      color: #58a6ff;
-      border-bottom: 1px solid #30363d;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      background: var(--card-bg); padding: 10px 14px;
+      font-size: 14px; font-weight: 700; color: var(--accent);
+      border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; justify-content: space-between;
     }
     .mtf-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 9px 14px;
-      border-bottom: 1px solid #21262d;
-      font-size: 13px;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 14px; border-bottom: 1px solid var(--border-light); font-size: 13px;
     }
     .mtf-row:last-child { border-bottom: none; }
-    .mtf-label { color: #8b949e; }
+    .mtf-label { color: var(--text-secondary); }
     .mtf-value { font-weight: 700; }
 
-    /* responsive */
+    /* ---- Section 8: Earnings History ---- */
+    .earnings-history-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .eh-chart-label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    /* ---- Fundamentals: enhanced metric box ---- */
+    .metric-bar-bg {
+      height: 4px;
+      background: var(--bg-secondary);
+      border-radius: 3px;
+      margin-top: 5px;
+      overflow: hidden;
+    }
+    .metric-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.4s;
+    }
+    .quality-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      margin-top: 5px;
+    }
+    .qb-good    { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+    .qb-neutral { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+    .qb-bad     { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+    .metric-sub { font-size: 10px; color: var(--text-secondary); margin-top: 3px; }
+
+    /* === モバイルレスポンシブ === */
     @media (max-width: 900px) {
       .signal-layout { grid-template-columns: 1fr; }
       .sentiment-layout { grid-template-columns: 1fr; }
       .fund-layout { grid-template-columns: 1fr; }
       .mtf-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      .g-nav { padding: 0.5rem; height: auto; }
+      main { padding: 12px; }
+      .ticker-search { margin-left: 0; flex-wrap: wrap; }
+      .ticker-search input { width: 120px; }
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .chart-container { height: 250px; }
+      .trade-grid { grid-template-columns: repeat(2, 1fr); }
+      .card { padding: 14px 16px; }
+    }
+
+    @media (max-width: 480px) {
+      .metrics-grid { grid-template-columns: 1fr; }
+      .trade-grid { grid-template-columns: 1fr; }
+      .gauge-canvas-wrap { width: 180px; height: 106px; }
     }
   </style>
 </head>
@@ -438,9 +458,11 @@
     <a href="/market" class="g-nav-link">🌐 市場</a>
     <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
     <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
+    <a href="/compare" class="g-nav-link">📉 比較</a>
     <div class="ticker-search">
       <input id="ticker-input" type="text" placeholder="AAPL" value="AAPL">
       <button class="btn-analyze" onclick="runAnalysis()">分析</button>
+      <button id="theme-toggle" class="theme-btn" onclick="toggleTheme()" title="ダークモード切替">🌙</button>
     </div>
   </nav>
 
@@ -545,9 +567,24 @@
         <div class="error-box" id="earnings-error" style="display:none"></div>
       </div>
 
-      <!-- Section 6: マルチタイムフレーム分析 -->
+      <!-- Section 6: 決算履歴チャート -->
+      <div class="card" id="earnings-history-section" style="display:none">
+        <div class="card-title">Section 6 — 決算履歴（四半期）</div>
+        <div class="earnings-history-grid">
+          <div>
+            <div class="eh-chart-label">純利益推移 ($M)</div>
+            <canvas id="eps-chart" height="200"></canvas>
+          </div>
+          <div>
+            <div class="eh-chart-label">売上推移 ($B)</div>
+            <canvas id="revenue-chart" height="200"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 7: マルチタイムフレーム分析 -->
       <div class="card">
-        <div class="card-title">Section 6 — マルチタイムフレーム分析</div>
+        <div class="card-title">Section 7 — マルチタイムフレーム分析</div>
         <div id="mtf-loading"><span class="inline-spinner"></span> マルチタイムフレームデータ取得中...</div>
         <div id="mtf-content" style="display:none">
           <div id="mtf-grid" class="mtf-grid"></div>
@@ -555,9 +592,19 @@
         <div class="error-box" id="mtf-error" style="display:none"></div>
       </div>
 
-      <!-- Section 7: RSIダイバージェンス・MAクロス・サポレジ -->
+      <!-- Section 7.5: ローソク足パターン -->
       <div class="card">
-        <div class="card-title">Section 7 — RSIダイバージェンス / MAクロス / サポート・レジスタンス</div>
+        <div class="card-title">Section 7.5 — ローソク足パターン検出（直近10件）</div>
+        <div id="patterns-loading"><span class="inline-spinner"></span> パターンデータ取得中...</div>
+        <div id="patterns-content" style="display:none">
+          <div id="patterns-list"></div>
+        </div>
+        <div class="error-box" id="patterns-error" style="display:none"></div>
+      </div>
+
+      <!-- Section 8: RSIダイバージェンス・MAクロス・サポレジ -->
+      <div class="card">
+        <div class="card-title">Section 8 — RSIダイバージェンス / MAクロス / サポート・レジスタンス</div>
         <div id="div-loading"><span class="inline-spinner"></span> ダイバージェンスデータ取得中...</div>
         <div id="div-content" style="display:none">
           <!-- 上段: ダイバージェンス + MAクロス -->
@@ -598,6 +645,8 @@
   <script>
     let candleInst = null;
     let volumeInst = null;
+    let epsChartInst = null;
+    let revenueChartInst = null;
     let refreshTimer = null;
     let refreshCountdown = 300;
     let currentTicker = "AAPL";
@@ -818,13 +867,74 @@
         // Metrics grid
         const metricsEl = document.getElementById("metrics-grid");
         const fmt = (v, suffix="") => (v != null && v !== 0) ? `${v}${suffix}` : "N/A";
+
+        // 品質バッジ生成ヘルパー
+        function qBadge(cls) {
+          const labels = { good: '良い', neutral: '普通', bad: '悪い' };
+          return `<span class="quality-badge qb-${cls}">${labels[cls]}</span>`;
+        }
+
+        // PER評価 (S&P500平均 ≈ 25)
+        const per = fund.per;
+        let perBar = '', perBadge = '';
+        if (per != null) {
+          const SP500_AVG_PER = 25;
+          const perPct = Math.min(100, Math.round(per / 50 * 100));
+          const barColor = per <= 15 ? '#22c55e' : per <= 30 ? '#f59e0b' : '#ef4444';
+          const perCls   = per <= 15 ? 'good'    : per <= 30 ? 'neutral' : 'bad';
+          perBar = `<div class="metric-sub">S&P500平均 25x</div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" style="width:${perPct}%;background:${barColor}"></div></div>`;
+          perBadge = qBadge(perCls);
+        }
+
+        // ROE評価
+        const roe = fund.roe;
+        let roeColor = '#8b949e', roeBadge = '';
+        if (roe != null) {
+          roeColor  = roe >= 15 ? '#22c55e' : roe >= 5 ? '#f59e0b' : '#ef4444';
+          roeBadge  = qBadge(roe >= 15 ? 'good' : roe >= 5 ? 'neutral' : 'bad');
+        }
+
+        // 負債比率（短信にはないためdebtToEquityで代替）
+        const debtRatio = fund.debt_to_equity ?? null;
+        let debtBadge = '';
+        if (debtRatio != null) {
+          debtBadge = qBadge(debtRatio < 100 ? 'good' : debtRatio < 200 ? 'neutral' : 'bad');
+        }
+
+        // EPS成長評価
+        const epsG = fund.eps_growth_yoy ?? fund.eps_growth ?? null;
+        const epsColor = epsG != null ? (epsG >= 0 ? '#3fb950' : '#f85149') : '#8b949e';
+        const epsBadge = epsG != null ? qBadge(epsG >= 20 ? 'good' : epsG >= 0 ? 'neutral' : 'bad') : '';
+
         metricsEl.innerHTML = `
-          <div class="metric-box"><div class="m-label">PER</div><div class="m-value">${fmt(fund.per, "x")}</div></div>
-          <div class="metric-box"><div class="m-label">PBR</div><div class="m-value">${fmt(fund.pbr, "x")}</div></div>
-          <div class="metric-box"><div class="m-label">ROE</div><div class="m-value">${fmt(fund.roe, "%")}</div></div>
-          <div class="metric-box"><div class="m-label">EPS成長</div><div class="m-value" style="color:${(fund.eps_growth_yoy ?? fund.eps_growth ?? 0) >= 0 ? '#3fb950' : '#f85149'}">${fmt(fund.eps_growth_yoy ?? fund.eps_growth, "%")}</div></div>
-          <div class="metric-box"><div class="m-label">機関保有</div><div class="m-value">${fmt(fund.inst_ownership, "%")}</div></div>
-          <div class="metric-box"><div class="m-label">セクター</div><div class="m-value" style="font-size:12px">${fund.sector || "N/A"}</div></div>
+          <div class="metric-box">
+            <div class="m-label">PER</div>
+            <div class="m-value">${fmt(per, "x")}</div>
+            ${perBar}${perBadge}
+          </div>
+          <div class="metric-box">
+            <div class="m-label">PBR</div>
+            <div class="m-value">${fmt(fund.pbr, "x")}</div>
+          </div>
+          <div class="metric-box">
+            <div class="m-label">ROE</div>
+            <div class="m-value" style="color:${roeColor}">${fmt(roe, "%")}</div>
+            ${roeBadge}
+          </div>
+          <div class="metric-box">
+            <div class="m-label">EPS成長</div>
+            <div class="m-value" style="color:${epsColor}">${fmt(epsG, "%")}</div>
+            ${epsBadge}
+          </div>
+          <div class="metric-box">
+            <div class="m-label">機関保有</div>
+            <div class="m-value">${fmt(fund.inst_ownership, "%")}</div>
+          </div>
+          <div class="metric-box">
+            <div class="m-label">セクター</div>
+            <div class="m-value" style="font-size:12px">${fund.sector || "N/A"}</div>
+          </div>
           ${fund.next_earnings_date ? `<div class="metric-box" style="grid-column:span 2"><div class="m-label">次回決算</div><div class="m-value" style="color:#d2a8ff;font-size:13px">${escHtml(fund.next_earnings_date)}</div></div>` : ""}
           ${fund.analyst_recommendation ? `<div class="metric-box"><div class="m-label">アナリスト</div><div class="m-value" style="font-size:12px;text-transform:capitalize">${escHtml(fund.analyst_recommendation)}</div></div>` : ""}
           ${fund.analyst_target_price ? `<div class="metric-box"><div class="m-label">目標株価</div><div class="m-value" style="color:#58a6ff">$${fund.analyst_target_price}</div></div>` : ""}
@@ -1159,6 +1269,81 @@
       }
     }
 
+    // ---- Section 7.5: ローソク足パターン ----
+    async function loadPatterns(ticker) {
+      const loadEl = document.getElementById("patterns-loading");
+      const contEl = document.getElementById("patterns-content");
+      const errEl  = document.getElementById("patterns-error");
+      loadEl.style.display = "block";
+      contEl.style.display = "none";
+      errEl.style.display  = "none";
+
+      const PATTERN_NAMES = {
+        doji:              "同時線（ドージ）",
+        hammer:            "ハンマー",
+        inverted_hammer:   "逆立ちハンマー",
+        shooting_star:     "流れ星（シューティングスター）",
+        bullish_engulfing: "陽の包み線（ブリッシュエンガルフィング）",
+        bearish_engulfing: "陰の包み線（ベアリッシュエンガルフィング）",
+        morning_star:      "明けの明星（モーニングスター）",
+        evening_star:      "宵の明星（イブニングスター）",
+      };
+      const STRENGTH_LABEL = { 1: "弱", 2: "中", 3: "強" };
+
+      try {
+        const res  = await fetch(`/api/analysis/patterns/${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const listEl = document.getElementById("patterns-list");
+        if (!data.patterns || data.patterns.length === 0) {
+          listEl.innerHTML = `<p style="color:var(--text-secondary);font-size:13px">直近3ヶ月でパターンは検出されませんでした。</p>`;
+        } else {
+          listEl.innerHTML = `
+            <div style="display:flex;flex-wrap:wrap;gap:10px">
+              ${data.patterns.map(p => {
+                const name   = PATTERN_NAMES[p.pattern] || p.pattern;
+                const sig    = p.signal;
+                const strLen = p.strength || 1;
+                const strLabel = STRENGTH_LABEL[strLen] || strLen;
+                let badgeClass, sigLabel, borderColor;
+                if (sig === "buy") {
+                  badgeClass  = "badge-green";
+                  sigLabel    = "強気";
+                  borderColor = "var(--positive)";
+                } else if (sig === "sell") {
+                  badgeClass  = "badge-red";
+                  sigLabel    = "弱気";
+                  borderColor = "var(--negative)";
+                } else {
+                  badgeClass  = "badge-gray";
+                  sigLabel    = "中立";
+                  borderColor = "var(--border-color)";
+                }
+                return `<div style="background:var(--item-bg);border:1px solid ${borderColor};border-radius:10px;padding:10px 14px;min-width:200px;flex:1">
+                  <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px">${escHtml(p.date_str || "")}</div>
+                  <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:6px">${escHtml(name)}</div>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <span class="badge ${badgeClass}">${sigLabel}</span>
+                    <span style="font-size:11px;color:var(--text-secondary)">強度: ${strLabel}</span>
+                  </div>
+                </div>`;
+              }).join("")}
+            </div>
+            <div style="margin-top:12px;font-size:12px;color:var(--text-secondary)">
+              検出件数: ${data.count}件（直近3ヶ月の日足データより）
+            </div>`;
+        }
+
+        loadEl.style.display = "none";
+        contEl.style.display = "block";
+      } catch (e) {
+        loadEl.style.display = "none";
+        errEl.style.display  = "block";
+        errEl.textContent    = `パターン取得エラー: ${escHtml(e.message)}`;
+      }
+    }
+
     // ---- Section 7: RSIダイバージェンス / MAクロス / サポレジ ----
     async function loadDivergence(ticker) {
       const loadEl = document.getElementById("div-loading");
@@ -1248,11 +1433,89 @@
       }
     }
 
+    // ---- Section 6: Earnings History ----
+    async function loadEarningsHistory(ticker) {
+      const section = document.getElementById('earnings-history-section');
+      section.style.display = 'none';
+
+      try {
+        const resp = await fetch(`/api/analysis/earnings-history/${encodeURIComponent(ticker)}`);
+        const data = await resp.json();
+
+        let hasData = false;
+
+        // 純利益チャート
+        if (data.quarterly_eps && data.quarterly_eps.length > 0) {
+          hasData = true;
+          const labels = data.quarterly_eps.map(d => d.period).reverse();
+          const values = data.quarterly_eps.map(d => d.value).reverse();
+
+          if (epsChartInst) { epsChartInst.destroy(); epsChartInst = null; }
+          epsChartInst = new Chart(document.getElementById('eps-chart'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Net Income ($M)',
+                data: values,
+                backgroundColor: values.map(v => v >= 0 ? '#22c55e55' : '#ef444455'),
+                borderColor:     values.map(v => v >= 0 ? '#22c55e'   : '#ef4444'),
+                borderWidth: 1,
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } },
+                y: { beginAtZero: false, ticks: { color: '#8b949e' }, grid: { color: '#21262d' } }
+              }
+            }
+          });
+        }
+
+        // 売上チャート
+        if (data.quarterly_revenue && data.quarterly_revenue.length > 0) {
+          hasData = true;
+          const labels = data.quarterly_revenue.map(d => d.period).reverse();
+          const values = data.quarterly_revenue.map(d => d.value).reverse();
+
+          if (revenueChartInst) { revenueChartInst.destroy(); revenueChartInst = null; }
+          revenueChartInst = new Chart(document.getElementById('revenue-chart'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Revenue ($B)',
+                data: values,
+                backgroundColor: '#3b82f655',
+                borderColor:     '#3b82f6',
+                borderWidth: 1,
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } },
+                y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } }
+              }
+            }
+          });
+        }
+
+        if (hasData) section.style.display = 'block';
+      } catch (e) {
+        // 取得失敗時はセクションを非表示のまま
+      }
+    }
+
     // ---- Main analysis runner ----
     async function runAnalysis() {
       const ticker = tickerInput.value.trim().toUpperCase();
       if (!ticker) return;
       currentTicker = ticker;
+      localStorage.setItem('lastTicker', ticker);
 
       document.getElementById("global-loading").style.display = "block";
       document.getElementById("dashboard").style.display = "none";
@@ -1267,7 +1530,9 @@
         loadFundamentals(ticker),
         loadChart(ticker),
         loadEarnings(),
+        loadEarningsHistory(ticker),
         loadMTF(ticker),
+        loadPatterns(ticker),
         loadDivergence(ticker),
       ]);
 
@@ -1306,13 +1571,36 @@
         .replace(/"/g, "&quot;");
     }
 
-    // ページ初期ロード — URLパラメータ ?ticker= があれば優先
+    // ページ初期ロード — URLパラメータ ?ticker= があれば優先、なければlastTickerを復元
     window.addEventListener("DOMContentLoaded", () => {
       const params = new URLSearchParams(window.location.search);
       const urlTicker = params.get("ticker");
-      if (urlTicker) tickerInput.value = urlTicker.toUpperCase();
+      if (urlTicker) {
+        tickerInput.value = urlTicker.toUpperCase();
+      } else {
+        const last = localStorage.getItem('lastTicker');
+        if (last) tickerInput.value = last;
+      }
       runAnalysis();
     });
+
+    // ---- テーマ切替 ----
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      const newTheme = isDark ? 'light' : 'dark';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      document.getElementById('theme-toggle').textContent = isDark ? '🌙' : '☀️';
+    }
+
+    // ---- テーマ初期化 ----
+    (function() {
+      const saved = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', saved);
+      const btn = document.getElementById('theme-toggle');
+      if (btn) btn.textContent = saved === 'dark' ? '☀️' : '🌙';
+    })();
   </script>
 </body>
 </html>

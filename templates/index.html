@@ -10,22 +10,62 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* === CSS変数（テーマ） === */
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --border-color: #e0e0e0;
+      --card-bg: #f8f8f8;
+      --nav-bg: #ffffff;
+      --nav-border: #e0e0e0;
+      --positive: #16a34a;
+      --negative: #dc2626;
+      --accent: #2563eb;
+      --accent-bg: rgba(37,99,235,0.12);
+      --hover-bg: #f0f0f0;
+      --input-bg: #ffffff;
+      --spinner-border: #e0e0e0;
+      --panel-divider: #eeeeee;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #0d1117;
+      --bg-secondary: #21262d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --border-color: #30363d;
+      --card-bg: #161b22;
+      --nav-bg: #161b22;
+      --nav-border: #30363d;
+      --positive: #3fb950;
+      --negative: #f85149;
+      --accent: #58a6ff;
+      --accent-bg: rgba(31,111,235,0.12);
+      --hover-bg: #21262d;
+      --input-bg: #0d1117;
+      --spinner-border: #30363d;
+      --panel-divider: #21262d;
+    }
+
     body {
-      background: #0d1117;
-      color: #e6edf3;
+      background: var(--bg-primary);
+      color: var(--text-primary);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       min-height: 100vh;
     }
 
     /* === グローバルナビ === */
     .g-nav {
-      background: #161b22;
-      border-bottom: 1px solid #30363d;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
       padding: 0 20px;
       display: flex;
       align-items: center;
       gap: 2px;
-      height: 52px;
+      flex-wrap: wrap;
+      min-height: 52px;
       position: sticky;
       top: 0;
       z-index: 100;
@@ -35,16 +75,16 @@
     .g-nav-logo {
       font-weight: 700;
       font-size: 15px;
-      color: #58a6ff;
+      color: var(--accent);
       text-decoration: none;
       padding-right: 16px;
       margin-right: 8px;
-      border-right: 1px solid #30363d;
+      border-right: 1px solid var(--border-color);
       white-space: nowrap;
       flex-shrink: 0;
     }
     .g-nav-link {
-      color: #8b949e;
+      color: var(--text-secondary);
       text-decoration: none;
       padding: 6px 11px;
       border-radius: 6px;
@@ -53,12 +93,26 @@
       white-space: nowrap;
       flex-shrink: 0;
     }
-    .g-nav-link:hover { color: #e6edf3; background: #21262d; }
-    .g-nav-link.active { color: #58a6ff; background: rgba(31,111,235,0.12); font-weight: 600; }
+    .g-nav-link:hover { color: var(--text-primary); background: var(--hover-bg); }
+    .g-nav-link.active { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      color: var(--text-primary);
+      margin-left: auto;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .theme-btn:hover { background: var(--hover-bg); }
 
     header {
-      background: #161b22;
-      border-bottom: 1px solid #30363d;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--border-color);
       padding: 10px 20px;
       display: flex;
       align-items: center;
@@ -73,23 +127,23 @@
 
     #search-input {
       width: 100%;
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
-      color: #e6edf3;
+      color: var(--text-primary);
       font-size: 14px;
       padding: 8px 14px 8px 38px;
       outline: none;
       transition: border-color 0.2s;
     }
-    #search-input:focus { border-color: #58a6ff; }
+    #search-input:focus { border-color: var(--accent); }
 
     .search-icon {
       position: absolute;
       left: 12px;
       top: 50%;
       transform: translateY(-50%);
-      color: #8b949e;
+      color: var(--text-secondary);
       pointer-events: none;
     }
 
@@ -97,8 +151,8 @@
       position: absolute;
       top: calc(100% + 6px);
       left: 0; right: 0;
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
       overflow: hidden;
       z-index: 100;
@@ -113,9 +167,9 @@
       gap: 10px;
       transition: background 0.15s;
     }
-    .suggest-item:hover, .suggest-item.active { background: #21262d; }
-    .suggest-symbol { font-weight: 600; font-size: 14px; color: #58a6ff; min-width: 80px; }
-    .suggest-name { font-size: 13px; color: #8b949e; }
+    .suggest-item:hover, .suggest-item.active { background: var(--hover-bg); }
+    .suggest-symbol { font-weight: 600; font-size: 14px; color: var(--accent); min-width: 80px; }
+    .suggest-name { font-size: 13px; color: var(--text-secondary); }
 
     main { padding: 24px; }
 
@@ -127,11 +181,11 @@
     .ticker-name {
       font-size: 22px;
       font-weight: 700;
-      color: #e6edf3;
+      color: var(--text-primary);
     }
     .ticker-symbol {
       font-size: 14px;
-      color: #8b949e;
+      color: var(--text-secondary);
       margin-left: 8px;
     }
     .price-row {
@@ -147,10 +201,10 @@
       border-radius: 6px;
       font-weight: 600;
     }
-    .up { color: #3fb950; }
-    .down { color: #f85149; }
-    .up-bg { background: rgba(63,185,80,0.15); color: #3fb950; }
-    .down-bg { background: rgba(248,81,73,0.15); color: #f85149; }
+    .up { color: var(--positive); }
+    .down { color: var(--negative); }
+    .up-bg { background: rgba(63,185,80,0.15); color: var(--positive); }
+    .down-bg { background: rgba(248,81,73,0.15); color: var(--negative); }
 
     .toolbar {
       display: flex;
@@ -163,18 +217,19 @@
     .period-bar {
       display: flex;
       gap: 6px;
+      flex-wrap: wrap;
     }
     .period-btn {
       background: transparent;
-      border: 1px solid #30363d;
+      border: 1px solid var(--border-color);
       border-radius: 6px;
-      color: #8b949e;
+      color: var(--text-secondary);
       cursor: pointer;
       font-size: 13px;
       padding: 5px 12px;
       transition: all 0.15s;
     }
-    .period-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .period-btn:hover { border-color: var(--accent); color: var(--accent); }
     .period-btn.active {
       background: #1f6feb;
       border-color: #1f6feb;
@@ -185,19 +240,20 @@
       display: flex;
       gap: 6px;
       margin-left: auto;
+      flex-wrap: wrap;
     }
     .ind-btn {
       background: transparent;
-      border: 1px solid #30363d;
+      border: 1px solid var(--border-color);
       border-radius: 6px;
-      color: #8b949e;
+      color: var(--text-secondary);
       cursor: pointer;
       font-size: 12px;
       padding: 4px 10px;
       transition: all 0.15s;
       font-weight: 600;
     }
-    .ind-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .ind-btn:hover { border-color: var(--accent); color: var(--accent); }
     .ind-btn.active-ma20  { border-color: #f0c040; color: #f0c040; background: rgba(240,192,64,0.1); }
     .ind-btn.active-ma50  { border-color: #58a6ff; color: #58a6ff; background: rgba(88,166,255,0.1); }
     .ind-btn.active-ma200 { border-color: #bc8cff; color: #bc8cff; background: rgba(188,140,255,0.1); }
@@ -209,8 +265,8 @@
     .ind-btn.active-vwap  { border-color: #56d364; color: #56d364; background: rgba(86,211,100,0.1); }
 
     .chart-wrap {
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
       border-radius: 12px;
       padding: 20px;
       display: none;
@@ -218,7 +274,7 @@
 
     .panel-label {
       font-size: 11px;
-      color: #8b949e;
+      color: var(--text-secondary);
       font-weight: 600;
       letter-spacing: 0.05em;
       text-transform: uppercase;
@@ -232,7 +288,7 @@
 
     .panel-divider {
       border: none;
-      border-top: 1px solid #21262d;
+      border-top: 1px solid var(--panel-divider);
       margin: 12px 0 0;
     }
 
@@ -240,12 +296,12 @@
       display: none;
       text-align: center;
       padding: 60px;
-      color: #8b949e;
+      color: var(--text-secondary);
     }
     .spinner {
       width: 36px; height: 36px;
-      border: 3px solid #30363d;
-      border-top-color: #58a6ff;
+      border: 3px solid var(--spinner-border);
+      border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       margin: 0 auto 12px;
@@ -257,7 +313,7 @@
       background: rgba(248,81,73,0.1);
       border: 1px solid rgba(248,81,73,0.3);
       border-radius: 8px;
-      color: #f85149;
+      color: var(--negative);
       padding: 16px 20px;
       margin-top: 20px;
     }
@@ -265,7 +321,7 @@
     #placeholder {
       text-align: center;
       padding: 80px 20px;
-      color: #8b949e;
+      color: var(--text-secondary);
     }
     #placeholder .big-icon { font-size: 48px; margin-bottom: 16px; }
     #placeholder p { font-size: 15px; }
@@ -278,16 +334,16 @@
       margin-top: 20px;
     }
     .popular-btn {
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
       border-radius: 20px;
-      color: #8b949e;
+      color: var(--text-secondary);
       cursor: pointer;
       font-size: 13px;
       padding: 6px 14px;
       transition: all 0.15s;
     }
-    .popular-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .popular-btn:hover { border-color: var(--accent); color: var(--accent); }
 
     #toolbar-wrap { display: none; }
 
@@ -296,26 +352,27 @@
       display: flex;
       gap: 4px;
       margin-left: auto;
+      flex-wrap: wrap;
     }
     .tab-btn {
       background: transparent;
-      border: 1px solid #30363d;
+      border: 1px solid var(--border-color);
       border-radius: 6px;
-      color: #8b949e;
+      color: var(--text-secondary);
       cursor: pointer;
       font-size: 13px;
       font-weight: 600;
       padding: 6px 14px;
       transition: all 0.15s;
     }
-    .tab-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .tab-btn:hover { border-color: var(--accent); color: var(--accent); }
     .tab-btn.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
 
     /* ---- Backtest ---- */
     #backtest-panel {
       display: none;
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
       border-radius: 12px;
       padding: 24px;
     }
@@ -326,18 +383,18 @@
       align-items: flex-end;
       margin-bottom: 20px;
     }
-    .bt-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #8b949e; }
+    .bt-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-secondary); }
     .bt-form input, .bt-form select {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
-      color: #e6edf3;
+      color: var(--text-primary);
       font-size: 14px;
       padding: 7px 10px;
       outline: none;
       width: 130px;
     }
-    .bt-form input:focus, .bt-form select:focus { border-color: #58a6ff; }
+    .bt-form input:focus, .bt-form select:focus { border-color: var(--accent); }
     .bt-run-btn {
       background: #1f6feb;
       border: none;
@@ -355,7 +412,7 @@
 
     .bt-summary {
       display: none;
-      background: #0d1117;
+      background: var(--bg-secondary);
       border-radius: 8px;
       padding: 16px 20px;
       margin-bottom: 20px;
@@ -363,7 +420,7 @@
       gap: 24px;
     }
     .bt-stat { display: flex; flex-direction: column; gap: 4px; }
-    .bt-stat .label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; }
+    .bt-stat .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; }
     .bt-stat .value { font-size: 22px; font-weight: 700; }
 
     .bt-equity-wrap { position: relative; height: 240px; margin-bottom: 16px; }
@@ -371,23 +428,23 @@
 
     .bt-trades {
       margin-top: 16px;
-      border: 1px solid #30363d;
+      border: 1px solid var(--border-color);
       border-radius: 8px;
       overflow: hidden;
       display: none;
     }
     .bt-trades table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .bt-trades th { background: #21262d; color: #8b949e; padding: 8px 12px; text-align: left; font-weight: 600; }
-    .bt-trades td { padding: 7px 12px; border-top: 1px solid #21262d; }
-    .bt-trades tr:hover td { background: #161b22; }
-    .pnl-pos { color: #3fb950; }
-    .pnl-neg { color: #f85149; }
+    .bt-trades th { background: var(--bg-secondary); color: var(--text-secondary); padding: 8px 12px; text-align: left; font-weight: 600; }
+    .bt-trades td { padding: 7px 12px; border-top: 1px solid var(--panel-divider); }
+    .bt-trades tr:hover td { background: var(--hover-bg); }
+    .pnl-pos { color: var(--positive); }
+    .pnl-neg { color: var(--negative); }
 
     /* ---- Alerts ---- */
     #alert-panel {
       display: none;
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
       border-radius: 12px;
       padding: 24px;
     }
@@ -398,18 +455,18 @@
       align-items: flex-end;
       margin-bottom: 20px;
     }
-    .alert-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #8b949e; }
+    .alert-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-secondary); }
     .alert-form input, .alert-form select {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
-      color: #e6edf3;
+      color: var(--text-primary);
       font-size: 14px;
       padding: 7px 10px;
       outline: none;
       width: 130px;
     }
-    .alert-form input:focus, .alert-form select:focus { border-color: #58a6ff; }
+    .alert-form input:focus, .alert-form select:focus { border-color: var(--accent); }
     .alert-add-btn {
       background: #238636;
       border: none;
@@ -424,56 +481,73 @@
     .alert-add-btn:hover { background: #2ea043; }
     .alert-check-btn {
       background: transparent;
-      border: 1px solid #30363d;
+      border: 1px solid var(--border-color);
       border-radius: 6px;
-      color: #8b949e;
+      color: var(--text-secondary);
       cursor: pointer;
       font-size: 13px;
       padding: 7px 14px;
       transition: all 0.15s;
     }
-    .alert-check-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .alert-check-btn:hover { border-color: var(--accent); color: var(--accent); }
 
     .alert-list { display: flex; flex-direction: column; gap: 8px; }
     .alert-item {
       display: flex;
       align-items: center;
       gap: 12px;
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 12px 16px;
       transition: border-color 0.2s;
     }
-    .alert-item.triggered { border-color: #3fb950; background: rgba(63,185,80,0.05); }
-    .alert-ticker { font-weight: 700; color: #58a6ff; min-width: 80px; }
-    .alert-cond { font-size: 13px; color: #8b949e; flex: 1; }
+    .alert-item.triggered { border-color: var(--positive); background: rgba(63,185,80,0.05); }
+    .alert-ticker { font-weight: 700; color: var(--accent); min-width: 80px; }
+    .alert-cond { font-size: 13px; color: var(--text-secondary); flex: 1; }
     .alert-price { font-weight: 600; }
     .alert-status { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
-    .alert-status.waiting { background: rgba(88,166,255,0.1); color: #58a6ff; }
-    .alert-status.done { background: rgba(63,185,80,0.15); color: #3fb950; }
+    .alert-status.waiting { background: rgba(88,166,255,0.1); color: var(--accent); }
+    .alert-status.done { background: rgba(63,185,80,0.15); color: var(--positive); }
     .alert-del {
       background: transparent;
       border: none;
-      color: #8b949e;
+      color: var(--text-secondary);
       cursor: pointer;
       font-size: 16px;
       padding: 2px 6px;
       border-radius: 4px;
       transition: all 0.15s;
     }
-    .alert-del:hover { background: rgba(248,81,73,0.15); color: #f85149; }
-    .alert-triggered-info { font-size: 12px; color: #3fb950; }
+    .alert-del:hover { background: rgba(248,81,73,0.15); color: var(--negative); }
+    .alert-triggered-info { font-size: 12px; color: var(--positive); }
 
     #alert-notify {
       display: none;
       background: rgba(63,185,80,0.1);
       border: 1px solid rgba(63,185,80,0.3);
       border-radius: 8px;
-      color: #3fb950;
+      color: var(--positive);
       padding: 12px 16px;
       margin-bottom: 16px;
       font-weight: 600;
+    }
+
+    /* === モバイルレスポンシブ === */
+    @media (max-width: 768px) {
+      .g-nav { padding: 0.5rem; height: auto; }
+      main { padding: 12px; }
+      .chart-container { height: 250px; }
+      .indicator-bar { margin-left: 0; }
+      .bt-form input, .bt-form select { width: 100px; }
+      .bt-trades table { font-size: 0.8rem; }
+      .bt-trades td, .bt-trades th { padding: 0.3rem 0.5rem; }
+    }
+
+    @media (max-width: 480px) {
+      .ticker-name { font-size: 18px; }
+      .price { font-size: 24px; }
+      .ind-btn { padding: 3px 7px; font-size: 11px; }
     }
   </style>
 </head>
@@ -489,6 +563,8 @@
     <a href="/market" class="g-nav-link">🌐 市場</a>
     <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
     <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
+    <a href="/compare" class="g-nav-link">📉 比較</a>
+    <button id="theme-toggle" class="theme-btn" onclick="toggleTheme()" title="ダークモード切替">🌙</button>
   </nav>
   <header>
     <div class="search-wrap">
@@ -765,6 +841,7 @@
     function loadTicker(ticker) {
       currentTicker = ticker.toUpperCase();
       searchInput.value = currentTicker;
+      saveTicker(currentTicker);
       loadChart(currentTicker, currentPeriod);
     }
 
@@ -1283,6 +1360,36 @@
     setInterval(() => {
       if (currentTab === "alert") checkAlerts();
     }, 30000);
+
+    // ---- テーマ切替 ----
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      const newTheme = isDark ? 'light' : 'dark';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      document.getElementById('theme-toggle').textContent = isDark ? '🌙' : '☀️';
+    }
+
+    // ---- 銘柄記憶 ----
+    function saveTicker(ticker) {
+      localStorage.setItem('lastTicker', ticker);
+    }
+
+    // ---- 初期化（テーマ・銘柄復元） ----
+    (function() {
+      const saved = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', saved);
+      const btn = document.getElementById('theme-toggle');
+      if (btn) btn.textContent = saved === 'dark' ? '☀️' : '🌙';
+    })();
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const last = localStorage.getItem('lastTicker');
+      if (last && document.getElementById('search-input')) {
+        document.getElementById('search-input').value = last;
+      }
+    });
   </script>
 </body>
 </html>

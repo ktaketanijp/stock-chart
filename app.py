@@ -1584,5 +1584,114 @@ def earnings_calendar_api():
     return jsonify({"earnings": results, "as_of": today_str})
 
 
+@app.route("/api/analysis/patterns/<ticker>")
+def analysis_patterns(ticker):
+    """ローソク足パターン検出"""
+    ticker = ticker.upper().strip()
+    try:
+        hist = yf.Ticker(ticker).history(period="3mo", interval="1d")
+        if hist.empty:
+            return jsonify({"error": "データ取得失敗"}), 404
+
+        patterns = detect_candlestick_patterns(hist)
+        # 直近の10件に絞る
+        recent = [p for p in patterns if p][-10:]
+        # 表示用の日付文字列を付加
+        for p in recent:
+            p["date_str"] = datetime.fromtimestamp(p["date"] / 1000).strftime("%Y-%m-%d")
+        return jsonify({"ticker": ticker, "patterns": recent, "count": len(recent)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/compare")
+def compare_page():
+    return render_template("compare.html")
+
+
+@app.route("/api/compare")
+def compare_stocks():
+    """
+    複数銘柄の騰落率比較
+    クエリパラメータ: tickers=AAPL,NVDA,MSFT&period=6mo
+    """
+    tickers_param = request.args.get("tickers", "")
+    period = request.args.get("period", "6mo")
+
+    result = {}
+    for ticker in tickers_param.split(",")[:4]:  # 最大4銘柄
+        ticker = ticker.strip().upper()
+        if not ticker:
+            continue
+        try:
+            hist = yf.Ticker(ticker).history(period=period, interval="1d")
+            if hist.empty:
+                continue
+            closes = hist["Close"].tolist()
+            dates = [str(d.date()) for d in hist.index]
+            base = closes[0]
+            # 基準日からの騰落率に正規化
+            returns = [round((c - base) / base * 100, 2) for c in closes]
+            result[ticker] = {
+                "dates": dates,
+                "returns": returns,
+                "current_return": returns[-1] if returns else 0,
+                "max_return": round(max(returns), 2) if returns else 0,
+                "min_return": round(min(returns), 2) if returns else 0,
+            }
+        except Exception:
+            continue
+
+    return jsonify({"data": result, "period": period})
+
+
+@app.route("/api/analysis/earnings-history/<ticker>")
+def earnings_history(ticker):
+    """四半期EPS（純利益）・売上の推移（過去8四半期）"""
+    t = yf.Ticker(ticker.upper())
+    result = {
+        "ticker": ticker.upper(),
+        "quarterly_eps": [],
+        "quarterly_revenue": [],
+    }
+
+    try:
+        qf = t.quarterly_financials
+        if qf is not None and not qf.empty:
+            if "Net Income" in qf.index:
+                net_income = qf.loc["Net Income"]
+                for col in list(net_income.index)[:8]:
+                    val = net_income[col]
+                    if pd.notna(val):
+                        result["quarterly_eps"].append({
+                            "period": str(col.date()),
+                            "value": round(float(val) / 1e6, 1),
+                            "label": "Net Income($M)",
+                        })
+    except Exception:
+        pass
+
+    try:
+        qf = t.quarterly_financials
+        if qf is not None and not qf.empty:
+            revenue_keys = ["Total Revenue", "Revenue", "Sales"]
+            for key in revenue_keys:
+                if key in qf.index:
+                    rev = qf.loc[key]
+                    for col in list(rev.index)[:8]:
+                        val = rev[col]
+                        if pd.notna(val):
+                            result["quarterly_revenue"].append({
+                                "period": str(col.date()),
+                                "value": round(float(val) / 1e9, 2),
+                                "label": "Revenue($B)",
+                            })
+                    break
+    except Exception:
+        pass
+
+    return jsonify(result)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

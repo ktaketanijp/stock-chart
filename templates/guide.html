@@ -790,6 +790,7 @@
   <a href="/market" class="g-nav-link">🌐 市場</a>
   <a href="/watchlist" class="g-nav-link">⭐ ウォッチリスト</a>
   <a href="/calendar" class="g-nav-link">📅 カレンダー</a>
+  <a href="/compare" class="g-nav-link">📉 比較</a>
 </nav>
 
 <!-- ========== HEADER ========== -->
@@ -1229,6 +1230,490 @@
     </div>
   </section>
 
+
+  <!-- ===== NEW-1: このアプリの使い方 ===== -->
+  <section class="section" id="how-to-use">
+    <h2 class="section-title">🗺️ このアプリの使い方</h2>
+    <div class="usage-list">
+
+      <div class="usage-item">
+        <div class="usage-circle">①</div>
+        <div>
+          <div class="usage-title">銘柄分析（メインページ）<span class="usage-tag">メイン</span></div>
+          <div class="usage-desc">
+            銘柄コードを入力してチャートを表示。AIが3層（テクニカル・ファンダメンタル・センチメント）を統合分析し、
+            <strong>BUY/SELL/NEUTRALシグナル</strong>と0〜100点のスコアをリアルタイムで表示します。
+            インジケーター（MA・RSI・MACD・BB等）をボタンで重ね表示し、バックテストも即時実行可能です。
+          </div>
+        </div>
+      </div>
+
+      <div class="usage-item">
+        <div class="usage-circle">②</div>
+        <div>
+          <div class="usage-title">スキャナー<span class="usage-tag">発掘</span></div>
+          <div class="usage-desc">
+            「モメンタム」「52週高値ブレイク」「出来高急増」「RSI過売」など複数の条件で銘柄を自動スクリーニング。
+            毎朝の候補銘柄探しに活用してください。スキャン結果はワンクリックでチャート分析へ遷移できます。
+          </div>
+        </div>
+      </div>
+
+      <div class="usage-item">
+        <div class="usage-circle">③</div>
+        <div>
+          <div class="usage-title">ウォッチリスト<span class="usage-tag">監視</span></div>
+          <div class="usage-desc">
+            気になる銘柄を登録して一括モニタリング。登録銘柄の現在値・騰落率・AIシグナルを一覧で確認でき、
+            見逃しを防ぎます。スキャナーで発見した候補銘柄を即座に追加可能です。
+          </div>
+        </div>
+      </div>
+
+      <div class="usage-item">
+        <div class="usage-circle">④</div>
+        <div>
+          <div class="usage-title">ペーパートレード<span class="usage-tag">練習</span></div>
+          <div class="usage-desc">
+            仮想資金 ¥100,000 でリスクゼロのトレード練習。エントリー・決済を記録し、損益・勝率・プロフィットファクターを
+            自動集計します。実口座前の必須トレーニングです。損切り・利確価格も設定でき、2%ルールの推奨株数も自動計算されます。
+          </div>
+        </div>
+      </div>
+
+      <div class="usage-item">
+        <div class="usage-circle">⑤</div>
+        <div>
+          <div class="usage-title">アラート<span class="usage-tag">通知</span></div>
+          <div class="usage-desc">
+            「○○円を超えたら通知」という価格条件を事前設定。相場を常に見ていなくても、
+            チャンスを逃さずエントリータイミングを把握できます。AIシグナルが変化した際の通知も設定可能です。
+          </div>
+        </div>
+      </div>
+
+      <div class="usage-item">
+        <div class="usage-circle">⑥</div>
+        <div>
+          <div class="usage-title">市場概況<span class="usage-tag">マクロ</span></div>
+          <div class="usage-desc">
+            日経平均・TOPIX・NYダウなど主要指数の動向とセクター別パフォーマンスをワンクリックで確認。
+            個別銘柄を見る前にまず市場全体の空気感を掴む習慣をつけましょう。
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== NEW-2: AIシグナルの見方 ===== -->
+  <section class="section" id="ai-signal">
+    <h2 class="section-title">🤖 AIシグナルの見方</h2>
+
+    <div class="signal-layers">
+      <div class="signal-layer-card">
+        <div class="signal-layer-pct" style="color:var(--muted);">20%</div>
+        <div class="signal-layer-name">テクニカル</div>
+        <div class="signal-layer-items">
+          RSI<br>MACD<br>ボリンジャーバンド<br>出来高トレンド<br>移動平均クロス
+        </div>
+      </div>
+      <div class="signal-layer-card">
+        <div class="signal-layer-pct" style="color:var(--accent);">40%</div>
+        <div class="signal-layer-name">ファンダメンタル</div>
+        <div class="signal-layer-items">
+          PER・PBR<br>ROE・ROA<br>負債比率<br>売上成長率<br>営業利益率
+        </div>
+      </div>
+      <div class="signal-layer-card">
+        <div class="signal-layer-pct" style="color:var(--green);">40%</div>
+        <div class="signal-layer-name">センチメント</div>
+        <div class="signal-layer-items">
+          ニュース感情分析<br>X/SNS評価<br>アナリスト評価<br>機関投資家動向<br>空売り比率
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+      3層の分析結果を加重平均して0〜100点のスコアを算出。スコアに応じて以下5段階のシグナルを出力します。
+    </p>
+
+    <div class="signal-table-wrap">
+      <table class="signal-score-table">
+        <thead>
+          <tr>
+            <th>シグナル</th>
+            <th>スコア</th>
+            <th>意味</th>
+            <th>推奨アクション</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="sig-strong-buy">STRONG BUY</span></td>
+            <td>80〜100点</td>
+            <td>3層すべてが強気一致</td>
+            <td>エントリーを強く検討。ポジションサイズは通常通り</td>
+          </tr>
+          <tr>
+            <td><span class="sig-buy-label">BUY</span></td>
+            <td>60〜79点</td>
+            <td>概ね強気シグナル</td>
+            <td>条件が揃えばエントリー。小さめのポジションから開始</td>
+          </tr>
+          <tr>
+            <td><span class="sig-neutral-lb">NEUTRAL</span></td>
+            <td>40〜59点</td>
+            <td>方向感なし・混在</td>
+            <td>様子見推奨。トレンド確認後に再判断</td>
+          </tr>
+          <tr>
+            <td><span class="sig-sell-label">SELL</span></td>
+            <td>20〜39点</td>
+            <td>弱気シグナル優勢</td>
+            <td>保有中なら部分決済または損切り検討</td>
+          </tr>
+          <tr>
+            <td><span class="sig-strong-sell">STRONG SELL</span></td>
+            <td>0〜19点</td>
+            <td>3層すべてが弱気一致</td>
+            <td>即時決済推奨。新規買いは厳禁</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:14px;padding:12px 16px;background:rgba(88,166,255,0.07);border:1px solid rgba(88,166,255,0.25);border-radius:8px;font-size:13px;color:var(--muted);">
+      <strong style="color:var(--accent);">重要:</strong>
+      AIシグナルは参考情報です。最終的な投資判断はご自身で行ってください。
+      スコアが高くても、決算発表・政策変更などのイベントリスクには対応できない場合があります。
+      必ずファンダメンタル情報とニュースを合わせて確認してください。
+    </div>
+  </section>
+
+  <!-- ===== NEW-3: テクニカル指標解説（アコーディオン） ===== -->
+  <section class="section" id="indicators-detail">
+    <h2 class="section-title">📐 テクニカル指標 詳細解説</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px;">
+      各項目をクリックして詳細を開閉できます。
+    </p>
+
+    <div class="accordion-list">
+
+      <!-- RSI -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>📉 RSI（相対力指数）— 買われすぎ・売られすぎの尺度</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="acc-row"><span class="acc-label">計算式</span><span>過去14日の値上がり平均 ÷ (値上がり平均 + 値下がり平均) × 100</span></div>
+            <div class="acc-row"><span class="acc-label">70以上</span><span style="color:var(--red)">買われすぎ → 売り圧力が強まりやすい。利確・空売り検討</span></div>
+            <div class="acc-row"><span class="acc-label">30以下</span><span style="color:var(--green)">売られすぎ → 反発の機会。他の指標と合わせてエントリー検討</span></div>
+            <div class="acc-row"><span class="acc-label">50ライン</span><span>上にある＝強気トレンド、下にある＝弱気トレンドの目安</span></div>
+            <div class="acc-note">
+              注意: 強いトレンド相場では RSI が「70以上に張り付いたまま上昇」することも多い。トレンドフォロー時はMAや出来高と組み合わせること。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MACD -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>📊 MACD — トレンドの勢いと転換点</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="acc-row"><span class="acc-label">計算式</span><span>EMA12 − EMA26 ＝ MACDライン。シグナル線 = MACDのEMA9</span></div>
+            <div class="acc-row"><span class="acc-label">買い</span><span style="color:var(--green)">MACDラインがシグナル線を上抜け（ゴールデンクロス）＋ヒストグラムがプラス転換</span></div>
+            <div class="acc-row"><span class="acc-label">売り</span><span style="color:var(--red)">MACDラインがシグナル線を下抜け（デッドクロス）＋ヒストグラムがマイナス転換</span></div>
+            <div class="acc-row"><span class="acc-label">発散</span><span>ヒストグラムが拡大中 = トレンド継続、縮小中 = 転換の予兆</span></div>
+            <div class="acc-note">
+              注意: MACDは「遅延指標」のため、急騰・急落の後から追う形になる。エントリー確認用として使い、スキャナーとの組み合わせが有効。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ボリンジャーバンド -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>📏 ボリンジャーバンド — 価格の統計的な範囲</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="acc-row"><span class="acc-label">計算式</span><span>中央線 = 20日移動平均。上下バンド = 中央線 ± 2標準偏差（σ）</span></div>
+            <div class="acc-row"><span class="acc-label">上限タッチ</span><span style="color:var(--red)">統計的に「高すぎる」水準。レンジ相場では売り検討</span></div>
+            <div class="acc-row"><span class="acc-label">下限タッチ</span><span style="color:var(--green)">統計的に「安すぎる」水準。レンジ相場では買い検討</span></div>
+            <div class="acc-row"><span class="acc-label">スクイーズ</span><span>バンド幅が急縮小 → 大きな値動きの前兆（ブレイクアウト待機）</span></div>
+            <div class="acc-tip">
+              活用: バンドがスクイーズしたらブレイクの方向を待ってエントリー。方向は出来高や他のシグナルで判断する。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADX -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>📈 ADX（平均方向性指数）— トレンドの強さ</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="acc-row"><span class="acc-label">25以上</span><span style="color:var(--green)">強いトレンド → トレンドフォロー戦略（MACD・MA戦略）が有効</span></div>
+            <div class="acc-row"><span class="acc-label">20以下</span><span style="color:var(--muted)">レンジ相場 → 反平均回帰戦略（RSI・BB戦略）が有効</span></div>
+            <div class="acc-row"><span class="acc-label">+DI > -DI</span><span style="color:var(--green)">上昇トレンド優勢</span></div>
+            <div class="acc-row"><span class="acc-label">-DI > +DI</span><span style="color:var(--red)">下降トレンド優勢</span></div>
+            <div class="acc-tip">
+              使い方: ADXを最初に確認して「今がトレンド相場かレンジ相場か」を判断してから、適切な指標を選ぶことが重要。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- フィボナッチ -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>🌀 フィボナッチリトレースメント — 押し目・戻りの目安</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="acc-row"><span class="acc-label">意味</span><span>大きな値動き（直近高値〜安値）の後、どこまで「戻る」かを黄金比で予測する</span></div>
+            <div class="acc-row"><span class="acc-label">38.2%</span><span>浅い調整。強いトレンド時によく止まるライン</span></div>
+            <div class="acc-row"><span class="acc-label">50.0%</span><span>半値戻し。心理的節目として意識されやすい</span></div>
+            <div class="acc-row"><span class="acc-label">61.8%</span><span>最も強いサポート/レジスタンス。「黄金比」のリトレース</span></div>
+            <div class="acc-row"><span class="acc-label">活用</span><span>押し目買いのエントリーポイントや損切りラインの設定に使う</span></div>
+            <div class="acc-note">
+              注意: フィボナッチは自己成就的な側面がある（多くのトレーダーが意識するため機能する）。単独では使わずトレンド方向確認（MA・MACD）と組み合わせる。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ウィリアムズ%R -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>📉 ウィリアムズ %R — RSIの逆スケール版</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <div class="acc-row"><span class="acc-label">スケール</span><span>0 〜 −100（マイナス方向に動く）</span></div>
+            <div class="acc-row"><span class="acc-label">−20以上</span><span style="color:var(--red)">買われすぎゾーン → 売り検討（例: −10 = 極端な買われすぎ）</span></div>
+            <div class="acc-row"><span class="acc-label">−80以下</span><span style="color:var(--green)">売られすぎゾーン → 買い検討（例: −90 = 極端な売られすぎ）</span></div>
+            <div class="acc-row"><span class="acc-label">RSIとの違い</span><span>より短期の動きに敏感。デフォルト14日だが10日など短く設定することも多い</span></div>
+            <div class="acc-tip">
+              活用: RSIと同時に確認して、両方が売られすぎを示している場合に反発の信頼度が上がる。
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /accordion-list -->
+  </section>
+
+  <!-- ===== NEW-4: ペーパートレードの基本戦略 ===== -->
+  <section class="section" id="paper-trade-strategy">
+    <h2 class="section-title">📒 ペーパートレードの基本戦略</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px;">
+      ¥100,000 の仮想資金を使って、以下のルールを守りながらトレードを練習しましょう。
+      ルールを守る練習が実口座での損失防止に直結します。
+    </p>
+
+    <div class="strategy-grid">
+
+      <div class="strategy-card">
+        <div class="str-icon">🛡️</div>
+        <div class="str-title">2%ルール — 損失上限の管理</div>
+        <div class="str-desc">
+          1トレードで許容できる最大損失は<strong>資金の2%</strong>まで。
+          感情ではなく数字でリスクを管理するのがプロのやり方です。
+        </div>
+        <div class="str-example">
+          例: ¥100,000 × 2% = ¥2,000 がリスク上限<br>
+          アプリがエントリー価格と損切り設定から推奨株数を自動計算します
+        </div>
+      </div>
+
+      <div class="strategy-card">
+        <div class="str-icon">✂️</div>
+        <div class="str-title">損切りの設定方法</div>
+        <div class="str-desc">
+          損切りは感情で決めず、<strong>ATR（平均真の値幅）の2倍</strong>を損切り幅の目安にします。
+          重要サポートライン（チャートのサポレジ）を下回ったら即時損切り。
+        </div>
+        <div class="str-warn">
+          損切りを先延ばしにすると大きな損失につながります。「含み損でも戻るかも」は最大の禁句です。
+        </div>
+      </div>
+
+      <div class="strategy-card">
+        <div class="str-icon">🎯</div>
+        <div class="str-title">利確の目安 — RR比 1:2</div>
+        <div class="str-desc">
+          リスクリワード比を<strong>最低 1:2</strong>に設定します。
+          損切り幅の2倍の利益を目標にすることで、勝率が50%でも長期的にプラスになります。
+        </div>
+        <div class="str-example">
+          例: 損切り幅 ¥500 → 利確目標 ¥1,000<br>
+          勝率40%でも 0.4×1,000 − 0.6×500 = +¥100/トレード
+        </div>
+      </div>
+
+      <div class="strategy-card">
+        <div class="str-icon">📓</div>
+        <div class="str-title">トレードジャーナルの活用</div>
+        <div class="str-desc">
+          エントリーした<strong>理由・根拠</strong>を必ず記録してください。
+          結果だけでなくプロセスを振り返ることで、パターン認識力が向上します。
+        </div>
+        <div class="str-example">
+          確認指標: 勝率・プロフィットファクター・最大ドローダウン<br>
+          PF（プロフィットファクター）が 1.5 以上なら実口座移行を検討
+        </div>
+      </div>
+
+    </div><!-- /strategy-grid -->
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;">
+      <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:14px;">📊 ペーパートレード 推奨フロー</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--muted);">
+        <div style="display:flex;gap:12px;align-items:baseline;">
+          <span style="color:var(--accent);font-weight:700;flex-shrink:0;">Step 1</span>
+          <span>スキャナーで候補銘柄を発掘 → ウォッチリストに追加</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:baseline;">
+          <span style="color:var(--accent);font-weight:700;flex-shrink:0;">Step 2</span>
+          <span>チャート分析でエントリーポイント・損切り・利確ラインを決定</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:baseline;">
+          <span style="color:var(--accent);font-weight:700;flex-shrink:0;">Step 3</span>
+          <span>AIシグナルが BUY 以上 かつ RSI/MACD が揃ったらペーパートレードでエントリー記録</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:baseline;">
+          <span style="color:var(--accent);font-weight:700;flex-shrink:0;">Step 4</span>
+          <span>アラートを設定して損切り・利確到達を監視</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:baseline;">
+          <span style="color:var(--accent);font-weight:700;flex-shrink:0;">Step 5</span>
+          <span>決済後に日誌へ結果と振り返りを記録 → 翌週のトレードに活かす</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== NEW-5: スキャナーの活用法 ===== -->
+  <section class="section" id="scanner-guide">
+    <h2 class="section-title">🔍 スキャナーの活用法</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px;">
+      スキャナーは毎朝の「候補銘柄リストアップ」に使います。闇雲に銘柄を探すのではなく、
+      条件を絞って<strong>高確率のセットアップ</strong>を持つ銘柄だけを分析対象にしましょう。
+    </p>
+
+    <div class="scanner-table-wrap" style="margin-bottom:24px;">
+      <table class="scanner-table">
+        <thead>
+          <tr>
+            <th>スキャン条件</th>
+            <th>用途・使い方</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              モメンタム<br>
+              <span class="scan-tag scan-tag-green">トレンドフォロー</span>
+            </td>
+            <td>
+              RSI 50以上かつ出来高が直近平均を上回る銘柄を抽出。勢いのある銘柄を早期に発見する。
+              AIシグナルが BUY 以上の銘柄を優先的にウォッチリストへ追加しましょう。
+            </td>
+          </tr>
+          <tr>
+            <td>
+              52週高値ブレイク<br>
+              <span class="scan-tag scan-tag-green">ブレイクアウト</span>
+            </td>
+            <td>
+              年初来高値・52週高値を更新した銘柄は<strong>強いトレンドの始まり</strong>を示すことが多い。
+              抵抗帯を突破した後はサポートに変わるため、押し目でエントリーできるか確認する。
+            </td>
+          </tr>
+          <tr>
+            <td>
+              出来高急増<br>
+              <span class="scan-tag scan-tag-blue">機関投資家動向</span>
+            </td>
+            <td>
+              平均比較で出来高が突出した銘柄。機関投資家の大口売買や重要ニュースの可能性がある。
+              <strong>必ずニュースを確認</strong>してから判断すること。材料のない出来高急増は誤シグナルのリスクあり。
+            </td>
+          </tr>
+          <tr>
+            <td>
+              RSI過売<br>
+              <span class="scan-tag scan-tag-red">逆張り</span>
+            </td>
+            <td>
+              RSI 30以下の売られすぎ銘柄。<strong>ファンダメンタルが良好</strong>にも関わらず下げている銘柄に絞ること。
+              業績悪化による下落は逆張りのワナになるため、決算内容とニュースを必ず確認する。
+            </td>
+          </tr>
+          <tr>
+            <td>
+              ゴールデンクロス<br>
+              <span class="scan-tag scan-tag-green">トレンド転換</span>
+            </td>
+            <td>
+              MA20がMA50を上抜けた銘柄をリアルタイムで検出。
+              クロス直後より「数日後に押し目をつけてから確認」するとより精度が上がる。
+              ADXが25以上であれば信頼性が増す。
+            </td>
+          </tr>
+          <tr>
+            <td>
+              ボリンジャースクイーズ<br>
+              <span class="scan-tag scan-tag-blue">ブレイク前哨</span>
+            </td>
+            <td>
+              BBバンド幅が直近最小値付近まで縮小した銘柄。大きな値動きの直前を示す。
+              ブレイクの<strong>方向はわからない</strong>ため、ブレイク後に方向を確認してからエントリーする。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">スキャナーを使う際の注意点</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;color:var(--muted);">
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <span style="color:var(--red);flex-shrink:0;">&#x26A0;</span>
+          <span>スキャン結果は<strong style="color:var(--text)">候補</strong>であって推奨銘柄ではない。チャート分析・AIシグナルで二次確認を</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <span style="color:var(--red);flex-shrink:0;">&#x26A0;</span>
+          <span>複数の条件が重なる銘柄ほど信頼度が上がる（モメンタム＋出来高急増＋BUYシグナル等）</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <span style="color:var(--accent);flex-shrink:0;">&#x2714;</span>
+          <span>毎朝のスキャンで3〜5銘柄に絞り込み、深く分析する習慣をつける</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <span style="color:var(--accent);flex-shrink:0;">&#x2714;</span>
+          <span>セクターローテーションを意識する。市場概況で強いセクターの銘柄を優先的に選ぶ</span>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
 </main>
 
 <!-- ========== FOOTER ========== -->
@@ -1277,6 +1762,20 @@
     document.querySelectorAll('.ind-tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('ind-' + tab).classList.add('active');
     btn.classList.add('active');
+  }
+
+  // ===== Accordion =====
+  function toggleAcc(btn) {
+    const body = btn.nextElementSibling;
+    const isOpen = body.classList.contains('open');
+    // close all
+    document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open'));
+    document.querySelectorAll('.accordion-header').forEach(b => b.classList.remove('open'));
+    // open clicked (if it was closed)
+    if (!isOpen) {
+      body.classList.add('open');
+      btn.classList.add('open');
+    }
   }
 
   // ===== Scroll animation =====
