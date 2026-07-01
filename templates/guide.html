@@ -1610,6 +1610,119 @@
     </div>
   </section>
 
+  <!-- ===== NEW-5B: 新機能解説（ポートフォリオ・リスク・空売り・アラート） ===== -->
+  <section class="section" id="new-features">
+    <h2 class="section-title">🆕 新機能ガイド</h2>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px;">
+      最近追加された機能の使い方を解説します。各項目をクリックして詳細を開閉できます。
+    </p>
+
+    <div class="accordion-list">
+
+      <!-- ポートフォリオシミュレーター -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>💼 ポートフォリオシミュレーター</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <p style="margin-bottom:10px;"><strong style="color:var(--text)">/portfolio</strong> — 複数銘柄のポートフォリオを任意の比率で設定し、過去1年/2年/5年の仮想運用結果をシミュレーションします。</p>
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">指標</strong>: 総リターン、最大ドローダウン、シャープレシオ、最終資産額</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">プリセット</strong>: MAG7（Apple/Microsoft/Nvidia等）、高配当（JNJ/KO等）</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">チャート</strong>: 累積リターンの時系列折れ線グラフ</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- セクターヒートマップ / センチメント指標 -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>🌐 セクターヒートマップ + センチメント指標</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <p style="margin-bottom:10px;"><strong style="color:var(--text)">/market</strong> ページ内で確認できます。</p>
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">セクターヒートマップ</strong>: 11セクターの騰落率を色で可視化。強いセクター・弱いセクターを一目で把握</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">Fear &amp; Greed指標</strong>: 市場全体のセンチメントを0〜100でスコア化（0=極度の恐怖、100=極度の強欲）</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">活用法</strong>: 個別銘柄を見る前にセクター全体の方向性を確認し、強いセクターから候補銘柄を絞り込む</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- リスク・モメンタム指標 -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>⚡ リスク・モメンタム指標</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">ベータ値</strong>: 市場（S&amp;P500）との連動性。1.0より高いほど市場より大きく動く</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">ヒストリカルボラティリティ</strong>: 過去20日の日次リターンの標準偏差（年率換算）</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">モメンタムスコア</strong>: 1週間/1ヶ月/3ヶ月/6ヶ月リターンの加重平均（短期ほど重み大）</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">総合リスク評価</strong>: HIGH（β&gt;1.5 or ボラ&gt;40%）/ MEDIUM / LOW</li>
+            </ul>
+            <div class="acc-tip">
+              分析ページの「Section 8.5 — リスク・モメンタム指標」に表示されます。銘柄のリスク水準を把握してポジションサイズの調整に活用してください。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空売り情報・インサイダー取引 -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>📉 空売り情報・インサイダー取引</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <p style="margin-bottom:10px;">銘柄分析ページ（/analysis）で確認できます。</p>
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">空売り比率</strong>: 流通株式に対する空売り残高の割合</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">カバー日数</strong>: 空売り残高を全て買戻すのに必要な日数（高いほどスクイーズ注意）</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">ショートスクイーズリスク</strong>: 空売り比率&gt;20% かつ カバー日数&gt;5日 → HIGH</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">インサイダー取引</strong>: 会社役員・大株主の直近売買履歴と売買バランス</li>
+            </ul>
+            <div class="acc-note">
+              インサイダーの大量買いは強気サインになることがありますが、売りは節税など様々な理由がある点に注意してください。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- テクニカルアラート -->
+      <div class="accordion-item">
+        <button class="accordion-header" onclick="toggleAcc(this)">
+          <span>🔔 テクニカルアラート</span>
+          <span class="accordion-arrow">▼</span>
+        </button>
+        <div class="accordion-body">
+          <div class="accordion-inner">
+            <p style="margin-bottom:10px;">ウォッチリストのアラートモーダルから設定できます（「テクニカル」タブ）。</p>
+            <ul style="margin-left:16px;margin-top:6px;">
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">ゴールデンクロス</strong>: MA20がMA50を上抜けたとき通知</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">デッドクロス</strong>: MA20がMA50を下抜けたとき通知</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">RSI売られすぎ</strong>: RSIが30以下になったとき通知</li>
+              <li style="margin-bottom:6px;"><strong style="color:var(--text)">RSI買われすぎ</strong>: RSIが70以上になったとき通知</li>
+            </ul>
+            <div class="acc-tip">
+              30分ごとに自動チェック（スケジューラー経由）。価格アラートと組み合わせて、チャンスを見逃さない体制を作りましょう。
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /accordion-list -->
+  </section>
+
   <!-- ===== NEW-5: スキャナーの活用法 ===== -->
   <section class="section" id="scanner-guide">
     <h2 class="section-title">🔍 スキャナーの活用法</h2>
