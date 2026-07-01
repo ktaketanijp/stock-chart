@@ -18,6 +18,7 @@ from indicators import (
     find_support_resistance, calc_adx, calc_williams_r,
     detect_rsi_divergence, detect_ma_cross,
     calc_historical_volatility, calc_momentum_score,
+    calc_atr_percent,
 )
 import alerts as _alerts_mod
 
@@ -2216,6 +2217,27 @@ def risk_analysis(ticker):
         result["volatility_60d"] = calc_historical_volatility(close, 60)
         result["momentum"] = calc_momentum_score(close)
 
+        # ATR (14日)
+        try:
+            high = hist["High"]
+            low = hist["Low"]
+            result["atr_14d_pct"] = calc_atr_percent(high, low, close, 14)
+            last_price = float(close.iloc[-1])
+            prev_close_s = close.shift(1)
+            tr = pd.concat([
+                high - low,
+                (high - prev_close_s).abs(),
+                (low - prev_close_s).abs(),
+            ], axis=1).max(axis=1)
+            atr_series = tr.ewm(span=14, adjust=False).mean()
+            current_atr = float(atr_series.iloc[-1])
+            result["atr_range"] = {
+                "low": round(last_price - current_atr, 2),
+                "high": round(last_price + current_atr, 2),
+            }
+        except Exception:
+            pass
+
         # ベータ値（S&P500と比較、手動計算 — infoから取得できなかった場合）
         if not result.get("beta"):
             sp500 = yf.Ticker("^GSPC").history(period="1y", interval="1d")["Close"]
@@ -2243,6 +2265,102 @@ def risk_analysis(ticker):
         result["risk_level"] = "LOW"
 
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# オプションチェーン
+# ---------------------------------------------------------------------------
+
+@app.route("/api/analysis/options/<ticker>")
+def options_chain(ticker):
+    """
+    オプションチェーン（最も近い満期）
+    ATMから±20%の行使価格を返す
+    """
+    import math
+
+    def _safe_float(v, default=0.0):
+        try:
+            f = float(v)
+            return default if math.isnan(f) or math.isinf(f) else f
+        except (TypeError, ValueError):
+            return default
+
+    def _safe_int(v):
+        try:
+            f = float(v)
+            return 0 if math.isnan(f) or math.isinf(f) else int(f)
+        except (TypeError, ValueError):
+            return 0
+
+    t = yf.Ticker(ticker.upper())
+
+    try:
+        exp_dates = t.options
+        if not exp_dates:
+            return jsonify({"ticker": ticker.upper(), "error": "オプションデータなし"})
+
+        # 最近の満期日を最大2個選択
+        nearest = exp_dates[:2]
+        result = {"ticker": ticker.upper(), "expirations": []}
+
+        # 現在価格
+        current_price = float(t.fast_info.last_price or 0)
+
+        for exp in nearest:
+            chain = t.option_chain(exp)
+            calls_df = chain.calls
+            puts_df = chain.puts
+
+            # ATM付近のストライクのみ（±20%）
+            low_strike = current_price * 0.80
+            high_strike = current_price * 1.20
+
+            calls = []
+            for _, row in calls_df.iterrows():
+                strike = _safe_float(row.get("strike", 0))
+                if low_strike <= strike <= high_strike:
+                    iv = _safe_float(row.get("impliedVolatility", 0))
+                    calls.append({
+                        "strike": strike,
+                        "lastPrice": round(_safe_float(row.get("lastPrice", 0)), 2),
+                        "bid": round(_safe_float(row.get("bid", 0)), 2),
+                        "ask": round(_safe_float(row.get("ask", 0)), 2),
+                        "volume": _safe_int(row.get("volume", 0)),
+                        "openInterest": _safe_int(row.get("openInterest", 0)),
+                        "iv_pct": round(iv * 100, 1),
+                        "itm": strike < current_price,
+                    })
+
+            puts = []
+            for _, row in puts_df.iterrows():
+                strike = _safe_float(row.get("strike", 0))
+                if low_strike <= strike <= high_strike:
+                    iv = _safe_float(row.get("impliedVolatility", 0))
+                    puts.append({
+                        "strike": strike,
+                        "lastPrice": round(_safe_float(row.get("lastPrice", 0)), 2),
+                        "bid": round(_safe_float(row.get("bid", 0)), 2),
+                        "ask": round(_safe_float(row.get("ask", 0)), 2),
+                        "volume": _safe_int(row.get("volume", 0)),
+                        "openInterest": _safe_int(row.get("openInterest", 0)),
+                        "iv_pct": round(iv * 100, 1),
+                        "itm": strike > current_price,
+                    })
+
+            result["expirations"].append({
+                "date": exp,
+                "calls": sorted(calls, key=lambda x: x["strike"]),
+                "puts": sorted(puts, key=lambda x: x["strike"]),
+                "call_count": len(calls),
+                "put_count": len(puts),
+            })
+
+        result["current_price"] = round(current_price, 2)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"ticker": ticker.upper(), "error": str(e)})
 
 
 # ---------------------------------------------------------------------------

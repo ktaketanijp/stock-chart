@@ -72,6 +72,21 @@ def calc_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
     return out
 
 
+def calc_atr_percent(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> float:
+    """ATRを現在価格に対するパーセントで返す"""
+    prev_close = close.shift(1)
+    tr1 = high - low
+    tr2 = (high - prev_close).abs()
+    tr3 = (low - prev_close).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = tr.ewm(span=period, adjust=False).mean()
+    current_price = float(close.iloc[-1])
+    current_atr = float(atr.iloc[-1])
+    if current_price > 0:
+        return round(current_atr / current_price * 100, 2)
+    return 0.0
+
+
 def calc_stochastic(high: pd.Series, low: pd.Series, close: pd.Series,
                     k_period: int = 14, d_period: int = 3) -> dict:
     """Stochastic Oscillator"""
