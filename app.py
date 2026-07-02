@@ -3215,6 +3215,60 @@ def market_regime():
         return jsonify({"error": str(e)})
 
 
+@app.route("/api/market/breadth")
+def market_breadth():
+    """マーケット幅：S&P500代表30銘柄の騰落数・新高値・MA50比率"""
+
+    SAMPLE = [
+        "AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA","BRK-B",
+        "UNH","JPM","XOM","LLY","JNJ","V","PG","MA","HD","ABBV",
+        "MRK","CVX","CRM","BAC","KO","AVGO","COST","ACN","AMD","ADBE",
+        "PEP","TMO"
+    ]
+
+    advances = declines = unchanged = new_highs = new_lows = above_ma50 = total = 0
+
+    for ticker in SAMPLE:
+        try:
+            hist = yf.Ticker(ticker).history(period="1y", interval="1d")["Close"].dropna()
+            if len(hist) < 2:
+                continue
+            price = float(hist.iloc[-1])
+            prev  = float(hist.iloc[-2])
+            chg   = (price - prev) / prev * 100
+
+            if chg > 0.1:    advances += 1
+            elif chg < -0.1: declines += 1
+            else:             unchanged += 1
+
+            if price >= float(hist.max()) * 0.99: new_highs += 1
+            if price <= float(hist.min()) * 1.01: new_lows  += 1
+
+            ma50 = float(hist.rolling(50).mean().iloc[-1])
+            if price > ma50: above_ma50 += 1
+
+            total += 1
+        except Exception:
+            continue
+
+    adv_ratio = round(advances / total * 100, 1) if total else 0
+    ma50_pct  = round(above_ma50 / total * 100, 1) if total else 0
+
+    if adv_ratio >= 65 and new_highs >= 5: signal, label = "STRONG_BULL", "強い強気"
+    elif adv_ratio >= 55:                  signal, label = "BULL",        "強気"
+    elif adv_ratio >= 45:                  signal, label = "NEUTRAL",     "中立"
+    elif adv_ratio >= 35:                  signal, label = "BEAR",        "弱気"
+    else:                                  signal, label = "STRONG_BEAR", "強い弱気"
+
+    return jsonify({
+        "advances": advances, "declines": declines, "unchanged": unchanged,
+        "total": total, "advance_ratio": adv_ratio,
+        "new_highs": new_highs, "new_lows": new_lows,
+        "above_ma50": above_ma50, "above_ma50_pct": ma50_pct,
+        "signal": signal, "label": label,
+    })
+
+
 # ---------------------------------------------------------------------------
 # AIシグナル（3層強化版）
 # ---------------------------------------------------------------------------

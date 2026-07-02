@@ -534,6 +534,59 @@
       font-size: 13px;
       font-weight: 600;
     }
+
+    /* === CSS変数 === */
+    :root {
+      --positive: #3fb950;
+      --negative: #f85149;
+      --text-secondary: #8b949e;
+    }
+
+    /* === マーケット幅カード === */
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .card h3 {
+      font-size: 12px;
+      font-weight: 600;
+      color: #8b949e;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .btn-sm {
+      background: transparent;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 11px;
+      padding: 3px 8px;
+      transition: all 0.15s;
+    }
+    .btn-sm:hover { border-color: #58a6ff; color: #58a6ff; }
+    .metric-card {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .metric-label {
+      font-size: 10px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .metric-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #e6edf3;
+    }
   </style>
 </head>
 <body>
@@ -623,6 +676,50 @@
              background:#0d1117;border:1px solid #30363d;font-size:0.85rem;color:#8b949e">
           読み込み中...
         </div>
+      </div>
+    </div>
+
+    <!-- マーケット幅 -->
+    <div class="card" style="margin-bottom:0.75rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+        <h3 style="font-size:0.9rem">📊 マーケット幅（S&amp;P500 代表30銘柄）</h3>
+        <button class="btn-sm" onclick="loadMarketBreadth()">更新</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(95px,1fr));gap:0.4rem;margin-bottom:0.6rem">
+        <div class="metric-card">
+          <div class="metric-label">上昇銘柄</div>
+          <div id="breadth-adv" class="metric-value" style="color:var(--positive)">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">下落銘柄</div>
+          <div id="breadth-dec" class="metric-value" style="color:var(--negative)">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">騰落比率</div>
+          <div id="breadth-ratio" class="metric-value">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">新高値</div>
+          <div id="breadth-highs" class="metric-value" style="color:var(--positive)">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">MA50超</div>
+          <div id="breadth-ma50" class="metric-value">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">市場判断</div>
+          <div id="breadth-signal" class="metric-value" style="font-size:0.85rem">—</div>
+        </div>
+      </div>
+
+      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden">
+        <div id="breadth-bar-adv" style="background:#10b981;width:0%;transition:width .5s"></div>
+        <div id="breadth-bar-unc" style="background:#6b7280;width:0%;transition:width .5s"></div>
+        <div id="breadth-bar-dec" style="background:#ef4444;width:0%;transition:width .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-secondary);margin-top:0.2rem">
+        <span>上昇</span><span>中立</span><span>下落</span>
       </div>
     </div>
 
@@ -1077,6 +1174,34 @@
       }
     }
 
+    // ---- マーケット幅 ----
+    async function loadMarketBreadth() {
+      const resp = await fetch('/api/market/breadth');
+      const data = await resp.json();
+      if (data.error) return;
+
+      document.getElementById('breadth-adv').textContent   = data.advances + '銘柄';
+      document.getElementById('breadth-dec').textContent   = data.declines + '銘柄';
+
+      const ratioEl = document.getElementById('breadth-ratio');
+      ratioEl.textContent  = data.advance_ratio + '%';
+      ratioEl.style.color  = data.advance_ratio >= 55 ? 'var(--positive)' : data.advance_ratio <= 45 ? 'var(--negative)' : '';
+
+      document.getElementById('breadth-highs').textContent = data.new_highs + '銘柄';
+      document.getElementById('breadth-ma50').textContent  = data.above_ma50_pct + '%';
+
+      const colors = {STRONG_BULL:'#10b981',BULL:'#34d399',NEUTRAL:'#6b7280',BEAR:'#f87171',STRONG_BEAR:'#ef4444'};
+      const sigEl = document.getElementById('breadth-signal');
+      sigEl.textContent  = data.label;
+      sigEl.style.color  = colors[data.signal] || '';
+
+      if (data.total > 0) {
+        document.getElementById('breadth-bar-adv').style.width = (data.advances  / data.total * 100) + '%';
+        document.getElementById('breadth-bar-unc').style.width = (data.unchanged / data.total * 100) + '%';
+        document.getElementById('breadth-bar-dec').style.width = (data.declines  / data.total * 100) + '%';
+      }
+    }
+
     // ---- ヒートマップ ----
     async function loadHeatmap() {
       try {
@@ -1131,6 +1256,7 @@
       await Promise.all([
         loadSentiment(),
         loadMarketRegime(),
+        loadMarketBreadth(),
         loadIndices(),
         loadSectors(),
         loadWatchlist(),
