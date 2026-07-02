@@ -320,6 +320,9 @@
       <button class="filter-badge active" onclick="filterNews('ALL')" data-ticker="ALL">すべて</button>
     </div>
 
+    <!-- センチメントサマリー -->
+    <div id="sentiment-summary" style="font-size:0.82rem;margin-bottom:0.5rem"></div>
+
     <!-- ニュースフィード -->
     <div id="news-feed">
       <div class="loading-msg"><span class="spinner"></span>ニュースを取得中...</div>
@@ -365,16 +368,46 @@
     }
 
     function sentimentLabel(s) {
-      if (s === 'positive') return '上昇';
-      if (s === 'negative') return '下落';
-      return 'ニュートラル';
+      if (s === 'positive') return '強気';
+      if (s === 'negative') return '弱気';
+      return '中立';
+    }
+
+    function sentimentBadge(s) {
+      const map = {
+        positive: {bg:'#15803d', text:'強気'},
+        negative: {bg:'#dc2626', text:'弱気'},
+        neutral:  {bg:'#374151', text:'中立'},
+      };
+      const m = map[s] || map.neutral;
+      return `<span style="padding:0.1rem 0.35rem;border-radius:0.2rem;font-size:0.7rem;
+                            background:${m.bg};color:white;margin-left:0.3rem">${m.text}</span>`;
+    }
+
+    function renderSentimentSummary(newsList) {
+      const counts = {positive: 0, negative: 0, neutral: 0};
+      newsList.forEach(n => {
+        const s = n.sentiment || quickSentiment(n.title || '');
+        counts[s] = (counts[s] || 0) + 1;
+      });
+      const total = newsList.length || 1;
+
+      const el = document.getElementById('sentiment-summary');
+      if (!el) return;
+
+      el.innerHTML = `
+        <span style="color:#10b981">強気: ${counts.positive}件 (${Math.round(counts.positive/total*100)}%)</span>
+        <span style="margin:0 0.5rem;color:var(--text-secondary)">|</span>
+        <span style="color:#6b7280">中立: ${counts.neutral}件</span>
+        <span style="margin:0 0.5rem;color:var(--text-secondary)">|</span>
+        <span style="color:#ef4444">弱気: ${counts.negative}件 (${Math.round(counts.negative/total*100)}%)</span>
+      `;
     }
 
     // ========== ニュースカード描画 ==========
     function renderCard(item) {
       const color = tickerColor(item.ticker);
-      const sentiment = quickSentiment(item.title);
-      const sentLabel = sentimentLabel(sentiment);
+      const sentiment = item.sentiment || quickSentiment(item.title);
       const title = item.title ? item.title.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '（タイトルなし）';
       const publisher = item.publisher ? item.publisher.replace(/</g, '&lt;') : '';
       const link = item.link || '#';
@@ -382,10 +415,9 @@
         <article class="news-card" data-ticker="${item.ticker}">
           <div class="news-card-header">
             <span class="news-ticker-badge" style="background:${color}">${item.ticker}</span>
-            <span class="sentiment-badge ${sentiment}">${sentLabel}</span>
           </div>
           <h3 class="news-title">
-            <a href="${link}" target="_blank" rel="noopener noreferrer">${title}</a>
+            <a href="${link}" target="_blank" rel="noopener noreferrer">${title}</a>${sentimentBadge(sentiment)}
           </h3>
           <div class="news-meta">
             <span>${publisher}</span>
@@ -407,9 +439,11 @@
       const filtered = ticker === 'ALL' ? allNews : allNews.filter(n => n.ticker === ticker);
       if (filtered.length === 0) {
         feed.innerHTML = '<div class="empty-msg">この銘柄のニュースはありません</div>';
+        renderSentimentSummary([]);
         return;
       }
       feed.innerHTML = filtered.map(renderCard).join('');
+      renderSentimentSummary(filtered);
     }
 
     // ========== フィルターバッジ構築 ==========
@@ -489,12 +523,13 @@
         document.getElementById("wl-news-list").innerHTML = data.news.map(n => {
           const color = tickerColor(n.ticker);
           const title = (n.title || "（タイトルなし）").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const s = n.sentiment || quickSentiment(n.title || '');
           return `
             <div style="padding:8px 0;border-bottom:1px solid var(--border-color)">
               <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;
                            background:${color};color:#fff;margin-right:6px">${n.ticker}</span>
               <a href="${n.url || "#"}" target="_blank" rel="noopener noreferrer"
-                 style="font-size:13px;color:var(--text-primary);text-decoration:none">${title}</a>
+                 style="font-size:13px;color:var(--text-primary);text-decoration:none">${title}</a>${sentimentBadge(s)}
               <span style="font-size:11px;color:var(--text-secondary);margin-left:6px">
                 ${(n.publisher || "").replace(/</g, "&lt;")} · ${n.published_str || ""}
               </span>

@@ -22,6 +22,21 @@ from indicators import (
 )
 import alerts as _alerts_mod
 
+
+def _sentiment_from_title(title: str) -> str:
+    """ニュースタイトルから感情を簡易判定"""
+    t = title.lower()
+    pos = ["surge","rally","gain","beat","record","growth","profit","upgrade",
+           "buy","bullish","strong","soar","rise","jump","boost","recover","high"]
+    neg = ["fall","drop","miss","loss","cut","downgrade","sell","bearish","weak",
+           "decline","crash","slump","sink","plunge","concern","risk","warn","low"]
+    ps = sum(1 for w in pos if w in t)
+    ns = sum(1 for w in neg if w in t)
+    if ps > ns:   return "positive"
+    if ns > ps:   return "negative"
+    return "neutral"
+
+
 app = Flask(__name__)
 
 # ---------------------------------------------------------------------------
@@ -482,7 +497,18 @@ def earnings_calendar():
 def news_api():
     ticker = request.args.get("ticker", "AAPL").upper()
     try:
-        return jsonify(get_news_with_summary(ticker))
+        result = get_news_with_summary(ticker)
+        # センチメントフィールドを追加
+        if isinstance(result, list):
+            news_list = result
+        elif isinstance(result, dict):
+            news_list = result.get("news", result.get("articles", []))
+        else:
+            news_list = []
+        for item in news_list:
+            if isinstance(item, dict) and "sentiment" not in item:
+                item["sentiment"] = _sentiment_from_title(item.get("title", ""))
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e), "ticker": ticker}), 500
 
@@ -2470,6 +2496,7 @@ def news_feed():
                     "link": link,
                     "date": date_str,
                     "timestamp": int(timestamp) if timestamp else 0,
+                    "sentiment": _sentiment_from_title(title),
                 })
         except Exception:
             continue
@@ -3675,12 +3702,14 @@ def watchlist_news():
         try:
             news = yf.Ticker(ticker).news or []
             for item in news[:3]:
+                _title = item.get("title", "")
                 all_news.append({
                     "ticker": ticker,
-                    "title": item.get("title", ""),
+                    "title": _title,
                     "url": item.get("link", ""),
                     "publisher": item.get("publisher", ""),
                     "published_at": item.get("providerPublishTime", 0),
+                    "sentiment": _sentiment_from_title(_title),
                 })
         except Exception:
             continue
