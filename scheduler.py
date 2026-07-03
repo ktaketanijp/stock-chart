@@ -162,6 +162,50 @@ def check_price_alerts():
         print(f"  アラートチェックエラー: {e}")
 
 
+def check_position_targets():
+    """15分ごと(米国市場時間): ポジションの利確・損切り自動実行"""
+    try:
+        import sys
+        sys.path.insert(0, "/home/ec2-user/stock-chart")
+        import yfinance as yf
+        from paper_trading import _load, close_trade, _get_current_price, _get_usd_jpy_rate
+
+        store = _load()
+        if not store.get("positions"):
+            return
+
+        rate = _get_usd_jpy_rate()
+        closed = []
+
+        for pos in list(store["positions"]):
+            price = _get_current_price(pos["ticker"])
+            if price <= 0:
+                continue
+
+            sl     = pos.get("stop_loss", 0)
+            target = pos.get("target", 0)
+
+            if target and price >= target:
+                # 利確
+                record = close_trade(pos["id"], price, memo="目標達成・自動利確")
+                pnl = record.get("realized_pnl", 0)
+                closed.append(f"🎯 利確 {pos['ticker']} ${price:.2f} (目標${target}) ¥{pnl:+,}")
+            elif sl and price <= sl:
+                # 損切り
+                record = close_trade(pos["id"], price, memo="SL到達・自動損切り")
+                pnl = record.get("realized_pnl", 0)
+                closed.append(f"🛑 損切 {pos['ticker']} ${price:.2f} (SL${sl}) ¥{pnl:+,}")
+
+        if closed:
+            print(f"[{jst_now().strftime('%H:%M JST')}] ポジション自動決済:")
+            for msg in closed:
+                print(f"  {msg}")
+        else:
+            print(f"[{jst_now().strftime('%H:%M JST')}] ポジションモニタリング完了（決済なし, {len(store['positions'])}件保有中）")
+    except Exception as e:
+        print(f"  ポジションチェックエラー: {e}")
+
+
 def check_technical_alert_job():
     """30分ごと: テクニカルアラートチェック"""
     try:
@@ -189,6 +233,7 @@ def save_report(name: str, data: dict):
 if __name__ == "__main__":
     # スケジュール登録
     schedule.every(5).minutes.do(check_price_alerts)
+    schedule.every(15).minutes.do(check_position_targets)
     schedule.every(30).minutes.do(check_technical_alert_job)
     schedule.every(1).hours.do(hourly_update)
     schedule.every().day.at("07:30").do(morning_scan)
